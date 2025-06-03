@@ -1,0 +1,132 @@
+{
+  "name": "@red-hat-developer-hub/cli",
+  "description": "CLI for developing Backstage plugins and apps",
+  "version": "0.0.1",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/redhat-developer/rhdh-cli.git",
+    "directory": "."
+  },
+  "backstage": {
+    "role": "cli"
+  },
+  "homepage": "https://developers.redhat.com/products/rhdh/overview",
+  "keywords": [
+    "rhdh", "cli"
+  ],
+  "license": "Apache-2.0",
+  "main": "dist/index.cjs.js",
+  "scripts": {
+    "build": "backstage-cli package build",
+    "lint:check": "backstage-cli package lint",
+    "lint:fix": "backstage-cli package lint --fix",
+    "tsc": "tsc",
+    "prettier:check": "prettier --ignore-unknown --check .",
+    "prettier:fix": "prettier --ignore-unknown --write .",
+    "test": "backstage-cli package test --passWithNoTests --coverage",
+    "clean": "backstage-cli package clean"
+  },
+  "bin": "bin/rhdh-cli",
+  "dependencies": {
+    "@backstage/cli-common": "^0.1.15",
+    "@backstage/cli-node": "^0.2.12",
+    "@backstage/config": "^1.3.2",
+    "@backstage/config-loader": "^1.9.5",
+    "@backstage/errors": "^1.2.7",
+    "@backstage/types": "^1.2.1",
+    "@changesets/cli": "^2.29.4",
+    "@manypkg/get-packages": "^1.1.3",
+    "@openshift/dynamic-plugin-sdk-webpack": "^3.0.0",
+    "@pmmmwh/react-refresh-webpack-plugin": "^0.5.7",
+    "@svgr/webpack": "^6.5.1",
+    "@yarnpkg/lockfile": "^1.1.0",
+    "@yarnpkg/parsers": "^3.0.0-rc.4",
+    "bfj": "^8.0.0",
+    "chalk": "^4.0.0",
+    "chokidar": "^3.3.1",
+    "codeowners": "^5.1.1",
+    "commander": "^9.1.0",
+    "css-loader": "^6.5.1",
+    "esbuild": "^0.23.0",
+    "esbuild-loader": "^2.18.0",
+    "eslint": "^8.49.0",
+    "eslint-config-prettier": "^8.10.0",
+    "eslint-webpack-plugin": "^3.2.0",
+    "fork-ts-checker-webpack-plugin": "^7.0.0-alpha.8",
+    "fs-extra": "^10.1.0",
+    "gitconfiglocal": "2.1.0",
+    "handlebars": "^4.7.7",
+    "html-webpack-plugin": "~5.6.3",
+    "is-native-module": "^1.1.3",
+    "lodash": "^4.17.21",
+    "mini-css-extract-plugin": "^2.4.2",
+    "node-libs-browser": "^2.2.1",
+    "npm-packlist": "^5.0.0",
+    "ora": "^5.3.0",
+    "postcss": "^8.2.13",
+    "react-dev-utils": "^12.0.0-next.60",
+    "react-refresh": "^0.14.0",
+    "recursive-readdir": "^2.2.2",
+    "semver": "^7.5.4",
+    "style-loader": "^3.3.1",
+    "swc-loader": "^0.2.3",
+    "typescript-json-schema": "^0.64.0",
+    "webpack": "~5.95.0",
+    "webpack-dev-server": "^4.15.1",
+    "yaml": "^2.5.1",
+    "yml-loader": "^2.1.0",
+    "yn": "^4.0.0"
+  },
+  "devDependencies": {
+    "@backstage/cli": "0.29.5",
+    "@backstage/core-plugin-api": "1.10.3",
+    "@backstage/repo-tools": "^0.13.3",
+    "@spotify/prettier-config": "15.0.0",
+    "@types/fs-extra": "9.0.13",
+    "@types/mock-fs": "4.13.4",
+    "@types/node": "18.19.34",
+    "@types/npm-packlist": "3.0.0",
+    "@types/recursive-readdir": "2.2.4",
+    "@types/yarnpkg__lockfile": "1.1.9",
+    "mock-fs": "5.2.0",
+    "nodemon": "3.1.3",
+    "prettier": "3.3.3",
+    "ts-node": "10.9.2",
+    "type-fest": "4.20.1",
+    "typescript": "5.4.5"
+  },
+  "peerDependencies": {
+    "@microsoft/api-extractor": "^7.21.2"
+  },
+  "peerDependenciesMeta": {
+    "@microsoft/api-extractor": {
+      "optional": true
+    }
+  },
+  "files": [
+    "asset-types",
+    "templates",
+    "config",
+    "bin",
+    "dist/**/*.js"
+  ],
+  "nodemonConfig": {
+    "watch": "./src",
+    "exec": "bin/rhdh-cli",
+    "ext": "ts"
+  },
+  "prettier": "@spotify/prettier-config",
+  "lint-staged": {
+    "*.{js,jsx,ts,tsx,mjs,cjs}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{json,md}": [
+      "prettier --write"
+    ]
+  },
+  "packageManager": "yarn@3.8.6"
+}

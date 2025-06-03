@@ -1,0 +1,59 @@
+name: CI
+
+on:
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ci:
+    name: CI
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    env:
+      CI: true
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v
+
+      - name: Set up Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version-file: .nvmrc
+
+      - name: yarn install
+        run: yarn install --immutable
+
+      - name: type checking and declarations
+        run: yarn tsc
+
+      - name: prettier
+        run: yarn prettier:check
+
+      - name: build all packages
+        run: yarn backstage-cli repo build --all
+
+      - name: publish check
+        run: yarn backstage-cli repo fix --check --publish
+
+      - name: test changed packages
+        run: yarn backstage-cli repo test --coverage --maxWorkers=3
+
+      - name: ensure clean working directory
+        run: |
+          if files=$(git ls-files --exclude-standard --others --modified) && [[ -z "$files" ]]; then
+            exit 0
+          else
+            echo ""
+            echo "Working directory has been modified:"
+            echo ""
+            git status --short
+            echo ""
+            git diff
+            exit 1
+          fi

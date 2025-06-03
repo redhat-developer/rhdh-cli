@@ -1,0 +1,27 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: red-hat-developer-hub-cli
+  title: '@red-hat-developer-hub/cli'
+  description: This package provides a CLI for developing RHDH plugins and apps.
+  annotations:
+    backstage.io/source-location: url:https://github.com/redhat-developer/rhdh-cli
+    backstage.io/view-url: https://github.com/redhat-developer/rhdh-cli/blob/main/catalog-info.yaml
+    backstage.io/edit-url: https://github.com/redhat-developer/rhdh-cli/edit/main/catalog-info.yaml
+    github.com/project-slug: redhat-developer/rhdh-cli
+    github.com/team-slug: redhat-developer/maintainers-plugins
+    sonarqube.org/project-key: redhat-developer_rhdh-cli
+  tags:
+    - kubernetes
+    - openshift
+  links:
+    - url: https://github.com/redhat-developer/rhdh-cli
+      title: GitHub Source
+      icon: source
+      type: source
+spec:
+  type: backstage-cli
+  lifecycle: experimental
+  owner: rhdh-team
+  system: rhdh
+  subcomponentOf: red-hat-developer-hub
