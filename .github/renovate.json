@@ -32,18 +32,6 @@
       "groupName": "GitHub Actions"
     },
     {
-      "matchPackageNames": ["node-fetch"],
-      "allowedVersions": "<3.0.0"
-    },
-    {
-      "matchPackageNames": ["typescript"],
-      "allowedVersions": "~5.3.0"
-    },
-    {
-      "matchPackageNames": ["yn"],
-      "allowedVersions": "<5.0.0"
-    },
-    {
       "groupName": "Core Backstage packages",
       "dependencyDashboardApproval": true,
       "matchDepNames": ["/^@backstage//"]
