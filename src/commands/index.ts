@@ -20,12 +20,6 @@ import { Command, InvalidArgumentError } from 'commander';
 
 import { exitWithError } from '../lib/errors';
 
-const configOption = [
-  '--config <path>',
-  'Config files to load instead of app-config.yaml',
-  (opt: string, opts: string[]) => (opts ? [...opts, opt] : [opt]),
-  Array<string>(),
-] as const;
 
 /**
  * A subset of commands as compared to @backstage/cli that focuses on what
