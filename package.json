@@ -15,7 +15,8 @@
   },
   "homepage": "https://developers.redhat.com/products/rhdh/overview",
   "keywords": [
-    "rhdh", "cli"
+    "rhdh",
+    "cli"
   ],
   "license": "Apache-2.0",
   "main": "dist/index.cjs.js",

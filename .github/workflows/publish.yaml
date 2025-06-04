@@ -1,6 +1,5 @@
 name: Publish package to NPM
 
-
 on:
   workflow_dispatch:
 
@@ -35,4 +34,3 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           YARN_NPM_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-          

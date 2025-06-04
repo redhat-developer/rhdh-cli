@@ -20,7 +20,6 @@ import { Command, InvalidArgumentError } from 'commander';
 
 import { exitWithError } from '../lib/errors';
 
-
 /**
  * A subset of commands as compared to @backstage/cli that focuses on what
  * is needed to support dynamic plugins
@@ -29,7 +28,6 @@ export function registerScriptCommand(program: Command) {
   const command = program
     .command('plugin [command]')
     .description('Lifecycle scripts for individual plugins');
-
 
   command
     .command('export')
@@ -146,7 +144,7 @@ export function registerScriptCommand(program: Command) {
     .action(
       lazy(() => import('./package-dynamic-plugins').then(m => m.command)),
     );
-  }
+}
 export function registerCommands(program: Command) {
   registerScriptCommand(program);
 }
