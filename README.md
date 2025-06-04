@@ -1,5 +1,4 @@
-# @redhat-developer/rhdh-cli
+# @red-hat-developer-hub/cli
 
-WORK IN PROGRESS
-
-Not ready for production use.
+## Contributing
+For information on how to contribute, build and release, please see the [contributing guide](CONTRIBUTING.md).
