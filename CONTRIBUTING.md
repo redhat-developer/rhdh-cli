@@ -46,4 +46,3 @@ This workflow creates a new PR `Version Packages` (or update it if one already e
 Publishing is done using [Publish Package to NPM](.github/workflows/publish.yaml) workflow.
 
 This workflow is **not** currently triggered automatically. It needs to be run manually from the [Actions tab](https://github.com/redhat-developer/rhdh-cli/actions/workflows/publish.yaml) in the GitHub repository.
-
