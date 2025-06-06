@@ -20,11 +20,65 @@ import { Command, InvalidArgumentError } from 'commander';
 
 import { exitWithError } from '../lib/errors';
 
+const configOption = [
+  '--config <path>',
+  'Config files to load instead of app-config.yaml',
+  (opt: string, opts: string[]) => (opts ? [...opts, opt] : [opt]),
+  Array<string>(),
+] as const;
+
 /**
  * A subset of commands as compared to @backstage/cli that focuses on what
  * is needed to support dynamic plugins
  */
-export function registerScriptCommand(program: Command) {
+export function registerFrontendCommand(program: Command) {
+  const command = program
+    .command('frontend [command]')
+    .description('Scripts usefull for developing frontend plugins');
+
+  command
+    .command('start')
+    .description('Start a package for local development')
+    .option(...configOption)
+    .option('--role <name>', 'Run the command with an explicit package role')
+    .option('--check', 'Enable type checking and linting if available')
+    .option('--inspect', 'Enable debugger in Node.js environments')
+    .option(
+      '--inspect-brk',
+      'Enable debugger in Node.js environments, breaking before code starts',
+    )
+    .action(lazy(() => import('./start').then(m => m.command)));
+
+  command
+    .command('build')
+    .description('Build a package for production deployment or publishing')
+    .option('--role <name>', 'Run the command with an explicit package role')
+    .option(
+      '--minify',
+      'Minify the generated code. Does not apply to app or backend packages.',
+    )
+    .option(
+      '--experimental-type-build',
+      'Enable experimental type build. Does not apply to app or backend packages. [DEPRECATED]',
+    )
+    .option(
+      '--skip-build-dependencies',
+      'Skip the automatic building of local dependencies. Applies to backend packages only.',
+    )
+    .option(
+      '--stats',
+      'If bundle stats are available, write them to the output directory. Applies to app packages only.',
+    )
+    .option(
+      '--config <path>',
+      'Config files to load instead of app-config.yaml. Applies to app packages only.',
+      (opt: string, opts: string[]) => (opts ? [...opts, opt] : [opt]),
+      Array<string>(),
+    )
+    .action(lazy(() => import('./build').then(m => m.command)));
+}
+
+export function registerPluginCommand(program: Command) {
   const command = program
     .command('plugin [command]')
     .description('Lifecycle scripts for individual plugins');
@@ -146,7 +200,8 @@ export function registerScriptCommand(program: Command) {
     );
 }
 export function registerCommands(program: Command) {
-  registerScriptCommand(program);
+  registerPluginCommand(program);
+  registerFrontendCommand(program);
 }
 
 // Wraps an action function so that it always exits and handles errors
