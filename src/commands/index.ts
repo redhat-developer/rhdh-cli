@@ -31,10 +31,10 @@ const configOption = [
  * A subset of commands as compared to @backstage/cli that focuses on what
  * is needed to support dynamic plugins
  */
-export function registerPackageCommand(program: Command) {
+export function registerFrontendCommand(program: Command) {
   const command = program
-    .command('package [command]')
-    .description('Lifecycle scripts for individual packages');
+    .command('frontend [command]')
+    .description('Scripts usefull for developing frontend plugins');
 
   command
     .command('start')
@@ -201,7 +201,7 @@ export function registerPluginCommand(program: Command) {
 }
 export function registerCommands(program: Command) {
   registerPluginCommand(program);
-  registerPackageCommand(program);
+  registerFrontendCommand(program);
 }
 
 // Wraps an action function so that it always exits and handles errors
