@@ -4,7 +4,8 @@ This repository hosts the source code for the rhdh-cli utility, a new command-li
 
 This new CLI aims to offer more flexibility and ease of use compared to the previous @janus-idp/cli.
 
-> [!TIP] > **Command Migration**
+> [!TIP]
+> **Command Migration**
 >
 > If you were previously using @janus-idp/cli, here are the corresponding new commands in rhdh-cli:
 >
