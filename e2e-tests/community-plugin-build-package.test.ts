@@ -1,5 +1,4 @@
 import fs from 'fs-extra';
-import { get } from 'lodash';
 import os from 'os';
 import path from 'path';
 import { promisify } from 'util';
@@ -10,7 +9,9 @@ async function runCommand(
   command: string,
   options: { cwd?: string } = {},
 ): Promise<{ stdout: string; stderr: string }> {
-  console.log(`Executing command: ${command}`);
+  console.log(
+    `Executing command: ${command}, in directory: ${options.cwd || process.cwd()}`,
+  );
 
   const { err, stdout, stderr } = await exec(command, {
     shell: true,
@@ -27,9 +28,7 @@ async function runCommand(
   return { stdout, stderr };
 }
 
-async function getImageDynamicPluginAnnotation(
-  image: string,
-): Promise<object[]> {
+async function getDynamicPluginAnnotation(image: string): Promise<object[]> {
   const { stdout } = await runCommand(`podman inspect ${image}`);
   const imageInfo = JSON.parse(stdout)[0];
   const dynamicPackagesAnnotation =
@@ -69,99 +68,127 @@ describe('export and package backstage-community plugin', () => {
     }
   });
 
-  describe('should export and package plugins in %s workspace', () => {
-    const workspacePath = 'workspaces/tech-radar';
-    const getFullWorkspacePath = () =>
-      path.join(getClonedRepoPath(), workspacePath);
+  describe.each([
+    // path to a plugin in repository, image tag for packaging
+    [
+      'workspaces/tech-radar/plugins/tech-radar',
+      `rhdh-test-tech-radar-frontend:${Date.now()}`,
+    ],
+    [
+      'workspaces/tech-radar/plugins/tech-radar-backend',
+      `rhdh-test-tech-radar-backend:${Date.now()}`,
+    ],
+  ])('plugin in %s directory', (pluginPath, imageTag) => {
+    const getFullPluginPath = () => path.join(getClonedRepoPath(), pluginPath);
 
     beforeAll(async () => {
-      console.log(`Installing dependencies in ${getFullWorkspacePath()}`);
-
+      console.log(`Installing dependencies in ${getFullPluginPath()}`);
       await runCommand(`yarn install`, {
-        cwd: getFullWorkspacePath(),
+        cwd: getFullPluginPath(),
+      });
+      console.log(`Compiling TypeScript in ${getFullPluginPath()}`);
+      await runCommand(`npx tsc`, {
+        cwd: getFullPluginPath(),
       });
     });
 
-    describe.each([
-      // frontend plugin path in workspace, image tag for packaging
-      ['plugins/tech-radar', `rhdh-test-tech-radar-frontend:${Date.now()}`],
-      [
-        'plugins/tech-radar-backend',
-        `rhdh-test-tech-radar-backend:${Date.now()}`,
-      ],
-    ])('should package the plugin at %s', (pluginPath, imageTag) => {
-      const getFullPluginPath = () =>
-        path.join(getFullWorkspacePath(), pluginPath);
+    afterAll(async () => {
+      console.log(`Cleaning up image: ${imageTag}`);
+      await runCommand(`${CONTAINER_TOOL} rmi -f ${imageTag}`);
+    });
 
-      console.log(`Testing plugin path: ${getFullPluginPath()}`);
-
-      test('should build the plugin', async () => {
-        expect(true).toBe(true);
+    test('should export the plugin', async () => {
+      await runCommand(`${RHDH_CLI} plugin export`, {
+        cwd: getFullPluginPath(),
       });
 
-      test('should export the plugin', async () => {
-        await runCommand(`npx tsc`, {
-          cwd: getFullPluginPath(),
-        });
+      // check if derived package was created and contains a package.json file
+      expect(
+        fs.existsSync(
+          path.join(getFullPluginPath(), 'dist-dynamic/package.json'),
+        ),
+      ).toBe(true);
 
-        await runCommand(`${RHDH_CLI} plugin export`, {
-          cwd: getFullPluginPath(),
-        });
-
-        // check if derivated package was created and contains a package.json file
+      const packageJsonPath = path.join(getFullPluginPath(), 'package.json');
+      const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
+      const role = packageJson.backstage?.role;
+      // if the plugin is a frontend plugin, check also if plugin-manifest.json file exists
+      if (role === 'frontend-plugin') {
+        // eslint-disable-next-line jest/no-conditional-expect
         expect(
           fs.existsSync(
-            path.join(getFullPluginPath(), 'dist-dynamic/package.json'),
+            path.join(
+              getFullPluginPath(),
+              'dist-dynamic/dist-scalprum/plugin-manifest.json',
+            ),
           ),
         ).toBe(true);
+      }
+    });
 
-        const packageJsonPath = path.join(getFullPluginPath(), 'package.json');
-        const packageJson = JSON.parse(
-          fs.readFileSync(packageJsonPath, 'utf-8'),
-        );
-        const role = get(packageJson, 'backstage.role', '');
-        // if the plugin is a frontend plugin, check also if plugin-manifest.json file exists
-        if (role === 'frontend-plugin') {
-          // eslint-disable-next-line jest/no-conditional-expect
-          expect(
-            fs.existsSync(
-              path.join(
-                getFullPluginPath(),
-                'dist-dynamic/dist-scalprum/plugin-manifest.json',
-              ),
-            ),
-          ).toBe(true);
-        }
+    test('should package the plugin', async () => {
+      await runCommand(`${RHDH_CLI} plugin package --tag ${imageTag}`, {
+        cwd: getFullPluginPath(),
       });
 
-      test('should package the plugin', async () => {
-        await runCommand(`${RHDH_CLI} plugin package --tag ${imageTag}`, {
-          cwd: getFullPluginPath(),
-        });
+      const annotation = await getDynamicPluginAnnotation(imageTag);
+      expect(annotation).not.toBeNull();
+      console.log(`Plugin annotation: ${JSON.stringify(annotation)}`);
 
-        const annotation = await getImageDynamicPluginAnnotation(imageTag);
-        expect(annotation).not.toBeNull();
-        console.log(`Plugin annotation: ${JSON.stringify(annotation)}`);
+      // there should be only one plugin in the annotation
+      expect(annotation.length).toBe(1);
+      // there should be only one package in the plugin
+      expect(Object.keys(annotation[0]).length).toBe(1);
 
-        // there should be only one plugin in the annotation
-        expect(annotation.length).toBe(1);
-        // there should be only one package in the plugin
-        expect(Object.keys(annotation[0]).length).toBe(1);
+      const key = Object.keys(annotation[0])[0];
+      const pluginInfo = annotation[0][key];
 
-        const key = Object.keys(annotation[0])[0];
-        const pluginInfo = annotation[0][key];
+      // compare plugin information from package.json from derived package with annotation
+      const pluginJson = JSON.parse(
+        fs.readFileSync(
+          path.join(getFullPluginPath(), 'dist-dynamic', 'package.json'),
+          'utf-8',
+        ),
+      );
+      expect(pluginInfo.name).toEqual(pluginJson.name);
+      expect(pluginInfo.version).toEqual(pluginJson.version);
+      expect(pluginInfo.backstage).toEqual(pluginJson.backstage);
 
-        //compare plugin information from package.json from derivated package with annotation
-        const pluginJson = JSON.parse(
-          fs.readFileSync(
-            path.join(getFullPluginPath(), 'dist-dynamic', 'package.json'),
-            'utf-8',
-          ),
-        );
-        expect(pluginInfo.name).toBe(pluginJson.name);
-        expect(pluginInfo.version).toBe(pluginJson.version);
-        expect(pluginInfo.backstage).toBe(pluginJson.backstage);
-      });
+      // check content of the image
+      const { stdout } = await runCommand(
+        `${CONTAINER_TOOL} create ${imageTag}`,
+      );
+      const containerId = stdout.trim();
+      const imageContentDir = path.join(getFullPluginPath(), imageTag);
+      fs.mkdirSync(imageContentDir);
+      await runCommand(
+        `${CONTAINER_TOOL} cp ${containerId}:/ ${imageContentDir}`,
+      );
+      await runCommand(`${CONTAINER_TOOL} rm ${containerId}`);
+
+      // Verify the plugin was correctly packaged,
+      // by checking that the plugin inside the image has the same number of files as the exported derived package
+
+      await runCommand(`ls -lah ${path.join(imageContentDir, key)}`);
+      await runCommand(
+        `ls -lah ${path.join(getFullPluginPath(), 'dist-dynamic')}`,
+      );
+
+      const filesInImage = fs.readdirSync(path.join(imageContentDir, key));
+      const filesInDerivedPackage = fs.readdirSync(
+        path.join(getFullPluginPath(), 'dist-dynamic'),
+      );
+      expect(filesInImage.length).toEqual(filesInDerivedPackage.length);
+
+      // index.json in image should match the annotation
+      // parsing and stringifying to ensure no formatting issues
+      const indexJson = JSON.parse(fs.readFileSync(
+        path.join(imageContentDir, 'index.json'),
+        'utf-8',
+      ));
+      console.log(`Index JSON from image: ${JSON.stringify(indexJson)}`);
+      console.log(`Annotation JSON: ${JSON.stringify(annotation)}`);
+      expect(indexJson).toEqual(annotation);
     });
   });
 });

@@ -9,7 +9,7 @@ concurrency:
 
 jobs:
   checks:
-    name: Checks for PRs
+    name: Checks
     runs-on: ubuntu-latest
     env:
       CI: true
@@ -55,8 +55,8 @@ jobs:
             exit 1
           fi
 
-  e2e:
-    name: e2e tests
+  tests:
+    name: Tests
     runs-on: ubuntu-latest
     env:
       CI: true
