@@ -4531,9 +4531,11 @@ __metadata:
     "@types/node": 18.19.34
     "@types/npm-packlist": 3.0.0
     "@types/recursive-readdir": 2.2.4
+    "@types/tar": ^6.1.1
     "@types/yarnpkg__lockfile": 1.1.9
     "@yarnpkg/lockfile": ^1.1.0
     "@yarnpkg/parsers": ^3.0.0-rc.4
+    axios: ^1.9.0
     bfj: ^8.0.0
     chalk: ^4.0.0
     chokidar: ^3.3.1
@@ -4567,6 +4569,7 @@ __metadata:
     semver: ^7.5.4
     style-loader: ^3.3.1
     swc-loader: ^0.2.3
+    tar: ^6.2.0
     ts-jest: ^29.3.4
     ts-node: 10.9.2
     type-fest: 4.20.1
@@ -6178,6 +6181,16 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@types/tar@npm:^6.1.1":
+  version: 6.1.13
+  resolution: "@types/tar@npm:6.1.13"
+  dependencies:
+    "@types/node": "*"
+    minipass: ^4.0.0
+  checksum: bb3910936a6b37f093e38b73a52b0544fd73079685f5ea72e5c049fddc3770e58d80cf6d714425853f0746290221852c1a7ca89ffdb9614f3b2a858a3bf5436a
+  languageName: node
+  linkType: hard
+
 "@types/tough-cookie@npm:*":
   version: 4.0.5
   resolution: "@types/tough-cookie@npm:4.0.5"
@@ -7207,7 +7220,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"axios@npm:1.9.0, axios@npm:^1.7.4":
+"axios@npm:1.9.0, axios@npm:^1.7.4, axios@npm:^1.9.0":
   version: 1.9.0
   resolution: "axios@npm:1.9.0"
   dependencies:
@@ -14662,7 +14675,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"minipass@npm:^4.2.4":
+"minipass@npm:^4.0.0, minipass@npm:^4.2.4":
   version: 4.2.8
   resolution: "minipass@npm:4.2.8"
   checksum: 7f4914d5295a9a30807cae5227a37a926e6d910c03f315930fde52332cf0575dfbc20295318f91f0baf0e6bb11a6f668e30cde8027dea7a11b9d159867a3c830
@@ -18371,7 +18384,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"tar@npm:^6.1.12":
+"tar@npm:^6.1.12, tar@npm:^6.2.0":
   version: 6.2.1
   resolution: "tar@npm:6.2.1"
   dependencies:

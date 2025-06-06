@@ -2,8 +2,28 @@ import fs from 'fs-extra';
 import os from 'os';
 import path from 'path';
 import { promisify } from 'util';
+import * as tar from 'tar';
+import axios from 'axios';
 
 const exec = promisify(require('child_process').exec);
+
+async function downloadFile(url: string, file: string): Promise<void> {
+  console.log(`Downloading file from ${url} to ${file}`);
+  const response = await axios({
+    method: 'GET',
+    url: url,
+    responseType: 'stream',
+  });
+
+  const fileStream = fs.createWriteStream(file);
+  response.data.pipe(fileStream);
+
+  return new Promise((resolve, reject) => {
+    fileStream.on('finish', resolve);
+    fileStream.on('error', reject);
+    response.data.on('error', reject);
+  });
+}
 
 async function runCommand(
   command: string,
@@ -38,16 +58,19 @@ async function getDynamicPluginAnnotation(image: string): Promise<object[]> {
   );
 }
 
+// you can use COMMUNITY_PLUGINS_REPO_ARCHIVE env variable to specify a path existing local archive of the community plugins repository
+// this is useful to avoid downloading the archive every time
+// e.g. COMMUNITY_PLUGINS_REPO_ARCHIVE=/path/to/archive.tar.gz
+// if not set, it will download the archive from the specified REPO_URL
 describe('export and package backstage-community plugin', () => {
-  const GITHUB_REPO_URL = 'https://github.com/backstage/community-plugins.git';
   const CONTAINER_TOOL = process.env.CONTAINER_TOOL || 'podman';
   const TEST_TIMEOUT = 5 * 60 * 1000;
   const RHDH_CLI = path.resolve(__dirname, '../bin/rhdh-cli');
+  const REPO_URL =
+    'https://github.com/backstage/community-plugins/archive/refs/heads/main.tar.gz';
 
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'rhdh-cli-e2e-'));
-  const getClonedRepoPath = () => path.join(tmpDir, 'community-plugins');
-
-  let clonedRepoPath: string;
+  const getClonedRepoPath = () => path.join(tmpDir, 'community-plugins-main');
 
   jest.setTimeout(TEST_TIMEOUT);
 
@@ -55,11 +78,37 @@ describe('export and package backstage-community plugin', () => {
     console.log(`Using rhdh-cli at: ${RHDH_CLI}`);
     console.log(`Test workspace: ${tmpDir}`);
     console.log(`Container tool: ${CONTAINER_TOOL}`);
-    console.log('Cloning repository...');
 
-    await runCommand(
-      `git clone --depth 1 ${GITHUB_REPO_URL} ${getClonedRepoPath()}`,
+    let communityPluginsArchivePath = path.join(
+      tmpDir,
+      'community-plugins.tar.gz',
     );
+
+    if (
+      process.env.COMMUNITY_PLUGINS_REPO_ARCHIVE &&
+      fs.existsSync(process.env.COMMUNITY_PLUGINS_REPO_ARCHIVE)
+    ) {
+      communityPluginsArchivePath = process.env.COMMUNITY_PLUGINS_REPO_ARCHIVE;
+      console.log(
+        `Using existing community plugins repo archive: ${communityPluginsArchivePath}`,
+      );
+    } else {
+      await downloadFile(REPO_URL, communityPluginsArchivePath);
+      console.log(
+        `Downloaded community plugins archive to: ${communityPluginsArchivePath}`,
+      );
+    }
+
+    console.log(
+      `Extracting community plugins archive to: ${getClonedRepoPath()}`,
+    );
+    fs.mkdirSync(getClonedRepoPath(), { recursive: true });
+    await tar.x({
+      file: communityPluginsArchivePath,
+      cwd: getClonedRepoPath(),
+      strip: 1,
+      sync: true,
+    });
   });
 
   afterAll(async () => {
@@ -69,7 +118,6 @@ describe('export and package backstage-community plugin', () => {
   });
 
   describe.each([
-    // path to a plugin in repository, image tag for packaging
     [
       'workspaces/tech-radar/plugins/tech-radar',
       `rhdh-test-tech-radar-frontend:${Date.now()}`,
@@ -102,17 +150,15 @@ describe('export and package backstage-community plugin', () => {
         cwd: getFullPluginPath(),
       });
 
-      // check if derived package was created and contains a package.json file
       expect(
         fs.existsSync(
           path.join(getFullPluginPath(), 'dist-dynamic/package.json'),
         ),
-      ).toBe(true);
+      ).toEqual(true);
 
       const packageJsonPath = path.join(getFullPluginPath(), 'package.json');
       const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
       const role = packageJson.backstage?.role;
-      // if the plugin is a frontend plugin, check also if plugin-manifest.json file exists
       if (role === 'frontend-plugin') {
         // eslint-disable-next-line jest/no-conditional-expect
         expect(
@@ -122,7 +168,7 @@ describe('export and package backstage-community plugin', () => {
               'dist-dynamic/dist-scalprum/plugin-manifest.json',
             ),
           ),
-        ).toBe(true);
+        ).toEqual(true);
       }
     });
 
@@ -135,15 +181,12 @@ describe('export and package backstage-community plugin', () => {
       expect(annotation).not.toBeNull();
       console.log(`Plugin annotation: ${JSON.stringify(annotation)}`);
 
-      // there should be only one plugin in the annotation
       expect(annotation.length).toBe(1);
-      // there should be only one package in the plugin
       expect(Object.keys(annotation[0]).length).toBe(1);
 
       const key = Object.keys(annotation[0])[0];
       const pluginInfo = annotation[0][key];
 
-      // compare plugin information from package.json from derived package with annotation
       const pluginJson = JSON.parse(
         fs.readFileSync(
           path.join(getFullPluginPath(), 'dist-dynamic', 'package.json'),
@@ -154,7 +197,6 @@ describe('export and package backstage-community plugin', () => {
       expect(pluginInfo.version).toEqual(pluginJson.version);
       expect(pluginInfo.backstage).toEqual(pluginJson.backstage);
 
-      // check content of the image
       const { stdout } = await runCommand(
         `${CONTAINER_TOOL} create ${imageTag}`,
       );
@@ -165,9 +207,6 @@ describe('export and package backstage-community plugin', () => {
         `${CONTAINER_TOOL} cp ${containerId}:/ ${imageContentDir}`,
       );
       await runCommand(`${CONTAINER_TOOL} rm ${containerId}`);
-
-      // Verify the plugin was correctly packaged,
-      // by checking that the plugin inside the image has the same number of files as the exported derived package
 
       await runCommand(`ls -lah ${path.join(imageContentDir, key)}`);
       await runCommand(
@@ -180,12 +219,9 @@ describe('export and package backstage-community plugin', () => {
       );
       expect(filesInImage.length).toEqual(filesInDerivedPackage.length);
 
-      // index.json in image should match the annotation
-      // parsing and stringifying to ensure no formatting issues
-      const indexJson = JSON.parse(fs.readFileSync(
-        path.join(imageContentDir, 'index.json'),
-        'utf-8',
-      ));
+      const indexJson = JSON.parse(
+        fs.readFileSync(path.join(imageContentDir, 'index.json'), 'utf-8'),
+      );
       console.log(`Index JSON from image: ${JSON.stringify(indexJson)}`);
       console.log(`Annotation JSON: ${JSON.stringify(annotation)}`);
       expect(indexJson).toEqual(annotation);

@@ -60,6 +60,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       CI: true
+      COMMUNITY_PLUGINS_REPO_ARCHIVE: /tmp/community-plugins-repo.tar.gz
 
     steps:
       - name: Checkout
@@ -68,6 +69,7 @@ jobs:
       - name: Set up Node
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
+          cache: 'yarn'
           node-version-file: .nvmrc
 
       - name: yarn install
@@ -75,6 +77,13 @@ jobs:
 
       - name: run unit tests
         run: yarn test
+
+      - name: Cache Backstage Community Repo
+        id: backstage-community-repo-cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.COMMUNITY_PLUGINS_REPO_ARCHIVE }}
+          key: ${{ runner.os }}-backstage-community-repo
 
       - name: run e2e tests
         run: yarn test:e2e
