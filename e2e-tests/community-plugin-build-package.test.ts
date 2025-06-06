@@ -84,20 +84,23 @@ describe('export and package backstage-community plugin', () => {
       'community-plugins.tar.gz',
     );
 
-    if (
-      process.env.COMMUNITY_PLUGINS_REPO_ARCHIVE &&
-      fs.existsSync(process.env.COMMUNITY_PLUGINS_REPO_ARCHIVE)
-    ) {
+    if (process.env.COMMUNITY_PLUGINS_REPO_ARCHIVE) {
       communityPluginsArchivePath = process.env.COMMUNITY_PLUGINS_REPO_ARCHIVE;
       console.log(
-        `Using existing community plugins repo archive: ${communityPluginsArchivePath}`,
+        `Using  community plugins repo archive: ${communityPluginsArchivePath}`,
       );
-    } else {
+    }
+
+    if (!fs.existsSync(communityPluginsArchivePath)) {
+      console.log(`Downloading community plugins archive from: ${REPO_URL}`);
       await downloadFile(REPO_URL, communityPluginsArchivePath);
       console.log(
         `Downloaded community plugins archive to: ${communityPluginsArchivePath}`,
       );
-    }
+    } else {
+      console.log(
+        `Using existing community plugins archive: ${communityPluginsArchivePath}`,
+      );
 
     console.log(
       `Extracting community plugins archive to: ${getClonedRepoPath()}`,
