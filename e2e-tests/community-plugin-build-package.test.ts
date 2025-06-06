@@ -112,7 +112,7 @@ describe('export and package backstage-community plugin', () => {
       strip: 1,
       sync: true,
     });
-  });
+  
 
   afterAll(async () => {
     if (tmpDir && fs.existsSync(tmpDir)) {
