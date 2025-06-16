@@ -9,7 +9,6 @@ const exec = promisify(require('child_process').exec);
 
 const CONTAINER_TOOL = process.env.CONTAINER_TOOL || 'podman';
 
-
 async function downloadFile(url: string, file: string): Promise<void> {
   console.log(`Downloading file from ${url} to ${file}`);
   const response = await axios({
