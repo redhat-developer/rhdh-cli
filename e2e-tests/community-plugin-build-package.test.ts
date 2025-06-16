@@ -7,6 +7,9 @@ import axios from 'axios';
 
 const exec = promisify(require('child_process').exec);
 
+const CONTAINER_TOOL = process.env.CONTAINER_TOOL || 'podman';
+
+
 async function downloadFile(url: string, file: string): Promise<void> {
   console.log(`Downloading file from ${url} to ${file}`);
   const response = await axios({
@@ -49,7 +52,7 @@ async function runCommand(
 }
 
 async function getDynamicPluginAnnotation(image: string): Promise<object[]> {
-  const { stdout } = await runCommand(`podman inspect ${image}`);
+  const { stdout } = await runCommand(`${CONTAINER_TOOL} inspect ${image}`);
   const imageInfo = JSON.parse(stdout)[0];
   const dynamicPackagesAnnotation =
     imageInfo.Annotations['io.backstage.dynamic-packages'];
@@ -63,7 +66,6 @@ async function getDynamicPluginAnnotation(image: string): Promise<object[]> {
 // e.g. COMMUNITY_PLUGINS_REPO_ARCHIVE=/path/to/archive.tar.gz
 // if not set, it will download the archive from the specified REPO_URL
 describe('export and package backstage-community plugin', () => {
-  const CONTAINER_TOOL = process.env.CONTAINER_TOOL || 'podman';
   const TEST_TIMEOUT = 5 * 60 * 1000;
   const RHDH_CLI = path.resolve(__dirname, '../bin/rhdh-cli');
   const REPO_URL =
@@ -202,7 +204,7 @@ describe('export and package backstage-community plugin', () => {
       expect(pluginInfo.backstage).toEqual(pluginJson.backstage);
 
       const { stdout } = await runCommand(
-        `${CONTAINER_TOOL} create ${imageTag}`,
+        `${CONTAINER_TOOL} create --workdir / ${imageTag}`,
       );
       const containerId = stdout.trim();
       const imageContentDir = path.join(getFullPluginPath(), imageTag);
