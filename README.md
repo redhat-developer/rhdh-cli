@@ -4,6 +4,8 @@ This repository hosts the source code for the rhdh-cli utility, a new command-li
 
 This new CLI aims to offer more flexibility and ease of use compared to the previous @janus-idp/cli.
 
+<!-- prettier breaks the formating for GitHub Markdown callout, this is why this whole block is ignored -->
+<!-- prettier-ignore-start -->
 > [!TIP]
 > **Command Migration**
 >
@@ -13,6 +15,7 @@ This new CLI aims to offer more flexibility and ease of use compared to the prev
 > | ---------------------------------------------------- | ----------------------------------------------- |
 > | `npx @janus-idp/cli package export-dynamic-plugin`   | `npx @red-hat-developer-hub/cli plugin export`  |
 > | `npx @janus-idp/cli package package-dynamic-plugins` | `npx @red-hat-developer-hub/cli plugin package` |
+<!-- prettier-ignore-end -->
 
 ## Contributing
 
