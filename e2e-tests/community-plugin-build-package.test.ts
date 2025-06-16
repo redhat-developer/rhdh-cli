@@ -101,6 +101,7 @@ describe('export and package backstage-community plugin', () => {
       console.log(
         `Using existing community plugins archive: ${communityPluginsArchivePath}`,
       );
+    }
 
     console.log(
       `Extracting community plugins archive to: ${getClonedRepoPath()}`,
@@ -112,7 +113,7 @@ describe('export and package backstage-community plugin', () => {
       strip: 1,
       sync: true,
     });
-  
+  });
 
   afterAll(async () => {
     if (tmpDir && fs.existsSync(tmpDir)) {
