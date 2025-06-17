@@ -203,7 +203,7 @@ describe('export and package backstage-community plugin', () => {
       expect(pluginInfo.backstage).toEqual(pluginJson.backstage);
 
       const { stdout } = await runCommand(
-        `${CONTAINER_TOOL} create --workdir / ${imageTag}`,
+        `${CONTAINER_TOOL} create --workdir / ${imageTag} 'false'`,
       );
       const containerId = stdout.trim();
       const imageContentDir = path.join(getFullPluginPath(), imageTag);
