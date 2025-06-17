@@ -1,4 +1,4 @@
-name: CI
+name: PR Checks and Tests
 
 on:
   pull_request:
@@ -8,12 +8,9 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  ci:
-    name: CI
+  checks:
+    name: Checks
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      pull-requests: write
     env:
       CI: true
 
@@ -57,3 +54,36 @@ jobs:
             git diff
             exit 1
           fi
+
+  tests:
+    name: Tests
+    runs-on: ubuntu-latest
+    env:
+      CI: true
+      COMMUNITY_PLUGINS_REPO_ARCHIVE: /tmp/community-plugins-repo.tar.gz
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v
+
+      - name: Set up Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          cache: 'yarn'
+          node-version-file: .nvmrc
+
+      - name: yarn install
+        run: yarn install --immutable
+
+      - name: run unit tests
+        run: yarn test
+
+      - name: Cache Backstage Community Repo
+        id: backstage-community-repo-cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.COMMUNITY_PLUGINS_REPO_ARCHIVE }}
+          key: ${{ runner.os }}-backstage-community-repo
+
+      - name: run e2e tests
+        run: yarn test:e2e
