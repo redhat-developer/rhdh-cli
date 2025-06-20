@@ -21,6 +21,8 @@ export async function command(opts: OptionValues): Promise<void> {
     useDocker,
     containerTool = 'podman',
     platform,
+    annotation,
+    label,
   } = opts;
   if (!exportTo && !tag) {
     Task.error(
@@ -237,6 +239,18 @@ export async function command(opts: OptionValues): Promise<void> {
       ];
       if (platform) {
         flags.push(`--platform ${platform}`);
+      }
+      
+      if (annotation) {
+        for (const ann of annotation) {
+          flags.push(`--annotation ${ann}`);
+        }
+      }
+      
+      if (label) {
+        for (const lbl of label) {
+          flags.push(`--label ${lbl}`);
+        }
       }
       // run the command to generate the image
       Task.log(`Creating image using ${containerToolCmd}`);
