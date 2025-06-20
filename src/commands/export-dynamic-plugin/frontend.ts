@@ -73,59 +73,54 @@ export async function frontend(
   }
 
   const distDynamicRelativePath = 'dist-dynamic';
-  const target = opts.inPlace
-    ? path.resolve(paths.targetDir)
-    : path.resolve(paths.targetDir, distDynamicRelativePath);
+  const target = path.resolve(paths.targetDir, distDynamicRelativePath);
+  Task.log(
+    `Packing main package to ${chalk.cyan(
+      path.join(distDynamicRelativePath, 'package.json'),
+    )}`,
+  );
 
-  if (!opts.inPlace) {
-    Task.log(
-      `Packing main package to ${chalk.cyan(
-        path.join(distDynamicRelativePath, 'package.json'),
-      )}`,
-    );
+  if (opts.clean) {
+    await fs.remove(target);
+  }
 
-    if (opts.clean) {
-      await fs.remove(target);
-    }
-
-    await fs.mkdirs(target);
-    await fs.writeFile(
-      path.join(target, '.gitignore'),
-      `
+  await fs.mkdirs(target);
+  await fs.writeFile(
+    path.join(target, '.gitignore'),
+    `
 *
 `,
-    );
+  );
 
-    await productionPack({
-      packageDir: paths.targetDir,
-      targetDir: target,
-    });
+  await productionPack({
+    packageDir: paths.targetDir,
+    targetDir: target,
+  });
 
-    Task.log(
-      `Customizing main package in ${chalk.cyan(
-        path.join(distDynamicRelativePath, 'package.json'),
-      )} for dynamic loading`,
-    );
-    if (files && Array.isArray(files) && !files.includes('dist-scalprum')) {
-      files.push('dist-scalprum');
-    }
-    const monoRepoPackages = await getPackages(paths.targetDir);
-    await customizeForDynamicUse({
-      embedded: [],
-      isYarnV1: false,
-      monoRepoPackages,
-      overridding: {
-        name: `${name}-dynamic`,
-        // We remove scripts, because they do not make sense for this derived package.
-        // They even bring errors, especially the pre-pack and post-pack ones:
-        // we want to be able to use npm pack on this derived package to distribute it as a dynamic plugin,
-        // and obviously this should not trigger the backstage pre-pack or post-pack actions
-        // which are related to the packaging of the original static package.
-        scripts: {},
-        files,
-      },
-    })(path.resolve(target, 'package.json'));
+  Task.log(
+    `Customizing main package in ${chalk.cyan(
+      path.join(distDynamicRelativePath, 'package.json'),
+    )} for dynamic loading`,
+  );
+  if (files && Array.isArray(files) && !files.includes('dist-scalprum')) {
+    files.push('dist-scalprum');
   }
+  const monoRepoPackages = await getPackages(paths.targetDir);
+  await customizeForDynamicUse({
+    embedded: [],
+    isYarnV1: false,
+    monoRepoPackages,
+    overridding: {
+      name: `${name}-dynamic`,
+      // We remove scripts, because they do not make sense for this derived package.
+      // They even bring errors, especially the pre-pack and post-pack ones:
+      // we want to be able to use npm pack on this derived package to distribute it as a dynamic plugin,
+      // and obviously this should not trigger the backstage pre-pack or post-pack actions
+      // which are related to the packaging of the original static package.
+      scripts: {},
+      files,
+    },
+  })(path.resolve(target, 'package.json'));
 
   const resolvedScalprumDistPath = path.join(target, 'dist-scalprum');
 
