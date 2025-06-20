@@ -117,6 +117,14 @@ export function registerPluginCommand(program: Command) {
       'Platform to use when building the container image. Default is "linux/amd64". Can be set to "" to not set --platform flag in builder command.',
       'linux/amd64',
     )
+    .option(
+      '--annotation <key=value...>',
+      'Add annotation to the container image. Can be specified multiple times.',
+    )
+    .option(
+      '--label <key=value...>',
+      'Add label to the container image. Can be specified multiple times.',
+    )
     .action(
       lazy(() => import('./package-dynamic-plugins').then(m => m.command)),
     );
