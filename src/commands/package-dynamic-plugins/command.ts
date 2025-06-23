@@ -240,13 +240,13 @@ export async function command(opts: OptionValues): Promise<void> {
       if (platform) {
         flags.push(`--platform ${platform}`);
       }
-      
+
       if (annotation) {
         for (const ann of annotation) {
           flags.push(`--annotation ${ann}`);
         }
       }
-      
+
       if (label) {
         for (const lbl of label) {
           flags.push(`--label ${lbl}`);

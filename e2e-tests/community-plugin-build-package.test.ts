@@ -50,14 +50,20 @@ async function runCommand(
   return { stdout, stderr };
 }
 
-async function parseDynamicPluginAnnotation(imageAnnotations: Record<string, string>): Promise<object[]> {
-  const dynamicPackagesAnnotation = imageAnnotations['io.backstage.dynamic-packages'];
+async function parseDynamicPluginAnnotation(
+  imageAnnotations: Record<string, string>,
+): Promise<object[]> {
+  const dynamicPackagesAnnotation =
+    imageAnnotations['io.backstage.dynamic-packages'];
   return JSON.parse(
     Buffer.from(dynamicPackagesAnnotation, 'base64').toString('utf-8'),
   );
 }
 
-async function getImageMetadata(image: string): Promise<{ annotations: Record<string, string>, labels: Record<string, string> }> {
+async function getImageMetadata(image: string): Promise<{
+  annotations: Record<string, string>;
+  labels: Record<string, string>;
+}> {
   const { stdout } = await runCommand(`${CONTAINER_TOOL} inspect ${image}`);
   const imageInfo = JSON.parse(stdout)[0];
   return {
@@ -192,13 +198,17 @@ describe('export and package backstage-community plugin', () => {
       );
 
       const imageMetadata = await getImageMetadata(imageTag);
-      console.log(`Image annotations: ${JSON.stringify(imageMetadata.annotations)}`);
+      console.log(
+        `Image annotations: ${JSON.stringify(imageMetadata.annotations)}`,
+      );
       console.log(`Image labels: ${JSON.stringify(imageMetadata.labels)}`);
 
       // There needs to be at least one annotation (the default dynamic plugin annotation)
       expect(imageMetadata.annotations).not.toBeNull();
       expect(Object.keys(imageMetadata.annotations).length).toBeGreaterThan(0);
-      const dynamicPluginAnnotation = await parseDynamicPluginAnnotation(imageMetadata.annotations);
+      const dynamicPluginAnnotation = await parseDynamicPluginAnnotation(
+        imageMetadata.annotations,
+      );
       const key = Object.keys(dynamicPluginAnnotation[0])[0];
       const pluginInfo = dynamicPluginAnnotation[0][key];
 
