@@ -50,14 +50,26 @@ async function runCommand(
   return { stdout, stderr };
 }
 
-async function getDynamicPluginAnnotation(image: string): Promise<object[]> {
-  const { stdout } = await runCommand(`${CONTAINER_TOOL} inspect ${image}`);
-  const imageInfo = JSON.parse(stdout)[0];
+async function parseDynamicPluginAnnotation(
+  imageAnnotations: Record<string, string>,
+): Promise<object[]> {
   const dynamicPackagesAnnotation =
-    imageInfo.Annotations['io.backstage.dynamic-packages'];
+    imageAnnotations['io.backstage.dynamic-packages'];
   return JSON.parse(
     Buffer.from(dynamicPackagesAnnotation, 'base64').toString('utf-8'),
   );
+}
+
+async function getImageMetadata(image: string): Promise<{
+  annotations: Record<string, string>;
+  labels: Record<string, string>;
+}> {
+  const { stdout } = await runCommand(`${CONTAINER_TOOL} inspect ${image}`);
+  const imageInfo = JSON.parse(stdout)[0];
+  return {
+    annotations: imageInfo.Annotations || {},
+    labels: imageInfo.Labels || {},
+  };
 }
 
 // you can use COMMUNITY_PLUGINS_REPO_ARCHIVE env variable to specify a path existing local archive of the community plugins repository
@@ -178,19 +190,34 @@ describe('export and package backstage-community plugin', () => {
     });
 
     test('should package the plugin', async () => {
-      await runCommand(`${RHDH_CLI} plugin package --tag ${imageTag}`, {
-        cwd: getFullPluginPath(),
-      });
+      await runCommand(
+        `${RHDH_CLI} plugin package --tag ${imageTag} --annotation "maintainer=rhdh-team" --label "version=1.0.0" --label "environment=test"`,
+        {
+          cwd: getFullPluginPath(),
+        },
+      );
 
-      const annotation = await getDynamicPluginAnnotation(imageTag);
-      expect(annotation).not.toBeNull();
-      console.log(`Plugin annotation: ${JSON.stringify(annotation)}`);
+      const imageMetadata = await getImageMetadata(imageTag);
+      console.log(
+        `Image annotations: ${JSON.stringify(imageMetadata.annotations)}`,
+      );
+      console.log(`Image labels: ${JSON.stringify(imageMetadata.labels)}`);
 
-      expect(annotation.length).toBe(1);
-      expect(Object.keys(annotation[0]).length).toBe(1);
+      // There needs to be at least one annotation (the default dynamic plugin annotation)
+      expect(imageMetadata.annotations).not.toBeNull();
+      expect(Object.keys(imageMetadata.annotations).length).toBeGreaterThan(0);
+      const dynamicPluginAnnotation = await parseDynamicPluginAnnotation(
+        imageMetadata.annotations,
+      );
+      const key = Object.keys(dynamicPluginAnnotation[0])[0];
+      const pluginInfo = dynamicPluginAnnotation[0][key];
 
-      const key = Object.keys(annotation[0])[0];
-      const pluginInfo = annotation[0][key];
+      // Check custom annotation
+      expect(imageMetadata.annotations.maintainer).toBe('rhdh-team');
+
+      // Check custom labels
+      expect(imageMetadata.labels.version).toBe('1.0.0');
+      expect(imageMetadata.labels.environment).toBe('test');
 
       const pluginJson = JSON.parse(
         fs.readFileSync(
@@ -227,9 +254,7 @@ describe('export and package backstage-community plugin', () => {
       const indexJson = JSON.parse(
         fs.readFileSync(path.join(imageContentDir, 'index.json'), 'utf-8'),
       );
-      console.log(`Index JSON from image: ${JSON.stringify(indexJson)}`);
-      console.log(`Annotation JSON: ${JSON.stringify(annotation)}`);
-      expect(indexJson).toEqual(annotation);
+      expect(indexJson).toEqual(dynamicPluginAnnotation);
     });
   });
 });
