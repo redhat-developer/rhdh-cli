@@ -20,3 +20,7 @@ This new CLI aims to offer more flexibility and ease of use compared to the prev
 ## Contributing
 
 For information on how to contribute, build and release, please see the [contributing guide](CONTRIBUTING.md).
+
+## Reporting Issues
+
+If you encounter any bugs or have feature requests, please report them through our Jira Project [Red Hat Developer Hub (RHIDP)](https://issues.redhat.com/projects/RHIDP/summary)
