@@ -21,7 +21,7 @@ This new CLI aims to offer more flexibility and ease of use compared to the prev
 
 ### Contributing
 
-### Build nad Run Locally
+### Build and Run Locally
 
 To build the project locally:
 
