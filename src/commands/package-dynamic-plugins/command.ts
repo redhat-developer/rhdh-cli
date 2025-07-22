@@ -124,12 +124,12 @@ export async function command(opts: OptionValues): Promise<void> {
         );
         try {
           await Task.forCommand(
-            `${process.execPath} ${process.argv[1]} package export-dynamic-plugin`,
+            `${process.execPath} ${process.argv[1]} plugin export`,
             { cwd: packageDirectory },
           );
         } catch (err) {
           Task.log(
-            `Encountered an error running 'npx @janus-idp/cli' on plugin package ${packageFilePath}, this plugin will not be packaged.  The error was ${err}`,
+            `Encountered an error running the generated export command on plugin package ${packageFilePath}, this plugin will not be packaged.  The error was ${err}`,
           );
         }
       }
