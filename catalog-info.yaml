@@ -24,4 +24,4 @@ spec:
   lifecycle: experimental
   owner: rhdh-team
   system: rhdh
-  subcomponentOf: red-hat-developer-hub
+  subcomponentOf: rhdh
