@@ -4586,7 +4586,7 @@ __metadata:
     "@microsoft/api-extractor":
       optional: true
   bin:
-    cli: bin/rhdh-cli
+    rhdh-cli: bin/rhdh-cli
   languageName: unknown
   linkType: soft
 
