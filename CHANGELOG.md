@@ -1,5 +1,13 @@
 # @red-hat-developer-hub/cli
 
+## 1.7.2
+
+### Patch Changes
+
+- fix cli executable name
+
+  the cli executable was incorrectly installed (linked in `node_modules/.bin`) as `cli` instead of `rhdh-cli`
+
 ## 1.7.1
 
 ### Patch Changes
