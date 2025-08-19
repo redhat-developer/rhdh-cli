@@ -1,7 +1,7 @@
 {
   "name": "@red-hat-developer-hub/cli",
   "description": "CLI for developing Backstage plugins and apps",
-  "version": "1.7.2",
+  "version": "1.7.1",
   "publishConfig": {
     "access": "public"
   },
