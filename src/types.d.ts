@@ -254,3 +254,6 @@ declare module 'webpack-node-externals' {
 }
 
 declare module '@esbuild-kit/cjs-loader' {}
+
+// Backstage CLI types are now auto-generated in src/generated/backstage-cli-types.d.ts
+// Run 'npm run generate-types' to regenerate them based on the package.json version
