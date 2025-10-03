@@ -854,6 +854,7 @@ function isPackageShared(
 function validatePluginEntryPoints(target: string): string {
   const dynamicPluginRequire = createRequire(`${target}/package.json`);
 
+  let retryingAfterTsExtensionAdded = false;
   function requireModule(modulePath: string): any {
     try {
       return dynamicPluginRequire(modulePath);
@@ -862,14 +863,14 @@ function validatePluginEntryPoints(target: string): string {
       // because the `ts` require extension was not there.  Else we should
       // throw.
       if (
-        (e?.code !== 'ERR_UNSUPPORTED_DIR_IMPORT' &&
-          e?.name !== SyntaxError.name) ||
+        retryingAfterTsExtensionAdded ||
         dynamicPluginRequire.extensions['.ts'] !== undefined
       ) {
         throw e;
       }
     }
 
+    retryingAfterTsExtensionAdded = true;
     Task.log(
       `  adding typescript extension support to enable entry point validation`,
     );
