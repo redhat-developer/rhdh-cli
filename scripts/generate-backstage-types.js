@@ -1,0 +1,196 @@
+#!/usr/bin/env node
+
+const fs = require('fs-extra');
+const path = require('path');
+const { execSync } = require('child_process');
+const tar = require('tar');
+const stream = require('stream');
+
+/**
+ * Script to automatically generate TypeScript declarations for @backstage/cli
+ * based on the version specified in package.json
+ */
+
+async function generateBackstageTypes() {
+  console.log('🔄 Generating Backstage CLI types...');
+
+  const rootPath = path.resolve(__dirname, '..');
+  // Read package.json to get the Backstage CLI version
+  const packageJsonPath = path.resolve(rootPath, 'package.json');
+  const packageJson = await fs.readJson(packageJsonPath);
+  const backstageCliVersion = packageJson.dependencies['@backstage/cli'];
+
+  const backstageVersionCommentPrefix = `Generated from @backstage/cli version:`;
+
+  if (!backstageCliVersion) {
+    throw new Error('@backstage/cli not found in dependencies');
+  }
+
+  // Clean version by removing semver prefixes
+  const cleanVersion = backstageCliVersion.replace(/^[~^]/, '');
+
+  if (backstageCliVersion.match(/^[~^].*/)) {
+    throw new Error('@backstage/cli dependency is not a fixed one');
+  }
+
+  console.log(`📦 Using @backstage/cli version: ${backstageCliVersion}`);
+
+  // Create temporary directory for type extraction
+  const tempDir = path.resolve(rootPath, '.temp-types');
+  const outputDir = path.resolve(rootPath, 'src', 'generated');
+  const outputFile = path.resolve(outputDir, 'backstage-cli-types.d.ts');
+
+  // try to check if the output file already exists and if it does, check if the version comment is the same
+  if (await fs.pathExists(outputFile)) {
+    const fileContent = await fs.readFile(outputFile, 'utf8');
+    if (
+      fileContent.includes(`${backstageVersionCommentPrefix} ${cleanVersion}`)
+    ) {
+      console.log('✅ Output file already exists and is up to date');
+      return;
+    }
+  }
+
+  await fs.remove(tempDir);
+  await fs.remove(outputDir);
+  await fs.ensureDir(tempDir);
+  await fs.ensureDir(outputDir);
+
+  let success = false;
+  try {
+    // Get the exact git commit for the CLI version using npm view
+    console.log(`🔍 Getting git commit for @backstage/cli@${cleanVersion}...`);
+
+    const gitHeadOutput = execSync(
+      `npm view @backstage/cli@${cleanVersion} gitHead`,
+      {
+        encoding: 'utf8',
+        stdio: 'pipe',
+      },
+    ).trim();
+
+    if (!gitHeadOutput) {
+      throw new Error(
+        `Could not get git commit for @backstage/cli@${cleanVersion}. Version may not exist.`,
+      );
+    }
+
+    console.log(`📋 Found git commit: ${gitHeadOutput}`);
+
+    // Clone Backstage repository and checkout the exact commit
+    console.log(
+      `🔽 Exporting Backstage repository on commit ${gitHeadOutput}...`,
+    );
+
+    // Create backstage-repo directory first
+    const backstageRepoPath = path.resolve(tempDir, 'backstage-repo');
+    await fs.ensureDir(backstageRepoPath);
+
+    // Download the tarball and extract it using the 'tar' npm package
+    const tarballUrl = `https://github.com/backstage/backstage/archive/${gitHeadOutput}.tar.gz`;
+    const extractDir = path.join(tempDir, 'backstage-repo');
+
+    const res = await fetch(tarballUrl);
+    if (!res.ok) {
+      throw new Error(
+        `Failed to download tarball: ${res.status} ${res.statusText}`,
+      );
+    }
+    await new Promise((resolve, reject) => {
+      stream.Readable.fromWeb(res.body)
+        .pipe(
+          tar.x({
+            cwd: extractDir,
+            strip: 1,
+          }),
+        )
+        .on('error', reject)
+        .on('finish', resolve)
+        .on('close', resolve);
+    });
+
+    console.log(
+      `✅ Successfully downloaded Backstage at commit ${gitHeadOutput}`,
+    );
+
+    const cliSourcePath = path.join(
+      backstageRepoPath,
+      'packages',
+      'cli',
+      'src',
+    );
+
+    if (!(await fs.pathExists(cliSourcePath))) {
+      throw new Error(
+        `CLI source files not found at ${cliSourcePath}. The repository structure may have changed.`,
+      );
+    }
+
+    console.log('📦 Installing dependencies in Backstage repository...');
+    // Install dependencies in the cloned repository
+    execSync('yarn install', {
+      cwd: backstageRepoPath,
+      stdio: 'inherit',
+    });
+    console.log('✅ Dependencies installed successfully');
+
+    console.log('🔧 Running TypeScript compilation to generate types...');
+    // Run TypeScript compilation to generate dist-types
+    execSync('yarn tsc', {
+      cwd: backstageRepoPath,
+      stdio: 'inherit',
+    });
+    console.log('✅ TypeScript compilation completed');
+
+    const configFile = path.resolve(__dirname, 'backstage-types-config.json');
+    const config = await fs.readJson(configFile);
+
+    let typesContent = `
+/*
+ * Auto-generated TypeScript declarations for @backstage/cli
+ * ${backstageVersionCommentPrefix} ${backstageCliVersion}
+ * Generated on: ${new Date().toISOString()}
+ * 
+ * DO NOT EDIT THIS FILE MANUALLY - it will be overwritten
+ * Run 'npm run generate-types' to regenerate
+ * 
+ * These types are extracted from the actual @backstage/cli TypeScript source code
+ * using 'yarn tsc' compilation of the official Backstage repository
+ */
+
+`;
+
+    for (const module of config.modules) {
+      const moduleTypesPath = path.resolve(backstageRepoPath, module.types);
+      if (!(await fs.pathExists(moduleTypesPath))) {
+        throw new Error(`No types found at: ${moduleTypesPath}`);
+      }
+      console.log(`📋 Found types at: ${moduleTypesPath}`);
+      const moduleTypes = await fs.readFile(moduleTypesPath, 'utf8');
+      typesContent += `
+declare module '${module.name}' {
+${moduleTypes
+  .split('\n')
+  .map(line => `  ${line}`)
+  .join('\n')}
+}
+
+`;
+    }
+
+    await fs.writeFile(outputFile, typesContent);
+    console.log(
+      '✅ Generated backstage-cli-types.d.ts from real Backstage TypeScript compilation',
+    );
+    success = true;
+  } finally {
+    if (success) {
+      // Clean up temp directory
+      await fs.remove(tempDir);
+    }
+  }
+
+  console.log('🎉 Type generation complete!');
+}
+
+generateBackstageTypes();
