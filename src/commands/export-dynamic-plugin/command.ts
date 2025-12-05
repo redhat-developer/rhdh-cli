@@ -38,7 +38,6 @@ export async function command(opts: OptionValues): Promise<void> {
   }
 
   let targetPath: string;
-  const roleInfo = PackageRoles.getRoleInfo(role);
   let configSchemaPaths: string[];
   if (role === 'backend-plugin' || role === 'backend-plugin-module') {
     targetPath = await backend(opts);
@@ -47,7 +46,7 @@ export async function command(opts: OptionValues): Promise<void> {
       path.join(targetPath, 'dist/.config-schema.json'),
     ];
   } else if (role === 'frontend-plugin' || role === 'frontend-plugin-module') {
-    targetPath = await frontend(roleInfo, opts);
+    targetPath = await frontend(opts);
     configSchemaPaths = [];
     if (fs.existsSync(path.join(targetPath, 'dist-scalprum'))) {
       configSchemaPaths.push(
@@ -77,6 +76,7 @@ export async function command(opts: OptionValues): Promise<void> {
 
   await checkBackstageSupportedVersions(targetPath);
 
+  const roleInfo = PackageRoles.getRoleInfo(role);
   await applyDevOptions(opts, rawPkg.name, roleInfo, targetPath);
 }
 
