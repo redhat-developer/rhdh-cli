@@ -4,6 +4,10 @@ This repository hosts the source code for the rhdh-cli utility, a new command-li
 
 This new CLI aims to offer more flexibility and ease of use compared to the previous @janus-idp/cli.
 
+## Documentation
+
+- **[Plugin export pipeline](doc/plugin-export/README.md)** — how `plugin export` works for backend and frontend plugins (`dist-dynamic`, packaging, and related CLI flags).
+
 <!-- prettier breaks the formating for GitHub Markdown callout, this is why this whole block is ignored -->
 <!-- prettier-ignore-start -->
 > [!TIP]
