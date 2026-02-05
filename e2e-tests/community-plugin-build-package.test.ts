@@ -156,7 +156,8 @@ describe('export and package backstage-community plugin', () => {
       `rhdh-test-tech-radar-backend:${Date.now()}`,
     ],
   ])('plugin in %s/%s directory', (workspacePath, pluginRelPath, imageTag) => {
-    const getWorkspacePath = () => path.join(getClonedRepoPath(), workspacePath);
+    const getWorkspacePath = () =>
+      path.join(getClonedRepoPath(), workspacePath);
     const getFullPluginPath = () =>
       path.join(getClonedRepoPath(), workspacePath, pluginRelPath);
 
@@ -167,7 +168,9 @@ describe('export and package backstage-community plugin', () => {
       await runCommand(`YARN_ENABLE_SCRIPTS=false yarn install`, {
         cwd: getWorkspacePath(),
       });
-      console.log(`Generating TypeScript declarations in ${getWorkspacePath()}`);
+      console.log(
+        `Generating TypeScript declarations in ${getWorkspacePath()}`,
+      );
       await runCommand(`yarn tsc`, {
         cwd: getWorkspacePath(),
       });
