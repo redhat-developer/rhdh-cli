@@ -80,7 +80,7 @@
     "style-loader": "^3.3.1",
     "swc-loader": "^0.2.3",
     "typescript-json-schema": "^0.64.0",
-    "webpack": "~5.96.0",
+    "webpack": "~5.104.1",
     "webpack-dev-server": "^5.0.0",
     "yaml": "^2.5.1",
     "yml-loader": "^2.1.0",
