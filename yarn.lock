@@ -4785,7 +4785,7 @@ __metadata:
     semver: ^7.5.4
     style-loader: ^3.3.1
     swc-loader: ^0.2.3
-    tar: ^6.2.0
+    tar: ^7.5.7
     ts-jest: ^29.3.4
     ts-node: 10.9.2
     type-fest: 4.20.1
@@ -15092,6 +15092,15 @@ __metadata:
   languageName: node
   linkType: hard
 
+"minizlib@npm:^3.1.0":
+  version: 3.1.0
+  resolution: "minizlib@npm:3.1.0"
+  dependencies:
+    minipass: ^7.1.2
+  checksum: a15e6f0128f514b7d41a1c68ce531155447f4669e32d279bba1c1c071ef6c2abd7e4d4579bb59ccc2ed1531346749665968fdd7be8d83eb6b6ae2fe1f3d370a7
+  languageName: node
+  linkType: hard
+
 "mkdirp@npm:^1.0.3":
   version: 1.0.4
   resolution: "mkdirp@npm:1.0.4"
@@ -18757,7 +18766,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"tar@npm:^6.1.12, tar@npm:^6.2.0":
+"tar@npm:^6.1.12":
   version: 6.2.1
   resolution: "tar@npm:6.2.1"
   dependencies:
@@ -18782,6 +18791,19 @@ __metadata:
     mkdirp: ^3.0.1
     yallist: ^5.0.0
   checksum: 8485350c0688331c94493031f417df069b778aadb25598abdad51862e007c39d1dd5310702c7be4a6784731a174799d8885d2fde0484269aea205b724d7b2ffa
+  languageName: node
+  linkType: hard
+
+"tar@npm:^7.5.7":
+  version: 7.5.7
+  resolution: "tar@npm:7.5.7"
+  dependencies:
+    "@isaacs/fs-minipass": ^4.0.0
+    chownr: ^3.0.0
+    minipass: ^7.1.2
+    minizlib: ^3.1.0
+    yallist: ^5.0.0
+  checksum: 82fa04804b6cae4c0b46b84e97a08c39e1c17bb959350baa32d139bcf5e1fc7ebc3ceb72465dd3e2e311992386ecc13599a257d5672158490ceb9464146d5573
   languageName: node
   linkType: hard
 
