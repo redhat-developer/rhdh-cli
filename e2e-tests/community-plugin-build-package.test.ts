@@ -35,19 +35,29 @@ async function runCommand(
     `Executing command: ${command}, in directory: ${options.cwd || process.cwd()}`,
   );
 
-  const { err, stdout, stderr } = await exec(command, {
-    shell: true,
-    ...options,
-  });
-  console.log(`Command output: ${stdout}`);
-  console.log(`Command error output: ${stderr}`);
-  if (err) {
-    console.error(`Error executing command: ${command}`);
-    console.error(stderr);
-    console.error(stdout);
-    throw err;
+  try {
+    const { stdout, stderr } = await exec(command, {
+      shell: true,
+      maxBuffer: 10 * 1024 * 1024, // 10MB buffer for large outputs
+      ...options,
+    });
+    console.log(`Command output: ${stdout}`);
+    if (stderr) {
+      console.log(`Command stderr: ${stderr}`);
+    }
+    return { stdout, stderr };
+  } catch (error: any) {
+    console.error(`\n========== COMMAND FAILED ==========`);
+    console.error(`Command: ${command}`);
+    console.error(`Working directory: ${options.cwd || process.cwd()}`);
+    console.error(`Exit code: ${error.code}`);
+    console.error(`Signal: ${error.signal}`);
+    console.error(`\n--- STDOUT ---\n${error.stdout || '(empty)'}`);
+    console.error(`\n--- STDERR ---\n${error.stderr || '(empty)'}`);
+    console.error(`\n--- ERROR MESSAGE ---\n${error.message}`);
+    console.error(`====================================\n`);
+    throw error;
   }
-  return { stdout, stderr };
 }
 
 async function parseDynamicPluginAnnotation(
@@ -136,23 +146,36 @@ describe('export and package backstage-community plugin', () => {
 
   describe.each([
     [
-      'workspaces/tech-radar/plugins/tech-radar',
+      'workspaces/tech-radar',
+      'plugins/tech-radar',
       `rhdh-test-tech-radar-frontend:${Date.now()}`,
     ],
     [
-      'workspaces/tech-radar/plugins/tech-radar-backend',
+      'workspaces/tech-radar',
+      'plugins/tech-radar-backend',
       `rhdh-test-tech-radar-backend:${Date.now()}`,
     ],
-  ])('plugin in %s directory', (pluginPath, imageTag) => {
-    const getFullPluginPath = () => path.join(getClonedRepoPath(), pluginPath);
+  ])('plugin in %s/%s directory', (workspacePath, pluginRelPath, imageTag) => {
+    const getWorkspacePath = () =>
+      path.join(getClonedRepoPath(), workspacePath);
+    const getFullPluginPath = () =>
+      path.join(getClonedRepoPath(), workspacePath, pluginRelPath);
 
     beforeAll(async () => {
-      console.log(`Installing dependencies in ${getFullPluginPath()}`);
-      await runCommand(`yarn install`, {
-        cwd: getFullPluginPath(),
+      console.log(`Installing dependencies in workspace ${getWorkspacePath()}`);
+      // Use YARN_ENABLE_SCRIPTS=false to skip native module builds that may fail
+      // Then run tsc and build separately
+      await runCommand(`YARN_ENABLE_SCRIPTS=false yarn install`, {
+        cwd: getWorkspacePath(),
       });
-      console.log(`Compiling TypeScript in ${getFullPluginPath()}`);
-      await runCommand(`npx tsc`, {
+      console.log(
+        `Generating TypeScript declarations in ${getWorkspacePath()}`,
+      );
+      await runCommand(`yarn tsc`, {
+        cwd: getWorkspacePath(),
+      });
+      console.log(`Building plugin in ${getFullPluginPath()}`);
+      await runCommand(`yarn build`, {
         cwd: getFullPluginPath(),
       });
     });
