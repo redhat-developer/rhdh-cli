@@ -33,7 +33,7 @@ export const optimization = (
         format: 'iife',
       }),
     ],
-    runtimeChunk: 'single',
+    runtimeChunk: { name: _ => 'runtime' },
     splitChunks: {
       automaticNameDelimiter: '-',
       cacheGroups: {
