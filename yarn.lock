@@ -10984,14 +10984,22 @@ __metadata:
   languageName: node
   linkType: hard
 
+"fast-xml-builder@npm:^1.0.0":
+  version: 1.0.0
+  resolution: "fast-xml-builder@npm:1.0.0"
+  checksum: d6fb6d860ebb67c0dbec4c91a5cde3bf3e4cc40407db249539fe0d4e98e5c1bc09b3d45e5cbc412aaee8dd16605467f8c054c104fbccba23cf78ec15ff8767ab
+  languageName: node
+  linkType: hard
+
 "fast-xml-parser@npm:^5.0.7":
-  version: 5.3.6
-  resolution: "fast-xml-parser@npm:5.3.6"
+  version: 5.4.2
+  resolution: "fast-xml-parser@npm:5.4.2"
   dependencies:
+    fast-xml-builder: ^1.0.0
     strnum: ^2.1.2
   bin:
     fxparser: src/cli/cli.js
-  checksum: 62363dfe997f14debf5ebac22df8f3930f6a6fdc249ff2cda81aa442dafa52e7997cf62854f8d6e29d239f6b342feb448ec41d382d879d968fa4f59c144b522a
+  checksum: dd47ebaa4c7c9502974c41c11a849ca431a2b3a5898a686e122e75be43a451d70631a0634cd4c67d9d29c62c3679d23dc3600969ab4018cbf2a169af2a1e21e4
   languageName: node
   linkType: hard
 
