@@ -25,7 +25,7 @@ import * as semver from 'semver';
 
 import { execSync } from 'child_process';
 import { createRequire } from 'node:module';
-import os from 'os';
+import os from 'node:os';
 import * as path from 'path';
 
 import { productionPack } from '../../lib/packager/productionPack';
