@@ -25,6 +25,7 @@ import * as semver from 'semver';
 
 import { execSync } from 'child_process';
 import { createRequire } from 'node:module';
+import os from 'node:os';
 import * as path from 'path';
 
 import { productionPack } from '../../lib/packager/productionPack';
@@ -356,7 +357,7 @@ throw new Error(
   if (opts.install) {
     Task.log(`Installing private dependencies of the main package`);
 
-    const logFile = 'yarn-install.log';
+    const logFile = path.join(os.tmpdir(), 'rhdh-cli.yarn-install.log');
     const redirect = `> ${logFile}`;
     const yarnInstall = yarnVersion.startsWith('1.')
       ? `${yarn} install --production${
@@ -364,7 +365,20 @@ throw new Error(
         } ${redirect}`
       : `${yarn} install${yarnLockExists ? ' --immutable' : ' --no-immutable'} ${redirect}`;
 
-    await Task.forCommand(yarnInstall, { cwd: target, optional: false });
+    try {
+      await Task.forCommand(yarnInstall, { cwd: target, optional: false });
+    } catch (err) {
+      if (await fs.pathExists(logFile)) {
+        const logContents = await fs.readFile(logFile, 'utf8');
+        console.error(
+          chalk.red(
+            `\n${chalk.bold('yarn install failed. Log output from')} ${chalk.cyan(logFile)}:\n`,
+          ),
+        );
+        console.error(logContents);
+      }
+      throw err;
+    }
     await fs.remove(paths.resolveTarget(targetRelativePath, '.yarn'));
 
     // Checking if some shared dependencies have been included inside the private dependencies
