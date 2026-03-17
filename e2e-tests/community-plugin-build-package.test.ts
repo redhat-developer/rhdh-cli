@@ -9,8 +9,18 @@ const exec = promisify(require('child_process').exec);
 
 const CONTAINER_TOOL = process.env.CONTAINER_TOOL || 'podman';
 
+const LOG_PREFIX = '[e2e]';
+
+function log(msg: string): void {
+  console.log(`${LOG_PREFIX} ${msg}`);
+}
+
+function logSection(title: string): void {
+  console.log(`${LOG_PREFIX} --- ${title} ---`);
+}
+
 async function downloadFile(url: string, file: string): Promise<void> {
-  console.log(`Downloading file from ${url} to ${file}`);
+  log(`Downloading ${url} -> ${file}`);
   const response = await axios({
     method: 'GET',
     url: url,
@@ -31,9 +41,7 @@ async function runCommand(
   command: string,
   options: { cwd?: string } = {},
 ): Promise<{ stdout: string; stderr: string }> {
-  console.log(
-    `Executing command: ${command}, in directory: ${options.cwd || process.cwd()}`,
-  );
+  const cwd = options.cwd || process.cwd();
 
   try {
     const { stdout, stderr } = await exec(command, {
@@ -41,22 +49,32 @@ async function runCommand(
       maxBuffer: 10 * 1024 * 1024, // 10MB buffer for large outputs
       ...options,
     });
-    console.log(`Command output: ${stdout}`);
-    if (stderr) {
-      console.log(`Command stderr: ${stderr}`);
-    }
     return { stdout, stderr };
-  } catch (error: any) {
-    console.error(`\n========== COMMAND FAILED ==========`);
-    console.error(`Command: ${command}`);
-    console.error(`Working directory: ${options.cwd || process.cwd()}`);
-    console.error(`Exit code: ${error.code}`);
-    console.error(`Signal: ${error.signal}`);
-    console.error(`\n--- STDOUT ---\n${error.stdout || '(empty)'}`);
-    console.error(`\n--- STDERR ---\n${error.stderr || '(empty)'}`);
-    console.error(`\n--- ERROR MESSAGE ---\n${error.message}`);
-    console.error(`====================================\n`);
-    throw error;
+  } catch (err: unknown) {
+    const e = err as {
+      code?: string | number;
+      signal?: string;
+      stdout?: string;
+      stderr?: string;
+    };
+    const out = (e.stdout ?? '').trim() || '(empty)';
+    const errOut = (e.stderr ?? '').trim() || '(empty)';
+    const enrichedMessage = [
+      `Command failed: ${command}`,
+      `Cwd: ${cwd}`,
+      `Exit code: ${e.code ?? 'N/A'} | Signal: ${e.signal ?? 'N/A'}`,
+      '--- stdout ---',
+      out,
+      '--- stderr ---',
+      errOut,
+    ].join('\n');
+
+    console.error(`${LOG_PREFIX} COMMAND FAILED: ${command}`);
+    console.error(`${LOG_PREFIX} cwd: ${cwd}`);
+    console.error(`${LOG_PREFIX} --- stdout ---\n${out}`);
+    console.error(`${LOG_PREFIX} --- stderr ---\n${errOut}`);
+
+    throw new Error(enrichedMessage);
   }
 }
 
@@ -98,9 +116,10 @@ describe('export and package backstage-community plugin', () => {
   jest.setTimeout(TEST_TIMEOUT);
 
   beforeAll(async () => {
-    console.log(`Using rhdh-cli at: ${RHDH_CLI}`);
-    console.log(`Test workspace: ${tmpDir}`);
-    console.log(`Container tool: ${CONTAINER_TOOL}`);
+    logSection('Setup');
+    log(`rhdh-cli: ${RHDH_CLI}`);
+    log(`workspace: ${tmpDir}`);
+    log(`container tool: ${CONTAINER_TOOL}`);
 
     let communityPluginsArchivePath = path.join(
       tmpDir,
@@ -109,26 +128,20 @@ describe('export and package backstage-community plugin', () => {
 
     if (process.env.COMMUNITY_PLUGINS_REPO_ARCHIVE) {
       communityPluginsArchivePath = process.env.COMMUNITY_PLUGINS_REPO_ARCHIVE;
-      console.log(
-        `Using  community plugins repo archive: ${communityPluginsArchivePath}`,
-      );
+      log(`Community plugins: path from env: ${communityPluginsArchivePath}`);
     }
 
-    if (!fs.existsSync(communityPluginsArchivePath)) {
-      console.log(`Downloading community plugins archive from: ${REPO_URL}`);
-      await downloadFile(REPO_URL, communityPluginsArchivePath);
-      console.log(
-        `Downloaded community plugins archive to: ${communityPluginsArchivePath}`,
+    if (fs.existsSync(communityPluginsArchivePath)) {
+      log(
+        `Community plugins: using existing archive (skipping download): ${communityPluginsArchivePath}`,
       );
     } else {
-      console.log(
-        `Using existing community plugins archive: ${communityPluginsArchivePath}`,
-      );
+      log(`Community plugins: archive not found, downloading from ${REPO_URL}`);
+      await downloadFile(REPO_URL, communityPluginsArchivePath);
+      log(`Community plugins: downloaded to ${communityPluginsArchivePath}`);
     }
 
-    console.log(
-      `Extracting community plugins archive to: ${getClonedRepoPath()}`,
-    );
+    log(`Community plugins: extracting to ${getClonedRepoPath()}`);
     fs.mkdirSync(getClonedRepoPath(), { recursive: true });
     await tar.x({
       file: communityPluginsArchivePath,
@@ -156,29 +169,30 @@ describe('export and package backstage-community plugin', () => {
       `rhdh-test-tech-radar-backend:${Date.now()}`,
     ],
   ])('plugin in %s/%s directory', (workspacePath, pluginRelPath, imageTag) => {
-    const getWorkspacePath = () => path.join(getClonedRepoPath(), workspacePath);
+    const getWorkspacePath = () =>
+      path.join(getClonedRepoPath(), workspacePath);
     const getFullPluginPath = () =>
       path.join(getClonedRepoPath(), workspacePath, pluginRelPath);
 
     beforeAll(async () => {
-      console.log(`Installing dependencies in workspace ${getWorkspacePath()}`);
+      logSection(`Plugin: ${workspacePath}/${pluginRelPath}`);
+      log(`Installing dependencies in workspace ${getWorkspacePath()}`);
       // Use YARN_ENABLE_SCRIPTS=false to skip native module builds that may fail
-      // Then run tsc and build separately
       await runCommand(`YARN_ENABLE_SCRIPTS=false yarn install`, {
         cwd: getWorkspacePath(),
       });
-      console.log(`Generating TypeScript declarations in ${getWorkspacePath()}`);
+      log(`Generating TypeScript declarations in ${getWorkspacePath()}`);
       await runCommand(`yarn tsc`, {
         cwd: getWorkspacePath(),
       });
-      console.log(`Building plugin in ${getFullPluginPath()}`);
+      log(`Building plugin in ${getFullPluginPath()}`);
       await runCommand(`yarn build`, {
         cwd: getFullPluginPath(),
       });
     });
 
     afterAll(async () => {
-      console.log(`Cleaning up image: ${imageTag}`);
+      log(`Cleaning up image: ${imageTag}`);
       await runCommand(`${CONTAINER_TOOL} rmi -f ${imageTag}`);
     });
 
@@ -218,10 +232,8 @@ describe('export and package backstage-community plugin', () => {
       );
 
       const imageMetadata = await getImageMetadata(imageTag);
-      console.log(
-        `Image annotations: ${JSON.stringify(imageMetadata.annotations)}`,
-      );
-      console.log(`Image labels: ${JSON.stringify(imageMetadata.labels)}`);
+      log(`Image annotations: ${JSON.stringify(imageMetadata.annotations)}`);
+      log(`Image labels: ${JSON.stringify(imageMetadata.labels)}`);
 
       // There needs to be at least one annotation (the default dynamic plugin annotation)
       expect(imageMetadata.annotations).not.toBeNull();
