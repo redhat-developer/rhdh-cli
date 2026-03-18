@@ -36,6 +36,8 @@ if (!isLocal || process.env.BACKSTAGE_E2E_CLI_TEST) {
     project: path.resolve(__dirname, '../tsconfig.json'),
     compilerOptions: {
       module: 'CommonJS',
+      moduleResolution: 'node',
+      allowImportingTsExtensions: false,
     },
   });
 
