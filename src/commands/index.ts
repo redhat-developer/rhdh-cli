@@ -30,7 +30,6 @@ export function registerPluginCommand(program: Command) {
     .description(
       'Build and export a plugin package to be loaded as a dynamic plugin. The repackaged dynamic plugin is exported inside a ./dist-dynamic sub-folder.',
     )
-    .option('--minify', 'Minify the generated code (backend plugin only).')
     .option(
       '--embed-package [package-name...]',
       'Optional list of packages that should be embedded inside the generated code of a backend dynamic plugin, removed from the plugin dependencies, while their direct dependencies will be hoisted to the dynamic plugin dependencies (backend plugin only).',
@@ -53,7 +52,7 @@ export function registerPluginCommand(program: Command) {
     )
     .option(
       '--no-install',
-      'Do not run `yarn install` to fill the dynamic plugin `node_modules` folder (backend plugin only).',
+      'Do not run `yarn install` in `dist-dynamic` to fill `node_modules` (backend and frontend plugin exports).',
     )
     .option(
       '--no-build',
@@ -65,7 +64,7 @@ export function registerPluginCommand(program: Command) {
     )
     .option(
       '--dev',
-      'Allow testing/debugging a dynamic plugin locally. This creates a link from the dynamic plugin content to the plugin package `src` folder, to enable the use of source maps (backend plugin only). This also installs the dynamic plugin content (symlink) into the dynamic plugins root folder configured in the app config (or copies the plugin content to the location explicitely provided by the `--dynamic-plugins-root` argument).',
+      'Allow testing/debugging a dynamic plugin locally. For Node (backend) plugins, symlinks `src` into `dist-dynamic` for source maps. Also symlinks or copies `dist-dynamic` into the dynamic plugins root from app config (`dynamicPlugins.rootDirectory`) or into `--dynamic-plugins-root` when set.',
     )
     .option(
       '--dynamic-plugins-root <dynamic-plugins-root>',
@@ -77,7 +76,7 @@ export function registerPluginCommand(program: Command) {
     )
     .option(
       '--track-dynamic-manifest-and-lock-file',
-      'Adds the `package.json` and `yarn.lock` files, generated in the `dist-dynamic` folder of backend plugins, to source control. By default the whole `dist-dynamic` folder id git-ignored.',
+      'When set, `dist-dynamic/.gitignore` allows committing `package.json`, `yarn.lock`, and `.yarnrc.yml` from `dist-dynamic` (otherwise that folder is entirely ignored). The flag name mentions manifest and lockfile only; `.yarnrc.yml` is included so the generated minimal Yarn Berry config can be tracked with them. Applies to backend and frontend plugin exports.',
       false,
     )
     .option(
