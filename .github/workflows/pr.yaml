@@ -29,6 +29,9 @@ jobs:
       - name: type checking and declarations
         run: yarn tsc
 
+      - name: linter
+        run: yarn lint:check
+
       - name: prettier
         run: yarn prettier:check
 

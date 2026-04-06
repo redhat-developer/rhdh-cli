@@ -1,117 +1,29 @@
 import fs from 'fs-extra';
 import os from 'os';
 import path from 'path';
-import { promisify } from 'util';
-import * as tar from 'tar';
-import axios from 'axios';
 
-const exec = promisify(require('child_process').exec);
+import {
+  CONTAINER_TOOL,
+  extractGithubMainArchive,
+  getImageMetadata,
+  log,
+  logSection,
+  parseDynamicPluginAnnotation,
+  runCommand,
+} from './support/plugin-export-build';
 
-const CONTAINER_TOOL = process.env.CONTAINER_TOOL || 'podman';
-
-const LOG_PREFIX = '[e2e]';
-
-function log(msg: string): void {
-  console.log(`${LOG_PREFIX} ${msg}`);
-}
-
-function logSection(title: string): void {
-  console.log(`${LOG_PREFIX} --- ${title} ---`);
-}
-
-async function downloadFile(url: string, file: string): Promise<void> {
-  log(`Downloading ${url} -> ${file}`);
-  const response = await axios({
-    method: 'GET',
-    url: url,
-    responseType: 'stream',
-  });
-
-  const fileStream = fs.createWriteStream(file);
-  response.data.pipe(fileStream);
-
-  return new Promise((resolve, reject) => {
-    fileStream.on('finish', resolve);
-    fileStream.on('error', reject);
-    response.data.on('error', reject);
-  });
-}
-
-async function runCommand(
-  command: string,
-  options: { cwd?: string } = {},
-): Promise<{ stdout: string; stderr: string }> {
-  const cwd = options.cwd || process.cwd();
-
-  try {
-    const { stdout, stderr } = await exec(command, {
-      shell: true,
-      maxBuffer: 10 * 1024 * 1024, // 10MB buffer for large outputs
-      ...options,
-    });
-    return { stdout, stderr };
-  } catch (err: unknown) {
-    const e = err as {
-      code?: string | number;
-      signal?: string;
-      stdout?: string;
-      stderr?: string;
-    };
-    const out = (e.stdout ?? '').trim() || '(empty)';
-    const errOut = (e.stderr ?? '').trim() || '(empty)';
-    const enrichedMessage = [
-      `Command failed: ${command}`,
-      `Cwd: ${cwd}`,
-      `Exit code: ${e.code ?? 'N/A'} | Signal: ${e.signal ?? 'N/A'}`,
-      '--- stdout ---',
-      out,
-      '--- stderr ---',
-      errOut,
-    ].join('\n');
-
-    console.error(`${LOG_PREFIX} COMMAND FAILED: ${command}`);
-    console.error(`${LOG_PREFIX} cwd: ${cwd}`);
-    console.error(`${LOG_PREFIX} --- stdout ---\n${out}`);
-    console.error(`${LOG_PREFIX} --- stderr ---\n${errOut}`);
-
-    throw new Error(enrichedMessage);
-  }
-}
-
-async function parseDynamicPluginAnnotation(
-  imageAnnotations: Record<string, string>,
-): Promise<object[]> {
-  const dynamicPackagesAnnotation =
-    imageAnnotations['io.backstage.dynamic-packages'];
-  return JSON.parse(
-    Buffer.from(dynamicPackagesAnnotation, 'base64').toString('utf-8'),
-  );
-}
-
-async function getImageMetadata(image: string): Promise<{
-  annotations: Record<string, string>;
-  labels: Record<string, string>;
-}> {
-  const { stdout } = await runCommand(`${CONTAINER_TOOL} inspect ${image}`);
-  const imageInfo = JSON.parse(stdout)[0];
-  return {
-    annotations: imageInfo.Annotations || {},
-    labels: imageInfo.Labels || {},
-  };
-}
-
-// you can use COMMUNITY_PLUGINS_REPO_ARCHIVE env variable to specify a path existing local archive of the community plugins repository
+// you can use RHDH_PLUGINS_REPO_ARCHIVE env variable to specify a path to an existing local archive of the rhdh-plugins repository
 // this is useful to avoid downloading the archive every time
-// e.g. COMMUNITY_PLUGINS_REPO_ARCHIVE=/path/to/archive.tar.gz
+// e.g. RHDH_PLUGINS_REPO_ARCHIVE=/path/to/archive.tar.gz
 // if not set, it will download the archive from the specified REPO_URL
-describe('export and package backstage-community plugin', () => {
+describe('export and package rhdh-plugins scorecard workspace plugin', () => {
   const TEST_TIMEOUT = 5 * 60 * 1000;
   const RHDH_CLI = path.resolve(__dirname, '../bin/rhdh-cli');
   const REPO_URL =
-    'https://github.com/backstage/community-plugins/archive/refs/heads/main.tar.gz';
+    'https://github.com/redhat-developer/rhdh-plugins/archive/refs/heads/main.tar.gz';
 
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'rhdh-cli-e2e-'));
-  const getClonedRepoPath = () => path.join(tmpDir, 'community-plugins-main');
+  const getClonedRepoPath = () => path.join(tmpDir, 'rhdh-plugins-main');
 
   jest.setTimeout(TEST_TIMEOUT);
 
@@ -121,33 +33,13 @@ describe('export and package backstage-community plugin', () => {
     log(`workspace: ${tmpDir}`);
     log(`container tool: ${CONTAINER_TOOL}`);
 
-    let communityPluginsArchivePath = path.join(
+    await extractGithubMainArchive({
       tmpDir,
-      'community-plugins.tar.gz',
-    );
-
-    if (process.env.COMMUNITY_PLUGINS_REPO_ARCHIVE) {
-      communityPluginsArchivePath = process.env.COMMUNITY_PLUGINS_REPO_ARCHIVE;
-      log(`Community plugins: path from env: ${communityPluginsArchivePath}`);
-    }
-
-    if (fs.existsSync(communityPluginsArchivePath)) {
-      log(
-        `Community plugins: using existing archive (skipping download): ${communityPluginsArchivePath}`,
-      );
-    } else {
-      log(`Community plugins: archive not found, downloading from ${REPO_URL}`);
-      await downloadFile(REPO_URL, communityPluginsArchivePath);
-      log(`Community plugins: downloaded to ${communityPluginsArchivePath}`);
-    }
-
-    log(`Community plugins: extracting to ${getClonedRepoPath()}`);
-    fs.mkdirSync(getClonedRepoPath(), { recursive: true });
-    await tar.x({
-      file: communityPluginsArchivePath,
-      cwd: getClonedRepoPath(),
-      strip: 1,
-      sync: true,
+      repoTarballUrl: REPO_URL,
+      localArchiveEnvVar: 'RHDH_PLUGINS_REPO_ARCHIVE',
+      defaultArchiveBasename: 'rhdh-plugins.tar.gz',
+      extractedDirName: 'rhdh-plugins-main',
+      logLabel: 'rhdh-plugins',
     });
   });
 
@@ -159,14 +51,14 @@ describe('export and package backstage-community plugin', () => {
 
   describe.each([
     [
-      'workspaces/tech-radar',
-      'plugins/tech-radar',
-      `rhdh-test-tech-radar-frontend:${Date.now()}`,
+      'workspaces/scorecard',
+      'plugins/scorecard',
+      `rhdh-test-scorecard-frontend:${Date.now()}`,
     ],
     [
-      'workspaces/tech-radar',
-      'plugins/tech-radar-backend',
-      `rhdh-test-tech-radar-backend:${Date.now()}`,
+      'workspaces/scorecard',
+      'plugins/scorecard-backend',
+      `rhdh-test-scorecard-backend:${Date.now()}`,
     ],
   ])('plugin in %s/%s directory', (workspacePath, pluginRelPath, imageTag) => {
     const getWorkspacePath = () =>
