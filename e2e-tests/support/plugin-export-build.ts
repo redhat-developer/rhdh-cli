@@ -1,11 +1,12 @@
 import fs from 'fs-extra';
-import path from 'path';
-import { promisify } from 'util';
+import { exec as execCallback } from 'node:child_process';
+import path from 'node:path';
+import { promisify } from 'node:util';
 import type { ReadEntry } from 'tar';
 import * as tar from 'tar';
 import axios from 'axios';
 
-const exec = promisify(require('child_process').exec);
+const exec = promisify(execCallback);
 
 export const CONTAINER_TOOL = process.env.CONTAINER_TOOL || 'podman';
 

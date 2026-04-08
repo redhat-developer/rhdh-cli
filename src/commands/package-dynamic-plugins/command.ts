@@ -230,7 +230,7 @@ export async function command(opts: OptionValues): Promise<void> {
       fs.readdirSync(tmpDir).forEach(entry => {
         const source = path.join(tmpDir, entry);
         const destination = path.join(exportTo, entry);
-        fs.copySync(source, destination, { recursive: true, overwrite: true });
+        fs.copySync(source, destination, { overwrite: true });
       });
     } else {
       // collect flags for the container build command
