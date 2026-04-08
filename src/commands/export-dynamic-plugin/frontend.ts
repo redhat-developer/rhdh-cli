@@ -15,7 +15,7 @@
  */
 
 import { PackageRoleInfo } from '@backstage/cli-node';
-import { buildFrontend } from '@backstage/cli/dist/modules/build/lib/buildFrontend.cjs.js';
+import { buildFrontend } from '@backstage/cli-module-build/dist/lib/buildFrontend.cjs.js';
 
 import { getPackages } from '@manypkg/get-packages';
 import chalk from 'chalk';

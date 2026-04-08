@@ -1,104 +1,16 @@
 import fs from 'fs-extra';
-import os from 'os';
-import path from 'path';
-import { promisify } from 'util';
-import * as tar from 'tar';
-import axios from 'axios';
+import os from 'node:os';
+import path from 'node:path';
 
-const exec = promisify(require('child_process').exec);
-
-const CONTAINER_TOOL = process.env.CONTAINER_TOOL || 'podman';
-
-const LOG_PREFIX = '[e2e]';
-
-function log(msg: string): void {
-  console.log(`${LOG_PREFIX} ${msg}`);
-}
-
-function logSection(title: string): void {
-  console.log(`${LOG_PREFIX} --- ${title} ---`);
-}
-
-async function downloadFile(url: string, file: string): Promise<void> {
-  log(`Downloading ${url} -> ${file}`);
-  const response = await axios({
-    method: 'GET',
-    url: url,
-    responseType: 'stream',
-  });
-
-  const fileStream = fs.createWriteStream(file);
-  response.data.pipe(fileStream);
-
-  return new Promise((resolve, reject) => {
-    fileStream.on('finish', resolve);
-    fileStream.on('error', reject);
-    response.data.on('error', reject);
-  });
-}
-
-async function runCommand(
-  command: string,
-  options: { cwd?: string } = {},
-): Promise<{ stdout: string; stderr: string }> {
-  const cwd = options.cwd || process.cwd();
-
-  try {
-    const { stdout, stderr } = await exec(command, {
-      shell: true,
-      maxBuffer: 10 * 1024 * 1024, // 10MB buffer for large outputs
-      ...options,
-    });
-    return { stdout, stderr };
-  } catch (err: unknown) {
-    const e = err as {
-      code?: string | number;
-      signal?: string;
-      stdout?: string;
-      stderr?: string;
-    };
-    const out = (e.stdout ?? '').trim() || '(empty)';
-    const errOut = (e.stderr ?? '').trim() || '(empty)';
-    const enrichedMessage = [
-      `Command failed: ${command}`,
-      `Cwd: ${cwd}`,
-      `Exit code: ${e.code ?? 'N/A'} | Signal: ${e.signal ?? 'N/A'}`,
-      '--- stdout ---',
-      out,
-      '--- stderr ---',
-      errOut,
-    ].join('\n');
-
-    console.error(`${LOG_PREFIX} COMMAND FAILED: ${command}`);
-    console.error(`${LOG_PREFIX} cwd: ${cwd}`);
-    console.error(`${LOG_PREFIX} --- stdout ---\n${out}`);
-    console.error(`${LOG_PREFIX} --- stderr ---\n${errOut}`);
-
-    throw new Error(enrichedMessage);
-  }
-}
-
-async function parseDynamicPluginAnnotation(
-  imageAnnotations: Record<string, string>,
-): Promise<object[]> {
-  const dynamicPackagesAnnotation =
-    imageAnnotations['io.backstage.dynamic-packages'];
-  return JSON.parse(
-    Buffer.from(dynamicPackagesAnnotation, 'base64').toString('utf-8'),
-  );
-}
-
-async function getImageMetadata(image: string): Promise<{
-  annotations: Record<string, string>;
-  labels: Record<string, string>;
-}> {
-  const { stdout } = await runCommand(`${CONTAINER_TOOL} inspect ${image}`);
-  const imageInfo = JSON.parse(stdout)[0];
-  return {
-    annotations: imageInfo.Annotations || {},
-    labels: imageInfo.Labels || {},
-  };
-}
+import {
+  CONTAINER_TOOL,
+  extractGithubMainArchive,
+  getImageMetadata,
+  log,
+  logSection,
+  parseDynamicPluginAnnotation,
+  runCommand,
+} from './support/plugin-export-build';
 
 // you can use COMMUNITY_PLUGINS_REPO_ARCHIVE env variable to specify a path existing local archive of the community plugins repository
 // this is useful to avoid downloading the archive every time
@@ -121,33 +33,13 @@ describe('export and package backstage-community plugin', () => {
     log(`workspace: ${tmpDir}`);
     log(`container tool: ${CONTAINER_TOOL}`);
 
-    let communityPluginsArchivePath = path.join(
+    await extractGithubMainArchive({
       tmpDir,
-      'community-plugins.tar.gz',
-    );
-
-    if (process.env.COMMUNITY_PLUGINS_REPO_ARCHIVE) {
-      communityPluginsArchivePath = process.env.COMMUNITY_PLUGINS_REPO_ARCHIVE;
-      log(`Community plugins: path from env: ${communityPluginsArchivePath}`);
-    }
-
-    if (fs.existsSync(communityPluginsArchivePath)) {
-      log(
-        `Community plugins: using existing archive (skipping download): ${communityPluginsArchivePath}`,
-      );
-    } else {
-      log(`Community plugins: archive not found, downloading from ${REPO_URL}`);
-      await downloadFile(REPO_URL, communityPluginsArchivePath);
-      log(`Community plugins: downloaded to ${communityPluginsArchivePath}`);
-    }
-
-    log(`Community plugins: extracting to ${getClonedRepoPath()}`);
-    fs.mkdirSync(getClonedRepoPath(), { recursive: true });
-    await tar.x({
-      file: communityPluginsArchivePath,
-      cwd: getClonedRepoPath(),
-      strip: 1,
-      sync: true,
+      repoTarballUrl: REPO_URL,
+      localArchiveEnvVar: 'COMMUNITY_PLUGINS_REPO_ARCHIVE',
+      defaultArchiveBasename: 'community-plugins.tar.gz',
+      extractedDirName: 'community-plugins-main',
+      logLabel: 'Community plugins',
     });
   });
 

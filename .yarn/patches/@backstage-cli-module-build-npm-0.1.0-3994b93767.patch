@@ -1,0 +1,23 @@
+diff --git a/dist/lib/bundler/config.cjs.js b/dist/lib/bundler/config.cjs.js
+index f5860c14d9a1e8046f23e9c542882494dc8e8b30..3fe00ad9ac51582e1e5648936f9486bcbaa5621d 100644
+--- a/dist/lib/bundler/config.cjs.js
++++ b/dist/lib/bundler/config.cjs.js
+@@ -299,7 +299,17 @@ async function createConfig(paths, options) {
+         css: false
+       }
+     },
+-    plugins
++    plugins,
++    ...options.moduleFederationRemote && {
++      // TODO: remove this warning skipping as soon as the corresponding bundler limitation
++      // described in issue https://github.com/web-infra-dev/rspack/issues/13635 is fixed
++      // when PR: https://github.com/web-infra-dev/rspack/pull/13636 is merged.
++      ignoreWarnings: [
++        {
++          message: /No version specified and unable to automatically determine one\. No version in description file/
++        }
++      ]
++    }
+   };
+ }
+ 
