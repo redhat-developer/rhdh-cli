@@ -1689,7 +1689,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@backstage/cli-module-build@npm:0.1.0":
+"@backstage/cli-module-build@npm:0.1.0, @backstage/cli-module-build@npm:^0.1.0":
   version: 0.1.0
   resolution: "@backstage/cli-module-build@npm:0.1.0"
   dependencies:
@@ -1755,75 +1755,6 @@ __metadata:
   bin:
     cli-module-build: bin/backstage-cli-module-build
   checksum: c18a39b32c49f0b80e242fea7277c7282ee1633df6aeeb0e55389e4d7b4d2bf8f173dbcb348a8f7e27e3838a543706f08ebf1c58a5671de36531d1df4825a3ad
-  languageName: node
-  linkType: hard
-
-"@backstage/cli-module-build@patch:@backstage/cli-module-build@npm%3A0.1.0#./.yarn/patches/@backstage-cli-module-build-npm-0.1.0-3994b93767.patch::locator=%40red-hat-developer-hub%2Fcli%40workspace%3A.":
-  version: 0.1.0
-  resolution: "@backstage/cli-module-build@patch:@backstage/cli-module-build@npm%3A0.1.0#./.yarn/patches/@backstage-cli-module-build-npm-0.1.0-3994b93767.patch::version=0.1.0&hash=ed10c5&locator=%40red-hat-developer-hub%2Fcli%40workspace%3A."
-  dependencies:
-    "@backstage/cli-common": ^0.2.0
-    "@backstage/cli-node": ^0.3.0
-    "@backstage/config": ^1.3.6
-    "@backstage/config-loader": ^1.10.9
-    "@backstage/errors": ^1.2.7
-    "@backstage/module-federation-common": ^0.1.2
-    "@manypkg/get-packages": ^1.1.3
-    "@module-federation/enhanced": ^0.21.6
-    "@pmmmwh/react-refresh-webpack-plugin": ^0.6.0
-    "@rollup/plugin-commonjs": ^26.0.0
-    "@rollup/plugin-json": ^6.0.0
-    "@rollup/plugin-node-resolve": ^15.0.0
-    "@rollup/plugin-yaml": ^4.0.0
-    "@rspack/core": ^1.4.11
-    "@rspack/dev-server": ^1.1.4
-    "@rspack/plugin-react-refresh": ^1.4.3
-    "@swc/core": ^1.15.6
-    bfj: ^9.0.2
-    buffer: ^6.0.3
-    chalk: ^4.0.0
-    chokidar: ^3.3.1
-    cleye: ^2.3.0
-    cross-spawn: ^7.0.3
-    css-loader: ^6.5.1
-    ctrlc-windows: ^2.1.0
-    esbuild-loader: ^4.0.0
-    eslint-rspack-plugin: ^4.2.1
-    eslint-webpack-plugin: ^4.2.0
-    fork-ts-checker-webpack-plugin: ^9.0.0
-    fs-extra: ^11.2.0
-    glob: ^7.1.7
-    html-webpack-plugin: ^5.6.3
-    lodash: ^4.17.21
-    mini-css-extract-plugin: ^2.4.2
-    node-stdlib-browser: ^1.3.1
-    npm-packlist: ^5.0.0
-    p-queue: ^6.6.2
-    postcss: ^8.1.0
-    postcss-import: ^16.1.0
-    process: ^0.11.10
-    raw-loader: ^4.0.2
-    react-dev-utils: ^12.0.0-next.60
-    react-refresh: ^0.18.0
-    rollup: ^4.27.3
-    rollup-plugin-dts: ^6.1.0
-    rollup-plugin-esbuild: ^6.1.1
-    rollup-plugin-postcss: ^4.0.0
-    rollup-pluginutils: ^2.8.2
-    shell-quote: ^1.8.1
-    style-loader: ^3.3.1
-    swc-loader: ^0.2.3
-    tar: ^7.5.6
-    ts-checker-rspack-plugin: ^1.1.5
-    ts-morph: ^24.0.0
-    util: ^0.12.3
-    webpack: ~5.105.0
-    webpack-dev-server: ^5.0.0
-    yml-loader: ^2.1.0
-    yn: ^4.0.0
-  bin:
-    cli-module-build: bin/backstage-cli-module-build
-  checksum: 2091bce591861bcf365282d1a70dba3f29bec2eed1afd83e60da6c90f43261d28589312747d3cea1b2077a32e64ab21cf6e0a12871bf0255bc9db7e42a5a510c
   languageName: node
   linkType: hard
 

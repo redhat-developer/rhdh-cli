@@ -1,7 +1,7 @@
 {
   "name": "@red-hat-developer-hub/cli",
   "description": "CLI for developing Backstage plugins and apps",
-  "version": "1.10.3",
+  "version": "1.10.4",
   "publishConfig": {
     "access": "public"
   },
@@ -80,6 +80,7 @@
     "semver": "^7.5.4",
     "style-loader": "^3.3.1",
     "swc-loader": "^0.2.3",
+    "typescript": "5.4.5",
     "typescript-json-schema": "^0.64.0",
     "webpack": "~5.105.0",
     "webpack-dev-server": "^5.0.0",
@@ -122,8 +123,7 @@
     "tar": "^7.5.7",
     "ts-jest": "^29.3.4",
     "ts-node": "10.9.2",
-    "type-fest": "4.20.1",
-    "typescript": "5.4.5"
+    "type-fest": "4.20.1"
   },
   "peerDependencies": {
     "@microsoft/api-extractor": "^7.21.2"
@@ -155,9 +155,5 @@
       "prettier --write"
     ]
   },
-  "packageManager": "yarn@3.8.6",
-  "resolutions": {
-    "@backstage/cli-module-build@0.1.0": "patch:@backstage/cli-module-build@npm%3A0.1.0#./.yarn/patches/@backstage-cli-module-build-npm-0.1.0-3994b93767.patch",
-    "@backstage/cli-module-build@^0.1.0": "patch:@backstage/cli-module-build@npm%3A0.1.0#./.yarn/patches/@backstage-cli-module-build-npm-0.1.0-3994b93767.patch"
-  }
+  "packageManager": "yarn@3.8.6"
 }
