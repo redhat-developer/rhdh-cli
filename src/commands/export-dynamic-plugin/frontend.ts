@@ -30,6 +30,14 @@ import { paths } from '../../lib/paths';
 import { Task } from '../../lib/tasks';
 import { customizeForDynamicUse } from './backend';
 
+function isTruthyCiEnv(value: string | undefined): boolean {
+  if (value === undefined) {
+    return false;
+  }
+  const normalized = value.trim().toLowerCase();
+  return normalized === 'true' || normalized === '1' || normalized === 'yes';
+}
+
 export async function frontend(
   _: PackageRoleInfo,
   opts: OptionValues,
@@ -57,12 +65,27 @@ export async function frontend(
         path.join(paths.targetDir, 'dist'),
       )}`,
     );
-    await buildFrontend({
-      targetDir: paths.targetDir,
-      configPaths: [],
-      writeStats: false,
-      isModuleFederationRemote: true,
-    });
+    const previousCi = process.env.CI;
+    const unsetCiForMfBuild = isTruthyCiEnv(previousCi);
+    if (unsetCiForMfBuild) {
+      process.env.CI = 'false';
+    }
+    try {
+      await buildFrontend({
+        targetDir: paths.targetDir,
+        configPaths: [],
+        writeStats: false,
+        isModuleFederationRemote: true,
+      });
+    } finally {
+      if (unsetCiForMfBuild) {
+        if (previousCi === undefined) {
+          delete process.env.CI;
+        } else {
+          process.env.CI = previousCi;
+        }
+      }
+    }
   }
 
   const distDynamicRelativePath = 'dist-dynamic';

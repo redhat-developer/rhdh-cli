@@ -4,6 +4,13 @@ All notable changes to `@red-hat-developer-hub/cli` are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 1.10.4 - 2026-04-09
+
+### Changed
+
+- **`export-dynamic-plugin` (module federation):** while running **`buildFrontend`** with **`isModuleFederationRemote`**, **`CI`** is temporarily set to **`false`** when it was **`true`**, **`1`**, or **`yes`** (case-insensitive), then restored. That avoids Rspack treating CI builds as strict in a way that breaks **`npx`** / **`CI=true`** environments ([rspack#13635](https://github.com/web-infra-dev/rspack/issues/13635)), without **`postinstall`** or patching **`node_modules`**.
+- **`typescript`** is now a **runtime `dependency`** so the published CLI satisfies peers such as **`@module-federation/dts-plugin`** under strict installers (for example **Yarn PnP** with **`yarn dlx`**).
+
 ## 1.10.3 - 2026-04-08
 
 ### Changed
