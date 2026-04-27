@@ -4,6 +4,16 @@ All notable changes to `@red-hat-developer-hub/cli` are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 1.10.5 - 2026-04-27
+
+### Added
+
+- **`export-dynamic-plugin` backend path:** `backstage:^` dependency version specs are now resolved to concrete semver ranges (e.g. `^0.6.3`) using the Backstage release manifest for the version declared in `backstage.json`. This enables exports of plugins whose source repos have adopted the `backstage:^` protocol — without resolution the raw `backstage:^` string would propagate into `peerDependencies` and cause `TypeError: Invalid comparator` during embedded-package peer-dependency hoisting when the embedded package came from npm with a standard semver range.
+
+### Fixed
+
+- **`export-dynamic-plugin` backend path:** `workspace:^` / `workspace:~` range specifiers are now correctly prepended to the resolved version for all monorepo dependency resolution paths (previously the range prefix was applied inside one branch but missed in another, producing bare versions instead of `^x.y.z` or `~x.y.z`).
+
 ## 1.10.4 - 2026-04-09
 
 ### Changed
