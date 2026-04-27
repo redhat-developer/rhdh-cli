@@ -4609,6 +4609,7 @@ __metadata:
     "@backstage/core-plugin-api": 1.10.3
     "@backstage/errors": ^1.2.7
     "@backstage/eslint-plugin": 0.2.2
+    "@backstage/release-manifests": ^0.0.13
     "@backstage/repo-tools": ^0.13.3
     "@backstage/types": ^1.2.1
     "@changesets/cli": ^2.29.4

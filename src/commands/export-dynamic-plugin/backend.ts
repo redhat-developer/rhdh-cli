@@ -28,6 +28,10 @@ import { createRequire } from 'node:module';
 import os from 'node:os';
 import * as path from 'path';
 
+import {
+  isBackstageVersionSpec,
+  resolveBackstageVersion,
+} from '../../lib/backstageVersion';
 import { productionPack } from '../../lib/packager/productionPack';
 import { paths } from '../../lib/paths';
 import { Task } from '../../lib/tasks';
@@ -742,11 +746,7 @@ export function customizeForDynamicUse(options: {
                 version: relatedMonoRepoPackages[0].packageJson.version,
               })
             ) {
-              resolvedVersion =
-                rangeSpecifier === '^' || rangeSpecifier === '~'
-                  ? rangeSpecifier +
-                    relatedMonoRepoPackages[0].packageJson.version
-                  : relatedMonoRepoPackages[0].packageJson.version;
+              resolvedVersion = relatedMonoRepoPackages[0].packageJson.version;
             }
           }
 
@@ -758,7 +758,24 @@ export function customizeForDynamicUse(options: {
             );
           }
 
+          if (rangeSpecifier === '^' || rangeSpecifier === '~') {
+            resolvedVersion = rangeSpecifier + resolvedVersion;
+          }
           pkgToCustomize.dependencies[dep] = resolvedVersion;
+        } else if (isBackstageVersionSpec(dependencyVersionSpec)) {
+          // Handle backstage:^ protocol - resolve to concrete version from release manifest
+          const resolvedVersion = await resolveBackstageVersion(
+            dep,
+            dependencyVersionSpec,
+          );
+          if (resolvedVersion) {
+            Task.log(
+              `  resolving ${chalk.cyan(dep)} from ${chalk.yellow(
+                dependencyVersionSpec,
+              )} to ${chalk.green(resolvedVersion)}`,
+            );
+            pkgToCustomize.dependencies[dep] = resolvedVersion;
+          }
         }
 
         if (isPackageShared(dep, options.sharedPackages)) {
