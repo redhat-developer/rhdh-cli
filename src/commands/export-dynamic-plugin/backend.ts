@@ -549,6 +549,17 @@ async function searchEmbedded(
       if (embedded.includes(dep)) {
         const dependencyVersion = pkg.dependencies[dep];
 
+        let effectiveVersion = dependencyVersion;
+        if (isBackstageVersionSpec(dependencyVersion)) {
+          const resolvedBackstageVersion = await resolveBackstageVersion(
+            dep,
+            dependencyVersion,
+          );
+          if (resolvedBackstageVersion) {
+            effectiveVersion = resolvedBackstageVersion;
+          }
+        }
+
         const relatedMonoRepoPackages = monoRepoPackages.packages.filter(
           p => p.packageJson.name === dep,
         );
@@ -582,7 +593,7 @@ async function searchEmbedded(
           } else if (
             semver.satisfies(
               monoRepoPackage.packageJson.version,
-              dependencyVersion,
+              effectiveVersion,
             )
           ) {
             isResolved = true;
@@ -613,7 +624,7 @@ async function searchEmbedded(
             await fs.readFile(resolvedPackageJson, 'utf8'),
           ) as BackstagePackageJson;
 
-          if (!semver.satisfies(resolvedPackage.version, dependencyVersion)) {
+          if (!semver.satisfies(resolvedPackage.version, effectiveVersion)) {
             throw new Error(
               `Resolved package named '${dep}' at '${resolvedPackageDir}' doesn't satisfy dependency version requirement in parent package '${pkg.name}': '${resolvedPackage.version}', '${dependencyVersion}'.`,
             );
