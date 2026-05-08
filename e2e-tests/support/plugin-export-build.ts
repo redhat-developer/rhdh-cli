@@ -1,5 +1,6 @@
 import fs from 'fs-extra';
 import { exec as execCallback } from 'node:child_process';
+import os from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import type { ReadEntry } from 'tar';
@@ -76,6 +77,45 @@ export async function runCommand(
     console.error(`${LOG_PREFIX} --- stderr ---\n${errOut}`);
 
     throw new Error(enrichedMessage);
+  }
+}
+
+/**
+ * Top-level directory names using the same steps as `plugin package`:
+ * `npm pack --pack-destination …`, then `tar -xzf … --strip-components=1`.
+ * Names are sorted for stable comparison with staged OCI contents.
+ */
+export async function topLevelEntriesAfterNpmPackStaging(
+  distDynamicDir: string,
+): Promise<string[]> {
+  const work = fs.mkdtempSync(path.join(os.tmpdir(), 'rhdh-e2e-npm-pack-'));
+  const packDest = fs.mkdtempSync(
+    path.join(os.tmpdir(), 'rhdh-e2e-npm-pack-out-'),
+  );
+  try {
+    await runCommand(
+      `npm pack --pack-destination "${packDest}" --foreground-scripts=false`,
+      { cwd: distDynamicDir },
+    );
+    const tgzs = fs
+      .readdirSync(packDest)
+      .filter(f => f.endsWith('.tgz'))
+      .sort();
+    if (tgzs.length !== 1) {
+      throw new Error(
+        `expected exactly one .tgz in ${packDest}, got: ${tgzs.join(', ')}`,
+      );
+    }
+    const extractInto = path.join(work, 'extracted');
+    fs.mkdirSync(extractInto, { recursive: true });
+    await runCommand(
+      `tar -xzf "${path.join(packDest, tgzs[0])}" -C "${extractInto}" --strip-components=1`,
+      { cwd: distDynamicDir },
+    );
+    return fs.readdirSync(extractInto).sort();
+  } finally {
+    await fs.remove(work).catch(() => undefined);
+    await fs.remove(packDest).catch(() => undefined);
   }
 }
 
