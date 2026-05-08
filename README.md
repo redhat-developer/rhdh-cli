@@ -17,6 +17,18 @@ This new CLI aims to offer more flexibility and ease of use compared to the prev
 > | `npx @janus-idp/cli package package-dynamic-plugins` | `npx @red-hat-developer-hub/cli plugin package` |
 <!-- prettier-ignore-end -->
 
+## `plugin package` requirements
+
+The `plugin package` command stages each `dist-dynamic` plugin with `npm pack` and `tar` (via a short bash script). The following must be available on your `PATH`:
+
+- **bash** — runs the pack/extract script
+- **npm** (7 or newer) — `npm pack --pack-destination` requires npm 7+
+- **tar** — extracts the packed tarball into the staging directory
+
+On Windows, use Git Bash or WSL so these tools are available.
+
+When you build an OCI image with `--tag` (instead of exporting to a directory with `--export-to`), a container build tool must also be on `PATH`. **podman** is the default; you can select **docker** or **buildah** with `--container-tool` (for example `--container-tool docker`). Directory-only exports with `--export-to` do not need a container tool.
+
 ## Development
 
 ### Contributing
