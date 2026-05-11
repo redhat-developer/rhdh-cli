@@ -698,7 +698,7 @@ async function resolveProtocolVersion(
   embedded: ResolvedEmbedded[],
   monoRepoPackages: Packages | undefined,
   contextPkgName: string,
-): Promise<string | undefined> {
+): Promise<{ resolved: string; exact: string } | undefined> {
   if (versionSpec.startsWith('workspace:')) {
     let resolvedVersion: string | undefined;
     const rangeSpecifier = versionSpec.replace(/^workspace:/, '');
@@ -739,10 +739,11 @@ async function resolveProtocolVersion(
       );
     }
 
+    const exact = resolvedVersion;
     if (rangeSpecifier === '^' || rangeSpecifier === '~') {
       resolvedVersion = rangeSpecifier + resolvedVersion;
     }
-    return resolvedVersion;
+    return { resolved: resolvedVersion, exact };
   }
 
   if (isBackstageVersionSpec(versionSpec)) {
@@ -753,7 +754,8 @@ async function resolveProtocolVersion(
           versionSpec,
         )} to ${chalk.green(resolvedVersion)}`,
       );
-      return resolvedVersion;
+      const exact = resolvedVersion.replace(/^[\^~]/, '');
+      return { resolved: resolvedVersion, exact };
     }
   }
 
@@ -791,6 +793,10 @@ export function customizeForDynamicUse(options: {
       f => !f.startsWith('dist-dynamic/'),
     );
 
+    // Collect exact versions for pinning in resolutions
+    const pinnedResolutions: Record<string, string> = {};
+    const embeddedNames = new Set(options.embedded.map(e => e.packageName));
+
     // Resolve workspace: and backstage: in dependencies
     if (pkgToCustomize.dependencies) {
       for (const dep in pkgToCustomize.dependencies) {
@@ -804,15 +810,18 @@ export function customizeForDynamicUse(options: {
         }
 
         const dependencyVersionSpec = pkgToCustomize.dependencies[dep];
-        const resolved = await resolveProtocolVersion(
+        const result = await resolveProtocolVersion(
           dep,
           dependencyVersionSpec,
           options.embedded,
           options.monoRepoPackages,
           pkgToCustomize.name,
         );
-        if (resolved !== undefined) {
-          pkgToCustomize.dependencies[dep] = resolved;
+        if (result) {
+          pkgToCustomize.dependencies[dep] = result.resolved;
+          if (!embeddedNames.has(dep)) {
+            pinnedResolutions[dep] = result.exact;
+          }
         }
 
         if (isPackageShared(dep, options.sharedPackages)) {
@@ -847,12 +856,15 @@ export function customizeForDynamicUse(options: {
     if (pkgToCustomize.peerDependencies) {
       for (const dep in pkgToCustomize.peerDependencies) {
         if (!Object.prototype.hasOwnProperty.call(pkgToCustomize.peerDependencies, dep)) continue;
-        const resolved = await resolveProtocolVersion(
+        const result = await resolveProtocolVersion(
           dep, pkgToCustomize.peerDependencies[dep],
           options.embedded, options.monoRepoPackages, pkgToCustomize.name,
         );
-        if (resolved !== undefined) {
-          pkgToCustomize.peerDependencies[dep] = resolved;
+        if (result) {
+          pkgToCustomize.peerDependencies[dep] = result.resolved;
+          if (!embeddedNames.has(dep)) {
+            pinnedResolutions[dep] = result.exact;
+          }
         }
       }
     }
@@ -883,6 +895,9 @@ export function customizeForDynamicUse(options: {
       ...overrides,
       ...(options.additionalOverrides || {}),
     };
+    // Pin resolved workspace:/backstage: packages to exact versions in resolutions
+    // to prevent npm version drift during yarn install --no-immutable.
+    // Existing resolutions and additionalResolutions (embedded file: refs) take precedence.
     const resolutions = (pkgToCustomize as any).resolutions || {};
     (pkgToCustomize as any).resolutions = {
       // The following lines are a workaround for the fact that the @aws-sdk/util-utf8-browser package
@@ -891,6 +906,7 @@ export function customizeForDynamicUse(options: {
       //
       // See https://github.com/aws/aws-sdk-js-v3/issues/5305.
       '@aws-sdk/util-utf8-browser': 'npm:@smithy/util-utf8@~2',
+      ...pinnedResolutions,
       ...resolutions,
       ...(options.additionalResolutions || {}),
     };
