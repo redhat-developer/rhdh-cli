@@ -682,6 +682,84 @@ function checkWorkspacePackageVersion(
   );
 }
 
+/**
+ * Resolves workspace: and backstage: protocol version specs to concrete versions.
+ *
+ * - workspace:^ / workspace:~ / workspace:* => lookup in embedded, then monoRepoPackages
+ * - backstage:^ => delegate to resolveBackstageVersion()
+ * - anything else => undefined (no transformation needed)
+ *
+ * Preserves the range prefix: workspace:^ => ^1.5.0, workspace:~ => ~1.5.0,
+ * workspace:* => 1.5.0, backstage:^ => ^1.5.0.
+ */
+async function resolveProtocolVersion(
+  dep: string,
+  versionSpec: string,
+  embedded: ResolvedEmbedded[],
+  monoRepoPackages: Packages | undefined,
+  contextPkgName: string,
+): Promise<string | undefined> {
+  if (versionSpec.startsWith('workspace:')) {
+    let resolvedVersion: string | undefined;
+    const rangeSpecifier = versionSpec.replace(/^workspace:/, '');
+    const embeddedDep = embedded.find(
+      e =>
+        e.packageName === dep &&
+        checkWorkspacePackageVersion(versionSpec, e),
+    );
+    if (embeddedDep) {
+      resolvedVersion = embeddedDep.version;
+    } else if (monoRepoPackages) {
+      const relatedMonoRepoPackages = monoRepoPackages.packages.filter(
+        p => p.packageJson.name === dep,
+      );
+      if (relatedMonoRepoPackages.length > 1) {
+        throw new Error(
+          `Two packages named ${chalk.cyan(
+            dep,
+          )} exist in the monorepo structure: this is not supported.`,
+        );
+      }
+      if (
+        relatedMonoRepoPackages.length === 1 &&
+        checkWorkspacePackageVersion(versionSpec, {
+          dir: relatedMonoRepoPackages[0].dir,
+          version: relatedMonoRepoPackages[0].packageJson.version,
+        })
+      ) {
+        resolvedVersion = relatedMonoRepoPackages[0].packageJson.version;
+      }
+    }
+
+    if (!resolvedVersion) {
+      throw new Error(
+        `Workspace dependency ${chalk.cyan(dep)} of package ${chalk.cyan(
+          contextPkgName,
+        )} doesn't exist in the monorepo structure: maybe you should embed it ?`,
+      );
+    }
+
+    if (rangeSpecifier === '^' || rangeSpecifier === '~') {
+      resolvedVersion = rangeSpecifier + resolvedVersion;
+    }
+    return resolvedVersion;
+  }
+
+  if (isBackstageVersionSpec(versionSpec)) {
+    const resolvedVersion = await resolveBackstageVersion(dep, versionSpec);
+    if (resolvedVersion) {
+      Task.log(
+        `  resolving ${chalk.cyan(dep)} from ${chalk.yellow(
+          versionSpec,
+        )} to ${chalk.green(resolvedVersion)}`,
+      );
+      return resolvedVersion;
+    }
+  }
+
+  return undefined;
+}
+
 export function customizeForDynamicUse(options: {
   embedded: ResolvedEmbedded[];
   isYarnV1: boolean;
@@ -713,6 +791,7 @@ export function customizeForDynamicUse(options: {
       f => !f.startsWith('dist-dynamic/'),
     );
 
+    // Resolve workspace: and backstage: in dependencies
     if (pkgToCustomize.dependencies) {
       for (const dep in pkgToCustomize.dependencies) {
         if (
@@ -725,68 +804,15 @@ export function customizeForDynamicUse(options: {
         }
 
         const dependencyVersionSpec = pkgToCustomize.dependencies[dep];
-        if (dependencyVersionSpec.startsWith('workspace:')) {
-          let resolvedVersion: string | undefined;
-          const rangeSpecifier = dependencyVersionSpec.replace(
-            /^workspace:/,
-            '',
-          );
-          const embeddedDep = options.embedded.find(
-            e =>
-              e.packageName === dep &&
-              checkWorkspacePackageVersion(dependencyVersionSpec, e),
-          );
-          if (embeddedDep) {
-            resolvedVersion = embeddedDep.version;
-          } else if (options.monoRepoPackages) {
-            const relatedMonoRepoPackages =
-              options.monoRepoPackages.packages.filter(
-                p => p.packageJson.name === dep,
-              );
-            if (relatedMonoRepoPackages.length > 1) {
-              throw new Error(
-                `Two packages named ${chalk.cyan(
-                  dep,
-                )} exist in the monorepo structure: this is not supported.`,
-              );
-            }
-            if (
-              relatedMonoRepoPackages.length === 1 &&
-              checkWorkspacePackageVersion(dependencyVersionSpec, {
-                dir: relatedMonoRepoPackages[0].dir,
-                version: relatedMonoRepoPackages[0].packageJson.version,
-              })
-            ) {
-              resolvedVersion = relatedMonoRepoPackages[0].packageJson.version;
-            }
-          }
-
-          if (!resolvedVersion) {
-            throw new Error(
-              `Workspace dependency ${chalk.cyan(dep)} of package ${chalk.cyan(
-                pkgToCustomize.name,
-              )} doesn't exist in the monorepo structure: maybe you should embed it ?`,
-            );
-          }
-
-          if (rangeSpecifier === '^' || rangeSpecifier === '~') {
-            resolvedVersion = rangeSpecifier + resolvedVersion;
-          }
-          pkgToCustomize.dependencies[dep] = resolvedVersion;
-        } else if (isBackstageVersionSpec(dependencyVersionSpec)) {
-          // Handle backstage:^ protocol - resolve to concrete version from release manifest
-          const resolvedVersion = await resolveBackstageVersion(
-            dep,
-            dependencyVersionSpec,
-          );
-          if (resolvedVersion) {
-            Task.log(
-              `  resolving ${chalk.cyan(dep)} from ${chalk.yellow(
-                dependencyVersionSpec,
-              )} to ${chalk.green(resolvedVersion)}`,
-            );
-            pkgToCustomize.dependencies[dep] = resolvedVersion;
-          }
+        const resolved = await resolveProtocolVersion(
+          dep,
+          dependencyVersionSpec,
+          options.embedded,
+          options.monoRepoPackages,
+          pkgToCustomize.name,
+        );
+        if (resolved !== undefined) {
+          pkgToCustomize.dependencies[dep] = resolved;
         }
 
         if (isPackageShared(dep, options.sharedPackages)) {
@@ -813,6 +839,20 @@ export function customizeForDynamicUse(options: {
             pkgToCustomize.dependencies[dep] =
               `file:./${embeddedPackageRelativePath(embeddedDep)}`;
           }
+        }
+      }
+    }
+
+    // Resolve workspace: and backstage: in pre-existing peerDependencies
+    if (pkgToCustomize.peerDependencies) {
+      for (const dep in pkgToCustomize.peerDependencies) {
+        if (!Object.prototype.hasOwnProperty.call(pkgToCustomize.peerDependencies, dep)) continue;
+        const resolved = await resolveProtocolVersion(
+          dep, pkgToCustomize.peerDependencies[dep],
+          options.embedded, options.monoRepoPackages, pkgToCustomize.name,
+        );
+        if (resolved !== undefined) {
+          pkgToCustomize.peerDependencies[dep] = resolved;
         }
       }
     }
