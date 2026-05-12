@@ -869,6 +869,44 @@ export function customizeForDynamicUse(options: {
       }
     }
 
+    // Pin transitive workspace:/backstage: deps reachable from direct deps.
+    // Without pinning, yarn resolves these from npm (workspace: lockfile entries
+    // cannot seed npm: entries in dist-dynamic), causing version drift.
+    if (options.monoRepoPackages) {
+      const wsPackagesByName = new Map(
+        options.monoRepoPackages.packages.map(p => [p.packageJson.name, p]),
+      );
+      const queue = Object.keys(pinnedResolutions);
+      const visited = new Set<string>(queue);
+
+      while (queue.length > 0) {
+        const pkgName = queue.pop()!;
+        const wsPkg = wsPackagesByName.get(pkgName);
+        if (!wsPkg) continue;
+
+        const allDeps: Record<string, string> = {
+          ...wsPkg.packageJson.dependencies,
+          ...wsPkg.packageJson.peerDependencies,
+        };
+        for (const [depName, depVersion] of Object.entries(allDeps)) {
+          if (visited.has(depName)) continue;
+          visited.add(depName);
+
+          const isProtocol =
+            depVersion.startsWith('workspace:') ||
+            depVersion.startsWith('backstage:');
+          if (!isProtocol) continue;
+          if (embeddedNames.has(depName)) continue;
+
+          const depPkg = wsPackagesByName.get(depName);
+          if (depPkg) {
+            pinnedResolutions[depName] = depPkg.packageJson.version;
+            queue.push(depName);
+          }
+        }
+      }
+    }
+
     // We remove devDependencies here since we want the dynamic plugin derived package
     // to get only production dependencies, and no transitive dependencies, in both
     // the node_modules sub-folder and yarn.lock file in `dist-dynamic`.
