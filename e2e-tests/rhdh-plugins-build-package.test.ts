@@ -10,6 +10,7 @@ import {
   logSection,
   parseDynamicPluginAnnotation,
   runCommand,
+  topLevelEntriesAfterNpmPackStaging,
 } from './support/plugin-export-build';
 
 // you can use RHDH_PLUGINS_REPO_ARCHIVE env variable to specify a path to an existing local archive of the rhdh-plugins repository
@@ -169,11 +170,13 @@ describe('export and package rhdh-plugins scorecard workspace plugin', () => {
         `ls -lah ${path.join(getFullPluginPath(), 'dist-dynamic')}`,
       );
 
-      const filesInImage = fs.readdirSync(path.join(imageContentDir, key));
-      const filesInDerivedPackage = fs.readdirSync(
-        path.join(getFullPluginPath(), 'dist-dynamic'),
-      );
-      expect(filesInImage.length).toEqual(filesInDerivedPackage.length);
+      const distDynamicPath = path.join(getFullPluginPath(), 'dist-dynamic');
+      const expectedTopLevel =
+        await topLevelEntriesAfterNpmPackStaging(distDynamicPath);
+      const filesInImage = fs
+        .readdirSync(path.join(imageContentDir, key))
+        .sort();
+      expect(filesInImage).toEqual(expectedTopLevel);
 
       const indexJson = JSON.parse(
         fs.readFileSync(path.join(imageContentDir, 'index.json'), 'utf-8'),

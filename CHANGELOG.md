@@ -4,6 +4,12 @@ All notable changes to `@red-hat-developer-hub/cli` are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 1.10.7 - 2026-05-08
+
+### Fixed
+
+- **`plugin package`:** each `dist-dynamic` plugin is staged with **`npm pack`** and **`tar`** (strip the `package/` root) instead of a recursive filesystem copy. This matches npm publish contents, omits `node_modules/.bin` entries that could point outside the image (see [RHDHBUGS-1968](https://redhat.atlassian.net/browse/RHDHBUGS-1968)), and avoids spurious “link outside of the archive” warnings when dynamic plugins are installed from OCI. **Requires `bash`, `npm` (7+ for `--pack-destination`), and `tar` on `PATH`** (for example Git Bash on Windows).
+
 ## 1.10.6 - 2026-04-28
 
 ### Fixed
