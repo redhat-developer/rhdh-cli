@@ -704,8 +704,7 @@ async function resolveProtocolVersion(
     const rangeSpecifier = versionSpec.replace(/^workspace:/, '');
     const embeddedDep = embedded.find(
       e =>
-        e.packageName === dep &&
-        checkWorkspacePackageVersion(versionSpec, e),
+        e.packageName === dep && checkWorkspacePackageVersion(versionSpec, e),
     );
     if (embeddedDep) {
       resolvedVersion = embeddedDep.version;
@@ -855,10 +854,19 @@ export function customizeForDynamicUse(options: {
     // Resolve workspace: and backstage: in pre-existing peerDependencies
     if (pkgToCustomize.peerDependencies) {
       for (const dep in pkgToCustomize.peerDependencies) {
-        if (!Object.prototype.hasOwnProperty.call(pkgToCustomize.peerDependencies, dep)) continue;
+        if (
+          !Object.prototype.hasOwnProperty.call(
+            pkgToCustomize.peerDependencies,
+            dep,
+          )
+        )
+          continue;
         const result = await resolveProtocolVersion(
-          dep, pkgToCustomize.peerDependencies[dep],
-          options.embedded, options.monoRepoPackages, pkgToCustomize.name,
+          dep,
+          pkgToCustomize.peerDependencies[dep],
+          options.embedded,
+          options.monoRepoPackages,
+          pkgToCustomize.name,
         );
         if (result) {
           pkgToCustomize.peerDependencies[dep] = result.resolved;
