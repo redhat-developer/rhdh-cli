@@ -1,0 +1,41 @@
+{
+  "extends": [
+    "config:best-practices",
+    ":gitSignOff",
+    ":rebaseStalePrs",
+    "group:linters",
+    "group:test",
+    ":preserveSemverRanges"
+  ],
+  "ignorePresets": [
+    ":pinDevDependencies",
+    ":pinDigest",
+    "docker:pinDigests",
+    "group:monorepos"
+  ],
+  "labels": ["dependencies"],
+  "postUpdateOptions": ["yarnDedupeHighest"],
+  "osvVulnerabilityAlerts": false,
+  "vulnerabilityAlerts": {
+    "enabled": false,
+    "labels": ["dependencies", "security"]
+  },
+  "npm": {
+    "minimumReleaseAge": "3 days"
+  },
+  "major": {
+    "dependencyDashboardApproval": true
+  },
+  "packageRules": [
+    {
+      "matchManagers": ["github-actions"],
+      "groupName": "GitHub Actions"
+    },
+    {
+      "groupName": "Core Backstage packages",
+      "dependencyDashboardApproval": true,
+      "matchDepNames": ["/^@backstage//"]
+    }
+  ],
+  "ignorePaths": ["**/dist-dynamic/**"]
+}
