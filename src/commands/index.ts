@@ -16,15 +16,11 @@
 
 import { assertError } from '@backstage/errors';
 
-import { Command, InvalidArgumentError } from 'commander';
+import { Command } from 'commander';
 
 import { exitWithError } from '../lib/errors';
 
-/**
- * A subset of commands as compared to @backstage/cli that focuses on what
- * is needed to support dynamic plugins
- */
-export function registerScriptCommand(program: Command) {
+export function registerPluginCommand(program: Command) {
   const command = program
     .command('plugin [command]')
     .description('Lifecycle scripts for individual plugins');
@@ -42,20 +38,6 @@ export function registerScriptCommand(program: Command) {
     .option(
       '--shared-package [package-name...]',
       'Optional list of packages that should be considered shared by all dynamic plugins, and will be moved to peer dependencies of the dynamic plugin. The `@backstage` packages are by default considered shared dependencies.',
-    )
-    .option(
-      '--override-interop <mode:package-name,package-name...>',
-      'Optional list of packages for which the CommonJS Rollup output interop mode should be overridden to `mode` when building the dynamic plugin assets (backend plugin only).',
-      (value, previous) => {
-        const [key, val] = value.split(':');
-        if (!['auto', 'esModule', 'default', 'defaultOnly'].includes(key)) {
-          throw new InvalidArgumentError(
-            `Invalid interop mode '${key}'. Possible values are: auto, esModule, default, defaultOnly (see https://rollupjs.org/configuration-options/#output-interop).`,
-          );
-        }
-        return { ...previous, [key]: val?.split(',') || [] };
-      },
-      {},
     )
     .option(
       '--allow-native-package [package-name...]',
@@ -90,12 +72,6 @@ export function registerScriptCommand(program: Command) {
       'Provides the dynamic plugins root folder when the dynamic plugins content should be copied when using the `--dev` argument.',
     )
     .option(
-      '--in-place',
-      'Adds the frontend dynamic plugin assets to the `dist-scalprum` folder of the original plugin package, instead of producing the assets in a distinct package located in the `dist-dynamic` sub-folder, as for backend plugins.',
-      false,
-    )
-    .option('--no-in-place', undefined, true)
-    .option(
       '--scalprum-config <file>',
       'Allows retrieving scalprum configuration from an external JSON file, instead of using a `scalprum` field of the `package.json`. Frontend plugins only.',
     )
@@ -104,6 +80,18 @@ export function registerScriptCommand(program: Command) {
       'Adds the `package.json` and `yarn.lock` files, generated in the `dist-dynamic` folder of backend plugins, to source control. By default the whole `dist-dynamic` folder id git-ignored.',
       false,
     )
+    .option(
+      '--generate-scalprum-assets',
+      'Generate the dynamic frontend plugin assets through Scalprum in the `dist-scalprum` folder.',
+      true,
+    )
+    .option('--no-generate-scalprum-assets', '', false)
+    .option(
+      '--generate-module-federation-assets',
+      'Generate the dynamic frontend plugin assets through standard module federation in the `dist` folder.',
+      true,
+    )
+    .option('--no-generate-module-federation-assets', '', false)
     .action(lazy(() => import('./export-dynamic-plugin').then(m => m.command)));
 
   command
@@ -141,12 +129,20 @@ export function registerScriptCommand(program: Command) {
       'Platform to use when building the container image. Default is "linux/amd64". Can be set to "" to not set --platform flag in builder command.',
       'linux/amd64',
     )
+    .option(
+      '--annotation <key=value...>',
+      'Add annotation to the container image. Can be specified multiple times.',
+    )
+    .option(
+      '--label <key=value...>',
+      'Add label to the container image. Can be specified multiple times.',
+    )
     .action(
       lazy(() => import('./package-dynamic-plugins').then(m => m.command)),
     );
 }
 export function registerCommands(program: Command) {
-  registerScriptCommand(program);
+  registerPluginCommand(program);
 }
 
 // Wraps an action function so that it always exits and handles errors

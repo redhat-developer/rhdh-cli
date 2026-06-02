@@ -15,6 +15,7 @@
  */
 
 import { PackageRoleInfo } from '@backstage/cli-node';
+import { buildFrontend } from '@backstage/cli-module-build/dist/lib/buildFrontend.cjs.js';
 
 import { getPackages } from '@manypkg/get-packages';
 import chalk from 'chalk';
@@ -29,6 +30,14 @@ import { paths } from '../../lib/paths';
 import { Task } from '../../lib/tasks';
 import { customizeForDynamicUse } from './backend';
 
+function isTruthyCiEnv(value: string | undefined): boolean {
+  if (value === undefined) {
+    return false;
+  }
+  const normalized = value.trim().toLowerCase();
+  return normalized === 'true' || normalized === '1' || normalized === 'yes';
+}
+
 export async function frontend(
   _: PackageRoleInfo,
   opts: OptionValues,
@@ -40,113 +49,152 @@ export async function frontend(
     files,
   } = await fs.readJson(paths.resolveTarget('package.json'));
 
-  let scalprum: any = undefined;
+  if (!opts.generateScalprumAssets && !opts.generateModuleFederationAssets) {
+    throw new Error(
+      'You should use at least one of the 2 options: --generate-scalprum-assets or --generate-module-federation-assets.',
+    );
+  }
 
-  if (opts.scalprumConfig) {
-    const scalprumConfigFile = paths.resolveTarget(opts.scalprumConfig);
-    Task.log(
-      `Using external scalprum config file: ${chalk.cyan(scalprumConfigFile)}`,
-    );
-    scalprum = await fs.readJson(scalprumConfigFile);
-  } else if (scalprumInline) {
-    Task.log(`Using scalprum config inlined in the 'package.json'`);
-    scalprum = scalprumInline;
-  } else {
-    let scalprumName;
-    if (name.includes('/')) {
-      const fragments = name.split('/');
-      scalprumName = `${fragments[0].replace('@', '')}.${fragments[1]}`;
-    } else {
-      scalprumName = name;
+  if (opts.generateModuleFederationAssets) {
+    if (opts.clean) {
+      await fs.remove(path.join(paths.targetDir, 'dist'));
     }
-    scalprum = {
-      name: scalprumName,
-      exposedModules: {
-        PluginRoot: './src/index.ts',
-      },
-    };
-    Task.log(`No scalprum config. Using default dynamic UI configuration:`);
-    Task.log(chalk.cyan(JSON.stringify(scalprum, null, 2)));
+
     Task.log(
-      `If you wish to change the defaults, add "scalprum" configuration to plugin "package.json" file, or use the '--scalprum-config' option to specify an external config.`,
+      `Generating standard module federation assets in ${chalk.cyan(
+        path.join(paths.targetDir, 'dist'),
+      )}`,
     );
+    const previousCi = process.env.CI;
+    const unsetCiForMfBuild = isTruthyCiEnv(previousCi);
+    if (unsetCiForMfBuild) {
+      process.env.CI = 'false';
+    }
+    try {
+      await buildFrontend({
+        targetDir: paths.targetDir,
+        configPaths: [],
+        writeStats: false,
+        isModuleFederationRemote: true,
+      });
+    } finally {
+      if (unsetCiForMfBuild) {
+        if (previousCi === undefined) {
+          delete process.env.CI;
+        } else {
+          process.env.CI = previousCi;
+        }
+      }
+    }
   }
 
   const distDynamicRelativePath = 'dist-dynamic';
-  const target = opts.inPlace
-    ? path.resolve(paths.targetDir)
-    : path.resolve(paths.targetDir, distDynamicRelativePath);
-
-  if (!opts.inPlace) {
-    Task.log(
-      `Packing main package to ${chalk.cyan(
-        path.join(distDynamicRelativePath, 'package.json'),
-      )}`,
-    );
-
-    if (opts.clean) {
-      await fs.remove(target);
-    }
-
-    await fs.mkdirs(target);
-    await fs.writeFile(
-      path.join(target, '.gitignore'),
-      `
-*
-`,
-    );
-
-    await productionPack({
-      packageDir: paths.targetDir,
-      targetDir: target,
-    });
-
-    Task.log(
-      `Customizing main package in ${chalk.cyan(
-        path.join(distDynamicRelativePath, 'package.json'),
-      )} for dynamic loading`,
-    );
-    if (files && Array.isArray(files) && !files.includes('dist-scalprum')) {
-      files.push('dist-scalprum');
-    }
-    const monoRepoPackages = await getPackages(paths.targetDir);
-    await customizeForDynamicUse({
-      embedded: [],
-      isYarnV1: false,
-      monoRepoPackages,
-      overridding: {
-        name: `${name}-dynamic`,
-        // We remove scripts, because they do not make sense for this derived package.
-        // They even bring errors, especially the pre-pack and post-pack ones:
-        // we want to be able to use npm pack on this derived package to distribute it as a dynamic plugin,
-        // and obviously this should not trigger the backstage pre-pack or post-pack actions
-        // which are related to the packaging of the original static package.
-        scripts: {},
-        files,
-      },
-    })(path.resolve(target, 'package.json'));
-  }
-
-  const resolvedScalprumDistPath = path.join(target, 'dist-scalprum');
-
+  const target = path.resolve(paths.targetDir, distDynamicRelativePath);
   Task.log(
-    `Generating dynamic frontend plugin assets in ${chalk.cyan(
-      resolvedScalprumDistPath,
+    `Packing main package to ${chalk.cyan(
+      path.join(distDynamicRelativePath, 'package.json'),
     )}`,
   );
 
-  await fs.remove(resolvedScalprumDistPath);
+  if (opts.clean) {
+    await fs.remove(target);
+  }
 
-  await buildScalprumPlugin({
-    writeStats: false,
-    configPaths: [],
-    targetDir: paths.targetDir,
-    pluginMetadata: {
-      ...scalprum,
-      version,
-    },
-    resolvedScalprumDistPath,
+  await fs.mkdirs(target);
+  await fs.writeFile(
+    path.join(target, '.gitignore'),
+    `
+*
+`,
+  );
+
+  await productionPack({
+    packageDir: paths.targetDir,
+    targetDir: target,
   });
+
+  Task.log(
+    `Customizing main package in ${chalk.cyan(
+      path.join(distDynamicRelativePath, 'package.json'),
+    )} for dynamic loading`,
+  );
+  if (
+    files &&
+    Array.isArray(files) &&
+    !files.includes('dist-scalprum') &&
+    opts.generateScalprumAssets
+  ) {
+    files.push('dist-scalprum');
+  }
+  const monoRepoPackages = await getPackages(paths.targetDir);
+  await customizeForDynamicUse({
+    embedded: [],
+    isYarnV1: false,
+    monoRepoPackages,
+    overridding: {
+      name: `${name}-dynamic`,
+      // We remove scripts, because they do not make sense for this derived package.
+      // They even bring errors, especially the pre-pack and post-pack ones:
+      // we want to be able to use npm pack on this derived package to distribute it as a dynamic plugin,
+      // and obviously this should not trigger the backstage pre-pack or post-pack actions
+      // which are related to the packaging of the original static package.
+      scripts: {},
+      files,
+    },
+  })(path.resolve(target, 'package.json'));
+
+  if (opts.generateScalprumAssets) {
+    const resolvedScalprumDistPath = path.join(target, 'dist-scalprum');
+    Task.log(
+      `Generating dynamic frontend plugin assets in ${chalk.cyan(
+        resolvedScalprumDistPath,
+      )}`,
+    );
+
+    let scalprum: any = undefined;
+    if (opts.scalprumConfig) {
+      const scalprumConfigFile = paths.resolveTarget(opts.scalprumConfig);
+      Task.log(
+        `Using external scalprum config file: ${chalk.cyan(scalprumConfigFile)}`,
+      );
+      scalprum = await fs.readJson(scalprumConfigFile);
+    } else if (scalprumInline) {
+      Task.log(`Using scalprum config inlined in the 'package.json'`);
+      scalprum = scalprumInline;
+    } else {
+      let scalprumName;
+      if (name.includes('/')) {
+        const fragments = name.split('/');
+        scalprumName = `${fragments[0].replace('@', '')}.${fragments[1]}`;
+      } else {
+        scalprumName = name;
+      }
+      scalprum = {
+        name: scalprumName,
+        exposedModules: {
+          PluginRoot: './src/index.ts',
+        },
+      };
+      Task.log(`No scalprum config. Using default dynamic UI configuration:`);
+      Task.log(chalk.cyan(JSON.stringify(scalprum, null, 2)));
+      Task.log(
+        `If you wish to change the defaults, add "scalprum" configuration to plugin "package.json" file, or use the '--scalprum-config' option to specify an external config.`,
+      );
+    }
+
+    await fs.remove(resolvedScalprumDistPath);
+
+    await buildScalprumPlugin({
+      writeStats: false,
+      configPaths: [],
+      targetDir: paths.targetDir,
+      pluginMetadata: {
+        ...scalprum,
+        version,
+      },
+      resolvedScalprumDistPath,
+    });
+  }
 
   return target;
 }

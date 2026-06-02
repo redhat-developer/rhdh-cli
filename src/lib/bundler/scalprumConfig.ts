@@ -167,7 +167,7 @@ export async function createScalprumConfig(
       },
       extensions: ['.ts', '.tsx', '.mjs', '.js', '.jsx', '.json', '.wasm'],
       fallback: {
-        ...pickBy(require('node-libs-browser')),
+        ...pickBy(require('node-stdlib-browser')),
         module: false,
         dgram: false,
         dns: false,

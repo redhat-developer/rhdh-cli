@@ -198,7 +198,7 @@ export async function serveBundle(options: ServeOptions) {
   const waitForExit = async () => {
     for (const signal of ['SIGINT', 'SIGTERM'] as const) {
       process.on(signal, () => {
-        server?.close();
+        server?.stop();
         // exit instead of resolve. The process is shutting down and resolving a promise here logs an error
         process.exit();
       });

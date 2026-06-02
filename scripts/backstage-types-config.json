@@ -1,0 +1,12 @@
+{
+  "modules": [
+    {
+      "name": "@backstage/cli-module-build/dist/lib/buildFrontend.cjs.js",
+      "types": "dist-types/packages/cli-module-build/src/lib/buildFrontend.d.ts"
+    },
+    {
+      "name": "@backstage/cli-module-build/dist/lib/buildBackend.cjs.js",
+      "types": "dist-types/packages/cli-module-build/src/lib/buildBackend.d.ts"
+    }
+  ]
+}

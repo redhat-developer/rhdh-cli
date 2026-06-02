@@ -195,11 +195,7 @@ export const transforms = (options: TransformOptions): Transforms => {
 
   if (isDev) {
     if (!isBackend) {
-      plugins.push(
-        new ReactRefreshPlugin({
-          overlay: { sockProtocol: 'ws' },
-        }),
-      );
+      plugins.push(new ReactRefreshPlugin());
     }
   } else {
     plugins.push(

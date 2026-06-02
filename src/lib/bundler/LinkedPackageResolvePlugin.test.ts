@@ -14,13 +14,42 @@
  * limitations under the License.
  */
 
+import * as fs from 'node:fs';
 import * as os from 'os';
 import * as path from 'path';
 
 import { LinkedPackageResolvePlugin } from './LinkedPackageResolvePlugin';
 
 describe('LinkedPackageResolvePlugin', () => {
-  const root = os.platform() === 'win32' ? 'C:\\root' : '/root';
+  // Use a temp dir so isChildPath (realpathSync) can access paths; /root may be inaccessible (EACCES).
+  const root = path.join(
+    os.tmpdir(),
+    `linked-package-resolve-plugin-test-${Date.now()}`,
+  );
+
+  beforeAll(() => {
+    const dirs = [
+      path.join(root, 'external-a'),
+      path.join(root, 'external-a/src'),
+      path.join(root, 'external-b'),
+      path.join(root, 'external-b/src'),
+      path.join(root, 'external-aa'),
+      path.join(root, 'external-aa/src'),
+      path.join(root, 'repo/package/x/src'),
+      path.join(root, 'repo/node_modules'),
+    ];
+    for (const dir of dirs) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+  });
+
+  afterAll(() => {
+    try {
+      fs.rmSync(root, { recursive: true });
+    } catch {
+      // ignore cleanup errors
+    }
+  });
 
   it('should re-write paths for external packages', () => {
     const plugin = new LinkedPackageResolvePlugin(

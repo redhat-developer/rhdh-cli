@@ -10,6 +10,7 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
+      id-token: write
     steps:
       - name: Checkout Repo
         uses: actions/checkout@v4
@@ -19,7 +20,6 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          registry-url: 'https://registry.npmjs.org'
           node-version-file: .nvmrc
           cache: 'yarn'
 
@@ -29,8 +29,8 @@ jobs:
       - name: Build
         run: yarn build
 
+      - name: Update npm
+        run: npm install -g npm@latest
+
       - name: Publish
-        run: yarn npm publish
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-          YARN_NPM_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish --access public

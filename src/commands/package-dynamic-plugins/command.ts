@@ -1,15 +1,19 @@
 import { PackageRoles } from '@backstage/cli-node';
 
+import { spawn } from 'node:child_process';
+import { closeSync, openSync } from 'node:fs';
+
 import chalk from 'chalk';
 import { OptionValues } from 'commander';
 import fs from 'fs-extra';
 import { PackageJson } from 'type-fest';
 import YAML from 'yaml';
 
-import os from 'os';
-import path from 'path';
+import os from 'node:os';
+import path from 'node:path';
 
 import { paths } from '../../lib/paths';
+import { waitForExit } from '../../lib/run';
 import { Task } from '../../lib/tasks';
 
 export async function command(opts: OptionValues): Promise<void> {
@@ -21,6 +25,8 @@ export async function command(opts: OptionValues): Promise<void> {
     useDocker,
     containerTool = 'podman',
     platform,
+    annotation,
+    label,
   } = opts;
   if (!exportTo && !tag) {
     Task.error(
@@ -122,12 +128,12 @@ export async function command(opts: OptionValues): Promise<void> {
         );
         try {
           await Task.forCommand(
-            `${process.execPath} ${process.argv[1]} package export-dynamic-plugin`,
+            `${process.execPath} ${process.argv[1]} plugin export`,
             { cwd: packageDirectory },
           );
         } catch (err) {
           Task.log(
-            `Encountered an error running 'npx @janus-idp/cli' on plugin package ${packageFilePath}, this plugin will not be packaged.  The error was ${err}`,
+            `Encountered an error running the generated export command on plugin package ${packageFilePath}, this plugin will not be packaged.  The error was ${err}`,
           );
         }
       }
@@ -144,7 +150,7 @@ export async function command(opts: OptionValues): Promise<void> {
   const pluginRegistryMetadata = [];
   const pluginConfigs: Record<string, string> = {};
   try {
-    // copy the dist-dynamic output folder for each plugin to some temp directory and generate the metadata entry for each plugin
+    // Stage each dist-dynamic tree via npm pack + tar (see RHDHBUGS-1968) and metadata for the registry
     for (const pluginPkg of packages) {
       const { packageDirectory, packageFilePath } = pluginPkg;
       const distDynamicDirectory = path.join(packageDirectory, 'dist-dynamic');
@@ -156,13 +162,14 @@ export async function command(opts: OptionValues): Promise<void> {
         .replace(/^@/, '')
         .replace(/\//, '-');
       const targetDirectory = path.join(tmpDir, packageName);
-      Task.log(`Copying '${distDynamicDirectory}' to '${targetDirectory}`);
+      Task.log(
+        `Packing '${distDynamicDirectory}' into staging directory '${targetDirectory}' (npm pack + tar)`,
+      );
       try {
-        // Copy the exported package to the staging area and ensure symlinks
-        // are copied as normal folders
-        fs.cpSync(distDynamicDirectory, targetDirectory, {
-          recursive: true,
-          dereference: true,
+        await stageDistDynamicViaNpmPack({
+          distDynamicDirectory,
+          targetDirectory,
+          packScratchParent: tmpDir,
         });
         const {
           name,
@@ -209,7 +216,7 @@ export async function command(opts: OptionValues): Promise<void> {
         }
       } catch (err) {
         Task.log(
-          `Encountered an error copying static assets for plugin ${packageFilePath}, the plugin will not be packaged. The error was ${err}`,
+          `Encountered an error staging plugin ${packageFilePath} via npm pack, the plugin will not be packaged. The error was ${err}`,
         );
       }
     }
@@ -228,7 +235,7 @@ export async function command(opts: OptionValues): Promise<void> {
       fs.readdirSync(tmpDir).forEach(entry => {
         const source = path.join(tmpDir, entry);
         const destination = path.join(exportTo, entry);
-        fs.copySync(source, destination, { recursive: true, overwrite: true });
+        fs.copySync(source, destination, { overwrite: true });
       });
     } else {
       // collect flags for the container build command
@@ -237,6 +244,18 @@ export async function command(opts: OptionValues): Promise<void> {
       ];
       if (platform) {
         flags.push(`--platform ${platform}`);
+      }
+
+      if (annotation) {
+        for (const ann of annotation) {
+          flags.push(`--annotation ${ann}`);
+        }
+      }
+
+      if (label) {
+        for (const lbl of label) {
+          flags.push(`--label ${lbl}`);
+        }
       }
       // run the command to generate the image
       Task.log(`Creating image using ${containerToolCmd}`);
@@ -292,6 +311,110 @@ COPY . .
     }
   }
   return;
+}
+
+type StageDistDynamicViaNpmPackOptions = {
+  distDynamicDirectory: string;
+  targetDirectory: string;
+  /** Directory under which a unique `npm-pack-*` scratch dir is created. */
+  packScratchParent: string;
+};
+
+/**
+ * Stages `dist-dynamic` like a published tarball: `npm pack` to a scratch
+ * directory, then `tar -xzf … --strip-components=1` into the target. Omits
+ * `node_modules/.bin` and other paths npm does not ship (RHDHBUGS-1968).
+ *
+ * Sends npm/tar stdout and stderr to a temp log file (path is printed only on
+ * failure), not to the terminal, by wiring those streams to fd(s) opened on
+ * that file in the `spawn` options.
+ *
+ * Uses `spawn` with `shell: false`; pack paths are inlined with `bashSingleQuoted`.
+ * Does not pass a custom `env` (child inherits PATH so user-managed toolchains
+ * resolve — see adjacent NOSONAR). `Task.forCommand` lacks custom env support; `run()`
+ * uses `shell: true` on `spawn` and can replay npm output to the CLI.
+ *
+ * Requires `bash`, `npm` 7+ for `--pack-destination`, and `tar` on `PATH`
+ * (Linux, macOS, Git Bash, or WSL on Windows).
+ */
+async function stageDistDynamicViaNpmPack(
+  options: StageDistDynamicViaNpmPackOptions,
+): Promise<void> {
+  const { distDynamicDirectory, targetDirectory, packScratchParent } = options;
+  const packdir = fs.mkdtempSync(path.join(packScratchParent, 'npm-pack-'));
+  const packLogPath = path.join(
+    packScratchParent,
+    `npm-pack-output-${process.pid}-${Date.now()}.log`,
+  );
+
+  try {
+    fs.rmSync(targetDirectory, { recursive: true, force: true });
+    fs.mkdirSync(targetDirectory, { recursive: true });
+
+    const logFd = openSync(packLogPath, 'w');
+    try {
+      // Controlled bash -lc script (paths from bashSingleQuoted); not user-defined.
+      // child inherits PATH so npm/bash/tar resolve (nvm, fnm, Homebrew).
+      const child = spawn(
+        'bash', // NOSONAR typescript:S4036
+        ['-lc', npmPackExtractScript(packdir, targetDirectory)],
+        {
+          cwd: distDynamicDirectory,
+          stdio: ['ignore', logFd, logFd],
+          shell: false,
+        },
+      );
+      await waitForExit(child, 'npm pack / tar');
+    } finally {
+      closeSync(logFd);
+    }
+
+    await fs.remove(packLogPath).catch(() => undefined);
+  } catch (err) {
+    if (await fs.pathExists(packLogPath)) {
+      const logContents = await fs
+        .readFile(packLogPath, 'utf8')
+        .catch(() => '');
+      const logHeader = chalk.yellow(`npm pack / tar output (${packLogPath}):`);
+      process.stderr.write(`${logHeader}\n\n${logContents}\n`);
+      await fs.remove(packLogPath).catch(() => undefined);
+    }
+    throw err;
+  } finally {
+    fs.rmSync(packdir, { recursive: true, force: true });
+  }
+}
+
+/**
+ * Single-quote a string for safe embedding in `bash -lc` (POSIX single-quoted
+ * literal, with `'` escaped as `'\''`).
+ */
+function bashSingleQuoted(value: string): string {
+  /** Bash: end `'...'`, emit a literal `'`, resume quoted segment — `'\''`. */
+  const escapedForBash = String.raw`'\''`;
+  const escapedValue = value.replaceAll("'", escapedForBash);
+  return `'${escapedValue}'`;
+}
+
+/**
+ * `npm pack` into `packdir`, then extract into `extractToDir` with the same
+ * layout as today’s staging tree (`package/` stripped). Fails if `packdir` does
+ * not contain exactly one `.tgz` after pack. Paths are bash-quoted in the script
+ * instead of passed via extra `env` entries.
+ */
+function npmPackExtractScript(packdir: string, extractToDir: string): string {
+  const qPack = bashSingleQuoted(packdir);
+  const qExtract = bashSingleQuoted(extractToDir);
+  return `set -euo pipefail
+npm pack --pack-destination ${qPack} --foreground-scripts=false
+shopt -s nullglob
+tgzs=(${qPack}/*.tgz)
+if (( \${#tgzs[@]} != 1 )); then
+  echo "expected exactly one .tgz in ${packdir}, got: \${tgzs[*]}" >&2
+  exit 1
+fi
+tar -xzf "\${tgzs[0]}" -C ${qExtract} --strip-components=1
+`;
 }
 
 /**
