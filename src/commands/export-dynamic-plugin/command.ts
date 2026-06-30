@@ -35,12 +35,9 @@ const DEPRECATED_FLAGS: Record<string, string> = {
     '--embed-package is deprecated and ignored. The upstream bundle command embeds all dependencies automatically.',
   sharedPackage:
     '--shared-package is deprecated and ignored. The upstream bundle command produces fully self-contained bundles.',
-  allowNativePackage:
-    '--allow-native-package is deprecated and ignored.',
-  suppressNativePackage:
-    '--suppress-native-package is deprecated and ignored.',
-  ignoreVersionCheck:
-    '--ignore-version-check is deprecated and ignored.',
+  allowNativePackage: '--allow-native-package is deprecated and ignored.',
+  suppressNativePackage: '--suppress-native-package is deprecated and ignored.',
+  ignoreVersionCheck: '--ignore-version-check is deprecated and ignored.',
   minify: '--minify is deprecated and ignored.',
   trackDynamicManifestAndLockFile:
     '--track-dynamic-manifest-and-lock-file is deprecated and ignored.',
