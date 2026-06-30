@@ -171,15 +171,13 @@ export function customizeForDynamicUse(options: {
   isYarnV1: boolean;
   monoRepoPackages?: Packages;
   sharedPackages?: SharedPackagesRules;
-  overridding?:
-    | (Partial<BackstagePackageJson> & {
-        bundleDependencies?: boolean;
-      })
-    ;
+  overridding?: Partial<BackstagePackageJson> & {
+    bundleDependencies?: boolean;
+  };
   additionalOverrides?: { [key: string]: any };
   rootResolutions?: Record<string, string>;
   additionalResolutions?: { [key: string]: any };
-  after?: ((pkg: BackstagePackageJson) => void);
+  after?: (pkg: BackstagePackageJson) => void;
 }): (dynamicPkgPath: string) => Promise<void> {
   return async (dynamicPkgPath: string): Promise<void> => {
     const dynamicPkgContent = await fs.readFile(dynamicPkgPath, 'utf8');
