@@ -28,8 +28,8 @@ import { buildScalprumPlugin } from '../../lib/builder/buildScalprumPlugin';
 import { productionPack } from '../../lib/packager/productionPack';
 import { paths } from '../../lib/paths';
 import { Task } from '../../lib/tasks';
-import { customizeForDynamicUse, getMonorepoRootResolutions } from './backend';
 import { detectBackstageFeatures } from './features';
+import { customizeForDynamicUse, getMonorepoRootResolutions } from './utils';
 
 function isTruthyCiEnv(value: string | undefined): boolean {
   if (value === undefined) {
