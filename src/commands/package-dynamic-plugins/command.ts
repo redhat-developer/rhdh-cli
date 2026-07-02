@@ -364,9 +364,7 @@ async function stageDistDynamicViaNpmPack(
       closeSync(logFd);
     }
 
-    const tgzFiles = fs
-      .readdirSync(packdir)
-      .filter(f => f.endsWith('.tgz'));
+    const tgzFiles = fs.readdirSync(packdir).filter(f => f.endsWith('.tgz'));
     if (tgzFiles.length !== 1) {
       throw new Error(
         `expected exactly one .tgz in ${packdir}, got: ${tgzFiles.join(', ')}`,
