@@ -108,10 +108,11 @@ export async function topLevelEntriesAfterNpmPackStaging(
     }
     const extractInto = path.join(work, 'extracted');
     fs.mkdirSync(extractInto, { recursive: true });
-    await runCommand(
-      `tar -xzf "${path.join(packDest, tgzs[0])}" -C "${extractInto}" --strip-components=1`,
-      { cwd: distDynamicDir },
-    );
+    await tar.x({
+      file: path.join(packDest, tgzs[0]),
+      cwd: extractInto,
+      strip: 1,
+    });
     return fs.readdirSync(extractInto).sort();
   } finally {
     await fs.remove(work).catch(() => undefined);
