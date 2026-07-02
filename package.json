@@ -28,7 +28,7 @@
     "prettier:check": "prettier --ignore-unknown --check .",
     "prettier:fix": "prettier --ignore-unknown --write .",
     "test": "backstage-cli package test --passWithNoTests --coverage",
-    "test:e2e": "jest --config e2e-tests/jest.config.js",
+    "test:e2e": "YARN_ENABLE_HARDENED_MODE=0 jest --config e2e-tests/jest.config.js",
     "clean": "backstage-cli package clean",
     "generate-types": "node scripts/generate-backstage-types.js"
   },
