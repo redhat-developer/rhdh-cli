@@ -38,3 +38,24 @@ declare module '@backstage/cli-module-build/dist/lib/buildBackend.cjs.js' {
   
 }
 
+
+declare module '@backstage/cli-module-build/dist/lib/typeDistProject.cjs.js' {
+  import { BackstagePackageFeatureType, PackageRole } from '@backstage/cli-node';
+  import { Project } from 'ts-morph';
+  export declare const createTypeDistProject: () => Promise<Project>;
+  export declare const getEntryPointDefaultFeatureType: (role: PackageRole, packageDir: string, project: Project, entryPoint: string) => BackstagePackageFeatureType | null;
+  
+}
+
+
+declare module '@backstage/cli-module-build/dist/lib/entryPoints.cjs.js' {
+  import { BackstagePackageJson } from '@backstage/cli-node';
+  export interface EntryPoint {
+      mount: string;
+      path: string;
+      name: string;
+      ext: string;
+  }
+  export declare function readEntryPoints(pkg: BackstagePackageJson): Array<EntryPoint>;
+  
+}

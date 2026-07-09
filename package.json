@@ -132,7 +132,8 @@
     "@backstage/config-loader": "~1.10.12"
   },
   "peerDependencies": {
-    "@microsoft/api-extractor": "^7.21.2"
+    "@microsoft/api-extractor": "^7.21.2",
+    "ts-morph": "*"
   },
   "peerDependenciesMeta": {
     "@microsoft/api-extractor": {
