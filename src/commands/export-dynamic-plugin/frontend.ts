@@ -44,12 +44,7 @@ export async function frontend(
   opts: OptionValues,
 ): Promise<string> {
   const originalPkg = await fs.readJson(paths.resolveTarget('package.json'));
-  const {
-    name,
-    version,
-    scalprum: scalprumInline,
-    files,
-  } = originalPkg;
+  const { name, version, scalprum: scalprumInline, files } = originalPkg;
 
   if (!opts.generateScalprumAssets && !opts.generateModuleFederationAssets) {
     throw new Error(

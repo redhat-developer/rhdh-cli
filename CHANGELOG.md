@@ -8,7 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
-- Added missing `backstage.features` field to generated `dist-dynamic/package.json` files in case of standard Module Federation asset generation. 
+- Added missing `backstage.features` field to generated `dist-dynamic/package.json` files in case of standard Module Federation asset generation.
 
 ## 1.11.0 - 2026-05-08
 
