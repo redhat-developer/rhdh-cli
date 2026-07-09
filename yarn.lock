@@ -4915,6 +4915,7 @@ __metadata:
     yn: ^4.0.0
   peerDependencies:
     "@microsoft/api-extractor": ^7.21.2
+    ts-morph: "*"
   peerDependenciesMeta:
     "@microsoft/api-extractor":
       optional: true
