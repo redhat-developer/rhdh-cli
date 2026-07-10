@@ -27,6 +27,7 @@ import path from 'path';
 import { paths } from '../../lib/paths';
 import { getConfigSchema } from '../../lib/schema/collect';
 import { Task } from '../../lib/tasks';
+import { checkHeavyDependencies } from './check-heavy-deps';
 import { applyDevOptions } from './dev';
 import { frontend } from './frontend';
 
@@ -88,6 +89,8 @@ export async function command(opts: OptionValues): Promise<void> {
     if (await fs.pathExists(upstreamSchema)) {
       await fs.copy(upstreamSchema, rhdhSchema);
     }
+
+    await checkHeavyDependencies(targetPath, Boolean(opts.strictDeps));
   } else if (role === 'frontend-plugin' || role === 'frontend-plugin-module') {
     targetPath = await frontend(roleInfo, opts);
     const configSchemaPaths: string[] = [];

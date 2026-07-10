@@ -55,6 +55,11 @@ export function registerPluginCommand(program: Command) {
       'Path to a pre-built dist workspace (from backstage-cli build-workspace --alwaysPack). Skips local dependency packing and uses pre-packed packages directly (backend plugin only).',
     )
     .option(
+      '--strict-deps',
+      'Fail export when production dependencies include disallowed heavy backend packages. Use in CI to enforce dependency rules (backend plugin only).',
+      false,
+    )
+    .option(
       '--dev',
       'Allow testing/debugging a dynamic plugin locally. This creates a link from the dynamic plugin content to the plugin package `src` folder, to enable the use of source maps (backend plugin only). This also installs the dynamic plugin content (symlink) into the dynamic plugins root folder configured in the app config (or copies the plugin content to the location explicitely provided by the `--dynamic-plugins-root` argument).',
     )
