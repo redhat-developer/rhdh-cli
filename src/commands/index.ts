@@ -56,7 +56,7 @@ export function registerPluginCommand(program: Command) {
     )
     .option(
       '--strict-deps',
-      'Fail export when production dependencies include disallowed heavy backend packages. Use in CI to enforce dependency rules (backend plugin only).',
+      'Fail export when production dependencies include disallowed heavy packages. Use in CI to enforce dependency rules.',
       false,
     )
     .option(

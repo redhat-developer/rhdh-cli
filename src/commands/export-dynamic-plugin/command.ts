@@ -27,7 +27,7 @@ import path from 'path';
 import { paths } from '../../lib/paths';
 import { getConfigSchema } from '../../lib/schema/collect';
 import { Task } from '../../lib/tasks';
-import { checkHeavyDependencies } from './check-heavy-deps';
+import { checkHeavyDependencies, HeavyDepKind } from './check-heavy-deps';
 import { applyDevOptions } from './dev';
 import { frontend } from './frontend';
 
@@ -89,8 +89,6 @@ export async function command(opts: OptionValues): Promise<void> {
     if (await fs.pathExists(upstreamSchema)) {
       await fs.copy(upstreamSchema, rhdhSchema);
     }
-
-    await checkHeavyDependencies(targetPath, Boolean(opts.strictDeps));
   } else if (role === 'frontend-plugin' || role === 'frontend-plugin-module') {
     targetPath = await frontend(roleInfo, opts);
     const configSchemaPaths: string[] = [];
@@ -125,6 +123,16 @@ export async function command(opts: OptionValues): Promise<void> {
       'Only packages with the "backend-plugin", "backend-plugin-module", "frontend-plugin" or "frontend-plugin-module" roles can be exported as dynamic plugins',
     );
   }
+
+  const heavyDepKind: HeavyDepKind =
+    role === 'backend-plugin' || role === 'backend-plugin-module'
+      ? 'backend'
+      : 'frontend';
+  await checkHeavyDependencies(
+    targetPath,
+    Boolean(opts.strictDeps),
+    heavyDepKind,
+  );
 
   await checkBackstageSupportedVersions(targetPath);
 

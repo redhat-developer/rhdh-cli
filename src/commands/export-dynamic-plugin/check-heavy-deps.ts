@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 The Backstage Authors
+ * Copyright 2026 The Backstage Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -31,17 +31,45 @@ export const HEAVY_BACKEND_DEPS: Record<string, string> = {
     'Should not be used in backend plugins. Use the -node variant instead.',
 };
 
+export const HEAVY_FRONTEND_DEPS: Record<string, string> = {
+  '@backstage/core-app-api':
+    'Should not be used in frontend plugins. Use @backstage/frontend-plugin-api or @backstage/core-plugin-api instead.',
+  '@backstage/frontend-app-api':
+    'Should not be used in frontend plugins. Use @backstage/frontend-plugin-api instead.',
+  '@backstage/frontend-defaults':
+    'App-level wiring only. Use in app packages or move to devDependencies.',
+  '@backstage/app-defaults':
+    'App-level wiring only. Use in app packages or move to devDependencies.',
+  '@backstage/dev-utils':
+    'Dev server helper only. Move to devDependencies.',
+  '@backstage/frontend-dev-utils':
+    'Dev server helper only. Move to devDependencies.',
+  '@backstage/frontend-test-utils':
+    'Test utilities only. Move to devDependencies.',
+  '@backstage/test-utils':
+    'Test utilities only. Move to devDependencies.',
+  '@backstage/frontend-dynamic-feature-loader':
+    'App-level dynamic feature loading. Should not be a plugin production dependency.',
+};
+
+export type HeavyDepKind = 'backend' | 'frontend';
+
+const HEAVY_DEPS_BY_KIND: Record<HeavyDepKind, Record<string, string>> = {
+  backend: HEAVY_BACKEND_DEPS,
+  frontend: HEAVY_FRONTEND_DEPS,
+};
+
 export async function checkHeavyDependencies(
   targetPath: string,
   strict: boolean,
+  kind: HeavyDepKind,
 ): Promise<void> {
+  const blocklist = HEAVY_DEPS_BY_KIND[kind];
   const packageJsonPath = path.join(targetPath, 'package.json');
   const targetPackage = await fs.readJson(packageJsonPath);
   const dependencies: Record<string, string> = targetPackage.dependencies ?? {};
 
-  const violations = Object.keys(dependencies).filter(
-    dep => dep in HEAVY_BACKEND_DEPS,
-  );
+  const violations = Object.keys(dependencies).filter(dep => dep in blocklist);
 
   if (violations.length === 0) {
     return;
@@ -52,7 +80,7 @@ export async function checkHeavyDependencies(
       chalk.yellow(
         [
           `WARNING: Found heavy dependency ${chalk.cyan(dep)} in production dependencies.`,
-          `  ${HEAVY_BACKEND_DEPS[dep]}`,
+          `  ${blocklist[dep]}`,
         ].join('\n'),
       ),
     );
