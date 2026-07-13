@@ -143,6 +143,26 @@ export function registerPluginCommand(program: Command) {
 }
 export function registerCommands(program: Command) {
   registerPluginCommand(program);
+
+  // Backstage CLI pass-through commands (auth, actions, sources)
+  const {
+    registerAuthCommands,
+    registerActionsCommands,
+  } = require('./backstage-passthrough');
+  registerAuthCommands(program);
+  registerActionsCommands(program);
+
+  // Intent-based commands (catalog, api, search, docs, template)
+  const { registerCatalogCommands } = require('./catalog');
+  const { registerApiCommands } = require('./api');
+  const { registerSearchCommands } = require('./search');
+  const { registerDocsCommands } = require('./docs');
+  const { registerTemplateCommands } = require('./template');
+  registerCatalogCommands(program);
+  registerApiCommands(program);
+  registerSearchCommands(program);
+  registerDocsCommands(program);
+  registerTemplateCommands(program);
 }
 
 // Wraps an action function so that it always exits and handles errors
