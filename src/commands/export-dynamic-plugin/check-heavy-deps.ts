@@ -40,14 +40,12 @@ export const HEAVY_FRONTEND_DEPS: Record<string, string> = {
     'App-level wiring only. Use in app packages or move to devDependencies.',
   '@backstage/app-defaults':
     'App-level wiring only. Use in app packages or move to devDependencies.',
-  '@backstage/dev-utils':
-    'Dev server helper only. Move to devDependencies.',
+  '@backstage/dev-utils': 'Dev server helper only. Move to devDependencies.',
   '@backstage/frontend-dev-utils':
     'Dev server helper only. Move to devDependencies.',
   '@backstage/frontend-test-utils':
     'Test utilities only. Move to devDependencies.',
-  '@backstage/test-utils':
-    'Test utilities only. Move to devDependencies.',
+  '@backstage/test-utils': 'Test utilities only. Move to devDependencies.',
   '@backstage/frontend-dynamic-feature-loader':
     'App-level dynamic feature loading. Should not be a plugin production dependency.',
 };
