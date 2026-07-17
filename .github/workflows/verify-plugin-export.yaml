@@ -28,7 +28,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         with:
-          ref: ${{ inputs.branch || github.ref_name }}
+          ref: b56f504b272ef6b3ce98e5e6b0629f3bb808fa92 # ${{ inputs.branch || github.ref_name }}
 
       - name: Set up Node
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
@@ -75,7 +75,7 @@ jobs:
       - name: Checkout rhdh-cli
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         with:
-          ref: ${{ inputs.branch || github.ref_name }}
+          ref: b56f504b272ef6b3ce98e5e6b0629f3bb808fa92 # ${{ inputs.branch || github.ref_name }}
           path: rhdh-cli
 
       - name: Set up Node
