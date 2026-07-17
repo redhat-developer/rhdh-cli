@@ -20,21 +20,21 @@ import * as path from 'path';
 import { LinkedPackageResolvePlugin } from './LinkedPackageResolvePlugin';
 
 describe('LinkedPackageResolvePlugin', () => {
-  const root = os.platform() === 'win32' ? 'C:\\root' : '/root';
+  const tmp = os.tmpdir();
 
   it('should re-write paths for external packages', () => {
     const plugin = new LinkedPackageResolvePlugin(
-      path.resolve(root, 'repo/node_modules'),
+      path.resolve(tmp, 'repo/node_modules'),
       [
         {
-          dir: path.resolve(root, 'external-a'),
+          dir: path.resolve(tmp, 'external-a'),
           packageJson: {
             name: 'a',
             version: '1.0.0',
           },
         },
         {
-          dir: path.resolve(root, 'external-b'),
+          dir: path.resolve(tmp, 'external-b'),
           packageJson: {
             name: '@s/b',
             version: '1.0.0',
@@ -64,10 +64,10 @@ describe('LinkedPackageResolvePlugin', () => {
     const callbackX = jest.fn();
     tap(
       {
-        request: path.resolve(root, 'repo/package/x/src/module.ts'),
-        path: path.resolve(root, 'repo/package/x/src'),
+        request: path.resolve(tmp, 'repo/package/x/src/module.ts'),
+        path: path.resolve(tmp, 'repo/package/x/src'),
         context: {
-          issuer: path.resolve(root, 'repo/package/x/src/index.ts'),
+          issuer: path.resolve(tmp, 'repo/package/x/src/index.ts'),
         },
       },
       'some-context',
@@ -95,10 +95,10 @@ describe('LinkedPackageResolvePlugin', () => {
     const callbackY = jest.fn();
     tap(
       {
-        request: path.resolve(root, 'external-aa/src/module.ts'),
-        path: path.resolve(root, 'external-aa/src'),
+        request: path.resolve(tmp, 'external-aa/src/module.ts'),
+        path: path.resolve(tmp, 'external-aa/src'),
         context: {
-          issuer: path.resolve(root, 'external-aa/src/index.ts'),
+          issuer: path.resolve(tmp, 'external-aa/src/index.ts'),
         },
       },
       'some-context',
@@ -112,10 +112,10 @@ describe('LinkedPackageResolvePlugin', () => {
     const callbackA = jest.fn();
     tap(
       {
-        request: path.resolve(root, 'external-a/src/module.ts'),
-        path: path.resolve(root, 'external-a/src'),
+        request: path.resolve(tmp, 'external-a/src/module.ts'),
+        path: path.resolve(tmp, 'external-a/src'),
         context: {
-          issuer: path.resolve(root, 'external-a/src/index.ts'),
+          issuer: path.resolve(tmp, 'external-a/src/index.ts'),
         },
       },
       'some-context',
@@ -126,16 +126,16 @@ describe('LinkedPackageResolvePlugin', () => {
     expect(doResolve).toHaveBeenCalledWith(
       resolver.hooks.resolve,
       {
-        request: path.resolve(root, 'external-a/src/module.ts'),
-        path: path.resolve(root, 'repo/node_modules/a/src'),
+        request: path.resolve(tmp, 'external-a/src/module.ts'),
+        path: path.resolve(tmp, 'repo/node_modules/a/src'),
         context: {
-          issuer: path.resolve(root, 'repo/node_modules/a/src/index.ts'),
+          issuer: path.resolve(tmp, 'repo/node_modules/a/src/index.ts'),
         },
       },
       `resolve ${path.resolve(
-        root,
+        tmp,
         'external-a/src/module.ts',
-      )} in ${path.resolve(root, 'repo/node_modules/a')}`,
+      )} in ${path.resolve(tmp, 'repo/node_modules/a')}`,
       'some-context',
       callbackA,
     );
@@ -144,8 +144,8 @@ describe('LinkedPackageResolvePlugin', () => {
     const callbackB = jest.fn();
     tap(
       {
-        request: path.resolve(root, 'external-b/src/module.ts'),
-        path: path.resolve(root, 'external-b/src'),
+        request: path.resolve(tmp, 'external-b/src/module.ts'),
+        path: path.resolve(tmp, 'external-b/src'),
         context: {
           issuer: false,
         },
@@ -158,16 +158,16 @@ describe('LinkedPackageResolvePlugin', () => {
     expect(doResolve).toHaveBeenLastCalledWith(
       resolver.hooks.resolve,
       {
-        request: path.resolve(root, 'external-b/src/module.ts'),
-        path: path.resolve(root, 'repo/node_modules/@s/b/src'),
+        request: path.resolve(tmp, 'external-b/src/module.ts'),
+        path: path.resolve(tmp, 'repo/node_modules/@s/b/src'),
         context: {
           issuer: false,
         },
       },
       `resolve ${path.resolve(
-        root,
+        tmp,
         'external-b/src/module.ts',
-      )} in ${path.resolve(root, 'repo/node_modules/@s/b')}`,
+      )} in ${path.resolve(tmp, 'repo/node_modules/@s/b')}`,
       'some-context',
       callbackB,
     );
