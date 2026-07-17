@@ -29,7 +29,7 @@
     "prettier:fix": "prettier --ignore-unknown --write .",
     "test": "backstage-cli package test --passWithNoTests --coverage",
     "test:e2e": "jest --config e2e-tests/jest.config.js",
-    "backstage:bump": "backstage-cli versions:bump --release 1.45.3 --skip-install && sed -i '/@backstage\\//s/\"\\^/\"~/g' package.json && yarn install && yarn dedupe",
+    "backstage:bump": "backstage-cli versions:bump --release 1.45.3 --skip-install && sed -i '/@backstage\\//s/\"\\^/\"~/g' package.json && sed -i '/@backstage\\/cli\"/s/\"~/\"/g' package.json && yarn install && yarn dedupe",
     "clean": "backstage-cli package clean",
     "generate-types": "node scripts/generate-backstage-types.js"
   },
@@ -37,7 +37,7 @@
     "rhdh-cli": "bin/rhdh-cli"
   },
   "dependencies": {
-    "@backstage/cli": "~0.34.5",
+    "@backstage/cli": "0.34.5",
     "@backstage/cli-common": "~0.1.15",
     "@backstage/cli-node": "~0.2.15",
     "@backstage/config": "~1.3.6",
@@ -88,7 +88,7 @@
     "yn": "^4.0.0"
   },
   "devDependencies": {
-    "@backstage/cli": "~0.34.5",
+    "@backstage/cli": "0.34.5",
     "@backstage/core-plugin-api": "~1.12.0",
     "@backstage/repo-tools": "~0.16.0",
     "@jest/globals": "^30.0.0-beta.3",
