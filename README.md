@@ -54,6 +54,28 @@ or when executing from the project root you can also use:
 npx @red-hat-developer-hub/cli
 ```
 
+### Bumping Backstage Dependencies
+
+To update the `@backstage/*` dependencies to a new Backstage release:
+
+1. Update the `--release` version in the `backstage:bump` script in `package.json` to the target Backstage release version.
+2. Check the `resolutions` section in `package.json` and update any pinned versions if needed.
+3. Run the bump:
+
+```bash
+yarn backstage:bump
+```
+
+This will update all `@backstage/*` packages, pin them with `~` (tilde) ranges, keep `@backstage/cli*` packages at exact versions, and run `yarn install && yarn dedupe`.
+
+After bumping, verify the build and tests still pass:
+
+```bash
+yarn build
+yarn tsc
+yarn test
+```
+
 ### Versioning Strategy
 
 The versioning for rhdh-cli is designed to be straightforward and align directly with the main Red Hat Developer Hub (RHDH) product, ensuring a clear compatibility path for developers.
