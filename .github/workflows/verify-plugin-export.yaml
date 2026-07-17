@@ -91,7 +91,7 @@ jobs:
           path: rhdh-cli
 
       - name: Install rhdh-cli globally
-        run: npm install -g rhdh-cli/rhdh-cli.tgz
+        run: npm install -g ./rhdh-cli/rhdh-cli.tgz
 
       - name: Clone overlays repo
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
