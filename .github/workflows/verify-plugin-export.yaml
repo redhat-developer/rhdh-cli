@@ -120,7 +120,7 @@ jobs:
           git clone --depth 1 "$REPO" "$SOURCE_DIR"
           cd "$SOURCE_DIR"
           git fetch --depth 1 origin "$REPO_REF"
-          git checkout "$REPO_REF"
+          git -c advice.detachedHead=false checkout "$REPO_REF"
 
           # Determine workspace root in source repo
           if [ "$REPO_FLAT" = "false" ]; then
@@ -133,16 +133,24 @@ jobs:
           echo "=== Installing dependencies in workspace root ==="
           cd "$WORKSPACE_ROOT"
           yarn install
+
+          # Generate .d.ts files needed by embedded packages during export
+          echo "=== Generating type declarations ==="
           yarn tsc
 
           # Parse plugins-list.yaml and run exports
           PLUGINS_LIST="$OVERLAYS_DIR/workspaces/$WORKSPACE/plugins-list.yaml"
+
+          echo "=== plugins-list.yaml ==="
+          cat "$PLUGINS_LIST"
+          echo ""
+
           passed=0
           failed=0
           total=0
           results=""
 
-          while IFS= read -r line; do
+          while IFS= read -r line || [[ -n "$line" ]]; do
             # Skip blank lines and comments
             [[ -z "$line" || "$line" =~ ^[[:space:]]*# ]] && continue
 
