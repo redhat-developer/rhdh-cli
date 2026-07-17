@@ -133,9 +133,11 @@ jobs:
           echo "=== Installing dependencies in workspace root ==="
           cd "$WORKSPACE_ROOT"
           yarn install
+          yarn tsc
 
           # Parse plugins-list.yaml and run exports
           PLUGINS_LIST="$OVERLAYS_DIR/workspaces/$WORKSPACE/plugins-list.yaml"
+          passed=0
           failed=0
           total=0
           results=""
@@ -166,6 +168,7 @@ jobs:
             rm -rf dist dist-dynamic
             if $CLI_DIR/bin/rhdh-cli plugin export $cli_args; then
               t1="PASS"
+              passed=$((passed + 1))
             else
               t1="FAIL"
               failed=$((failed + 1))
@@ -177,6 +180,7 @@ jobs:
             rm -rf dist dist-dynamic
             if rhdh-cli plugin export $cli_args; then
               t2="PASS"
+              passed=$((passed + 1))
             else
               t2="FAIL"
               failed=$((failed + 1))
@@ -189,9 +193,12 @@ jobs:
           echo "=== Results for $WORKSPACE ==="
           echo -e "$results"
           echo ""
-          echo "Total plugins: $total, Failed tests: $failed"
+          echo "Total plugins: $total, Passed tests: $passed, Failed tests: $failed"
 
-          if [ "$failed" -gt 0 ]; then
+          if [ "$passed" -eq 0 ]; then
+            echo "::error::No successful plugin exports for workspace $WORKSPACE"
+            exit 1
+          elif [ "$failed" -gt 0 ]; then
             echo "::error::$failed test(s) failed for workspace $WORKSPACE"
             exit 1
           fi
