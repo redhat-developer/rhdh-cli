@@ -14,9 +14,9 @@ on:
           - release-1.10
           - release-1.9
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+# concurrency:
+#   group: ${{ github.workflow }}-${{ github.ref }}
+#   cancel-in-progress: true
 
 jobs:
   build:
@@ -64,6 +64,9 @@ jobs:
           - adoption-insights
           - bulk-import
           - extensions
+          - global-header
+          - homepage
+          - lightspeed
           - orchestrator
           - quickstart
           - scorecard
