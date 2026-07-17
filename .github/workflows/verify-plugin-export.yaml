@@ -1,0 +1,184 @@
+name: Verify Plugin Export
+
+on:
+  schedule:
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build CLI
+    runs-on: ubuntu-latest
+    env:
+      CI: true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+
+      - name: Set up Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version-file: '.nvmrc'
+
+      - name: yarn install
+        run: yarn install --immutable
+
+      - name: Build
+        run: yarn build
+
+      - name: Pack
+        run: yarn pack --filename rhdh-cli.tgz
+
+      - name: Upload CLI artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: rhdh-cli-tgz
+          path: rhdh-cli.tgz
+          retention-days: 1
+
+  verify:
+    name: Verify ${{ matrix.workspace }}
+    needs: build
+    runs-on: ubuntu-latest
+    env:
+      CI: true
+    strategy:
+      fail-fast: false
+      matrix:
+        workspace:
+          - adoption-insights
+          - bulk-import
+          - extensions
+          - orchestrator
+          - quickstart
+          - scorecard
+          - theme
+    steps:
+      - name: Checkout rhdh-cli
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        with:
+          path: rhdh-cli
+
+      - name: Set up Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version-file: 'rhdh-cli/.nvmrc'
+
+      - name: Install rhdh-cli dependencies
+        run: yarn install --immutable
+        working-directory: rhdh-cli
+
+      - name: Download CLI artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: rhdh-cli-tgz
+          path: rhdh-cli
+
+      - name: Install rhdh-cli globally
+        run: npm install -g rhdh-cli/rhdh-cli.tgz
+
+      - name: Clone overlays repo
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        with:
+          repository: redhat-developer/rhdh-plugin-export-overlays
+          path: overlays
+
+      - name: Clone source repo and run exports
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          WORKSPACE="${{ matrix.workspace }}"
+          CLI_DIR="$GITHUB_WORKSPACE/rhdh-cli"
+          OVERLAYS_DIR="$GITHUB_WORKSPACE/overlays"
+          SOURCE_DIR="$GITHUB_WORKSPACE/source"
+
+          # Read source.json
+          SOURCE_JSON="$OVERLAYS_DIR/workspaces/$WORKSPACE/source.json"
+          REPO=$(jq -r '.repo' "$SOURCE_JSON")
+          REPO_REF=$(jq -r '.["repo-ref"]' "$SOURCE_JSON")
+          REPO_FLAT=$(jq -r '.["repo-flat"]' "$SOURCE_JSON")
+
+          echo "=== Cloning $REPO at $REPO_REF ==="
+          git clone --depth 1 "$REPO" "$SOURCE_DIR"
+          cd "$SOURCE_DIR"
+          git fetch --depth 1 origin "$REPO_REF"
+          git checkout "$REPO_REF"
+
+          # Determine workspace root in source repo
+          if [ "$REPO_FLAT" = "false" ]; then
+            WORKSPACE_ROOT="$SOURCE_DIR/workspaces/$WORKSPACE"
+          else
+            WORKSPACE_ROOT="$SOURCE_DIR"
+          fi
+
+          # Install dependencies in the workspace root
+          echo "=== Installing dependencies in workspace root ==="
+          cd "$WORKSPACE_ROOT"
+          yarn install
+
+          # Parse plugins-list.yaml and run exports
+          PLUGINS_LIST="$OVERLAYS_DIR/workspaces/$WORKSPACE/plugins-list.yaml"
+          failed=0
+          total=0
+          results=""
+
+          while IFS= read -r line; do
+            # Skip blank lines and comments
+            [[ -z "$line" || "$line" =~ ^[[:space:]]*# ]] && continue
+
+            # Split on first colon
+            plugin_path="${line%%:*}"
+            cli_args="${line#*:}"
+            plugin_path=$(echo "$plugin_path" | xargs)
+            cli_args=$(echo "$cli_args" | xargs)
+
+            plugin_dir="$WORKSPACE_ROOT/$plugin_path"
+            plugin_name=$(basename "$plugin_path")
+            total=$((total + 1))
+
+            echo ""
+            echo "=========================================="
+            echo "Plugin: $plugin_path"
+            echo "Args: ${cli_args:-<none>}"
+            echo "=========================================="
+
+            # Test 1: local bin/rhdh-cli
+            echo "--- Test 1: local bin/rhdh-cli ---"
+            cd "$plugin_dir"
+            rm -rf dist dist-dynamic
+            if $CLI_DIR/bin/rhdh-cli plugin export $cli_args; then
+              t1="PASS"
+            else
+              t1="FAIL"
+              failed=$((failed + 1))
+            fi
+
+            # Test 2: globally installed rhdh-cli
+            echo "--- Test 2: npm installed rhdh-cli ---"
+            cd "$plugin_dir"
+            rm -rf dist dist-dynamic
+            if rhdh-cli plugin export $cli_args; then
+              t2="PASS"
+            else
+              t2="FAIL"
+              failed=$((failed + 1))
+            fi
+
+            results="${results}\n  $plugin_path: local=$t1 global=$t2"
+          done < "$PLUGINS_LIST"
+
+          echo ""
+          echo "=== Results for $WORKSPACE ==="
+          echo -e "$results"
+          echo ""
+          echo "Total plugins: $total, Failed tests: $failed"
+
+          if [ "$failed" -gt 0 ]; then
+            echo "::error::$failed test(s) failed for workspace $WORKSPACE"
+            exit 1
+          fi
