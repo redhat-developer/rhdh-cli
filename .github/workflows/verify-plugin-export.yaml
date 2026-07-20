@@ -101,7 +101,10 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         with:
           repository: redhat-developer/rhdh-plugin-export-overlays
-          ref: ${{ inputs.branch || 'main' }}
+          # For manual dispatched runs, use the input variable.
+          # For PRs, github.base_ref is the target branch (e.g. main or release-1.10).
+          # For schedule jobs where base_ref is empty, it falls back to github.ref_name.
+          ref: ${{ inputs.branch || github.base_ref || github.ref_name }}
           path: overlays
 
       - name: Clone source repo and run exports
