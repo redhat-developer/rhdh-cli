@@ -1,6 +1,7 @@
 name: Verify Plugin Export
 
 on:
+  pull_request:
   schedule:
     - cron: '17 3 * * *'
   workflow_dispatch:
