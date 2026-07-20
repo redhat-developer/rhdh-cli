@@ -1,7 +1,7 @@
 {
   "name": "@red-hat-developer-hub/cli",
   "description": "CLI for developing Backstage plugins and apps",
-  "version": "1.11.2",
+  "version": "1.11.3",
   "publishConfig": {
     "access": "public"
   },
@@ -132,7 +132,8 @@
     "@backstage/config-loader": "~1.10.12"
   },
   "peerDependencies": {
-    "@microsoft/api-extractor": "^7.21.2"
+    "@microsoft/api-extractor": "^7.21.2",
+    "ts-morph": "*"
   },
   "peerDependenciesMeta": {
     "@microsoft/api-extractor": {

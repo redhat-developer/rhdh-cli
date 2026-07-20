@@ -1,4 +1,3 @@
-
 /*
  * Auto-generated TypeScript declarations for @backstage/cli-module-build
  * Generated from @backstage/cli version: 0.36.3
@@ -11,30 +10,59 @@
  * (same commit as the pinned @backstage/cli), via root `yarn tsc`.
  */
 
-
 declare module '@backstage/cli-module-build/dist/lib/buildFrontend.cjs.js' {
   interface BuildAppOptions {
-      targetDir: string;
-      writeStats: boolean;
-      configPaths: string[];
-      isModuleFederationRemote?: boolean;
-      webpack?: typeof import('webpack');
+    targetDir: string;
+    writeStats: boolean;
+    configPaths: string[];
+    isModuleFederationRemote?: boolean;
+    webpack?: typeof import('webpack');
   }
-  export declare function buildFrontend(options: BuildAppOptions): Promise<void>;
+  export declare function buildFrontend(
+    options: BuildAppOptions,
+  ): Promise<void>;
   export {};
-  
 }
-
 
 declare module '@backstage/cli-module-build/dist/lib/buildBackend.cjs.js' {
   interface BuildBackendOptions {
-      targetDir: string;
-      skipBuildDependencies: boolean;
-      configPaths?: string[];
-      minify?: boolean;
+    targetDir: string;
+    skipBuildDependencies: boolean;
+    configPaths?: string[];
+    minify?: boolean;
   }
-  export declare function buildBackend(options: BuildBackendOptions): Promise<void>;
+  export declare function buildBackend(
+    options: BuildBackendOptions,
+  ): Promise<void>;
   export {};
-  
 }
 
+declare module '@backstage/cli-module-build/dist/lib/typeDistProject.cjs.js' {
+  import {
+    BackstagePackageFeatureType,
+    PackageRole,
+  } from '@backstage/cli-node';
+  import { Project } from 'ts-morph';
+
+  export declare const createTypeDistProject: () => Promise<Project>;
+  export declare const getEntryPointDefaultFeatureType: (
+    role: PackageRole,
+    packageDir: string,
+    project: Project,
+    entryPoint: string,
+  ) => BackstagePackageFeatureType | null;
+}
+
+declare module '@backstage/cli-module-build/dist/lib/entryPoints.cjs.js' {
+  import { BackstagePackageJson } from '@backstage/cli-node';
+
+  export interface EntryPoint {
+    mount: string;
+    path: string;
+    name: string;
+    ext: string;
+  }
+  export declare function readEntryPoints(
+    pkg: BackstagePackageJson,
+  ): Array<EntryPoint>;
+}
