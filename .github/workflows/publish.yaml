@@ -61,9 +61,9 @@ jobs:
         run: |
           if [ "${{ inputs.branch }}" = "main" ]; then
             npm publish --access public --tag next
-          # Check if the selected branch matches the auto-detected latest GA branch (highest semver release-* branch)
           elif [ "${{ inputs.branch }}" = "${{ steps.detect-ga.outputs.branch }}" ]; then
-            npm publish --access public
+            npm publish --access public --tag latest
+            npm dist-tag add "$(node -p "require('./package.json').name")@$(node -p "require('./package.json').version")" "${{ inputs.branch }}"
           else
             npm publish --access public --tag ${{ inputs.branch }}
           fi

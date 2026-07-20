@@ -101,7 +101,7 @@ The workflow automatically assigns npm dist-tags based on the selected branch:
 | Branch | Dist-tag | Example |
 | --- | --- | --- |
 | `main` | `next` | `npm install @red-hat-developer-hub/cli@next` |
-| Latest GA release branch (auto-detected) | `latest` | `npm install @red-hat-developer-hub/cli@latest` |
+| Latest GA release branch (auto-detected) | `latest` + branch name | `npm install @red-hat-developer-hub/cli@latest` or `@release-1.10` |
 | Older release branches | Branch name (e.g., `release-1.9`) | `npm install @red-hat-developer-hub/cli@release-1.9` |
 
 The latest GA branch is auto-detected as the `release-*` branch with the highest semver version. Plugin builders targeting a specific RHDH version should use a semver range (e.g., `~1.10.0`) or the corresponding branch tag rather than `latest`.
