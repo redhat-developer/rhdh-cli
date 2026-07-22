@@ -2,7 +2,29 @@
 
 All notable changes to `@red-hat-developer-hub/cli` are documented in this file.
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). The major and minor version are synchronized with the corresponding RHDH release (see [Versioning Strategy](README.md#versioning-strategy)).
+
+## 1.11.2 - 2026-07-17
+
+### Changed
+
+- **Backstage dependencies** bumped to **Backstage 1.52.0**. `@backstage/cli` updated to **0.36.3**.
+- **Generated type declarations** updated for the new Backstage version.
+- **Backstage bump process** documented in `README.md`.
+
+### Added
+
+- **`backstage:bump` script** in `package.json` to automate future Backstage dependency upgrades with tilde pinning (exact for `@backstage/cli*` packages) and deduplication.
+
+## 1.11.1 - 2026-05-20
+
+### Fixed
+
+- **`plugin package`:** each `dist-dynamic` plugin is staged with **`npm pack`** and **`tar`** (strip the `package/` root) instead of a recursive filesystem copy. This matches npm publish contents, omits `node_modules/.bin` entries that could point outside the image (see [RHDHBUGS-1968](https://redhat.atlassian.net/browse/RHDHBUGS-1968)), and avoids spurious "link outside of the archive" warnings when dynamic plugins are installed from OCI. **Requires `bash`, `npm` (7+ for `--pack-destination`), and `tar` on `PATH`** (for example Git Bash on Windows).
+
+### Chore
+
+- Dependency bumps: `follow-redirects` 1.16.0, `vm2` 3.11.5, `ws` 8.20.1, `webpack-dev-server` 5.2.4, and others.
 
 ## 1.11.3 - 2026-07-20
 
@@ -11,6 +33,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Added missing `backstage.features` field to generated `dist-dynamic/package.json` files in case of standard Module Federation asset generation.
 
 ## 1.11.0 - 2026-05-08
+
+### Changed
+
+- Version bump for RHDH 1.11 release.
+
+## 1.10.8 - 2026-07-17
+
+### Changed
+
+- **Backstage dependencies** bumped to **Backstage 1.49.4**. `@backstage/cli` remains at **0.36.0** (exact pin).
+- **Generated type declarations** updated for the new Backstage version.
+
+### Added
+
+- **`backstage:bump` script** in `package.json` to automate future Backstage dependency upgrades with tilde pinning (exact for `@backstage/cli*` packages) and deduplication.
+
+## 1.10.7 - 2026-05-13
 
 ### Fixed
 
@@ -91,6 +130,34 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Chore
 
 - **`tar`** (devDependency) updated to the 7.x line and other dependency maintenance.
+
+## 1.9.2 - 2026-07-17
+
+### Changed
+
+- **Backstage dependencies** bumped to **Backstage 1.45.3**. `@backstage/cli` pinned to exact version **0.34.5**.
+
+### Added
+
+- **`backstage:bump` script** in `package.json` to automate future Backstage dependency upgrades with tilde pinning and deduplication.
+
+## 1.9.1 - 2026-01-06
+
+### Fixed
+
+- **Webpack dependency version inconsistency** removed — `package.json` had conflicting webpack version specifications causing plugin export failures.
+
+## 1.9.0 - 2026-01-06
+
+### Added
+
+- **`export-dynamic-plugin` frontend path:** new `--generate-module-federation-assets` option to generate standard module federation assets for frontend plugins.
+
+### Fixed
+
+- **`export-dynamic-plugin` backend path:** more robust entrypoint validation.
+- **`plugin package`:** use the correct `export-dynamic-plugin` command when exporting in a monorepo.
+- **CLI executable name** corrected (`rhdh-cli` binary).
 
 ## Earlier releases
 
