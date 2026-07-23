@@ -28,7 +28,7 @@ import { buildScalprumPlugin } from '../../lib/builder/buildScalprumPlugin';
 import { productionPack } from '../../lib/packager/productionPack';
 import { paths } from '../../lib/paths';
 import { Task } from '../../lib/tasks';
-import { customizeForDynamicUse } from './backend';
+import { customizeForDynamicUse } from './utils';
 import { detectBackstageFeatures } from './features';
 
 function isTruthyCiEnv(value: string | undefined): boolean {

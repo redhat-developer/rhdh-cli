@@ -37,6 +37,19 @@ declare module '@backstage/cli-module-build/dist/lib/buildBackend.cjs.js' {
   export {};
 }
 
+declare module '@backstage/cli-module-build/dist/commands/package/bundle/command.cjs.js' {
+  interface BundleOptions {
+    build: boolean;
+    install: boolean;
+    clean: boolean;
+    verbose: boolean;
+    outputDestination?: string;
+    outputName?: string;
+    prePackedDir?: string;
+  }
+  export declare function bundleCommand(opts: BundleOptions): Promise<void>;
+  export {};
+}
 declare module '@backstage/cli-module-build/dist/lib/typeDistProject.cjs.js' {
   import {
     BackstagePackageFeatureType,

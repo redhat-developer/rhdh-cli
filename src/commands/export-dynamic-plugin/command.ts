@@ -15,6 +15,7 @@
  */
 
 import { PackageRoles } from '@backstage/cli-node';
+import { bundleCommand } from '@backstage/cli-module-build/dist/commands/package/bundle/command.cjs.js';
 
 import chalk from 'chalk';
 import { OptionValues } from 'commander';
@@ -26,9 +27,31 @@ import path from 'path';
 import { paths } from '../../lib/paths';
 import { getConfigSchema } from '../../lib/schema/collect';
 import { Task } from '../../lib/tasks';
-import { backend } from './backend';
+import { checkHeavyDependencies, HeavyDepKind } from './check-heavy-deps';
 import { applyDevOptions } from './dev';
 import { frontend } from './frontend';
+
+const DEPRECATED_FLAGS: Record<string, string> = {
+  embedPackage:
+    '--embed-package is deprecated and ignored. The upstream bundle command embeds all dependencies automatically.',
+  sharedPackage:
+    '--shared-package is deprecated and ignored. The upstream bundle command produces fully self-contained bundles.',
+  allowNativePackage: '--allow-native-package is deprecated and ignored.',
+  suppressNativePackage: '--suppress-native-package is deprecated and ignored.',
+  ignoreVersionCheck: '--ignore-version-check is deprecated and ignored.',
+  minify: '--minify is deprecated and ignored.',
+  trackDynamicManifestAndLockFile:
+    '--track-dynamic-manifest-and-lock-file is deprecated and ignored.',
+};
+
+function warnDeprecatedFlags(opts: OptionValues): void {
+  for (const [flag, message] of Object.entries(DEPRECATED_FLAGS)) {
+    const value = opts[flag];
+    if (value !== undefined && value !== false) {
+      Task.log(chalk.yellow(message));
+    }
+  }
+}
 
 export async function command(opts: OptionValues): Promise<void> {
   const rawPkg = await fs.readJson(paths.resolveTarget('package.json'));
@@ -39,16 +62,36 @@ export async function command(opts: OptionValues): Promise<void> {
 
   let targetPath: string;
   const roleInfo = PackageRoles.getRoleInfo(role);
-  let configSchemaPaths: string[];
   if (role === 'backend-plugin' || role === 'backend-plugin-module') {
-    targetPath = await backend(opts);
-    configSchemaPaths = [
-      path.join(targetPath, 'dist/configSchema.json'),
-      path.join(targetPath, 'dist/.config-schema.json'),
-    ];
+    warnDeprecatedFlags(opts);
+
+    await bundleCommand({
+      clean: Boolean(opts.clean),
+      build: opts.build !== false,
+      install: opts.install !== false,
+      verbose: Boolean(opts.verbose),
+      outputName: 'dist-dynamic',
+      outputDestination: opts.outputDestination,
+      prePackedDir: opts.prePackedDir,
+    });
+
+    targetPath = path.join(paths.targetDir, 'dist-dynamic');
+
+    // Rename package to ${name}-dynamic
+    const targetPkgPath = path.join(targetPath, 'package.json');
+    const targetPkg = await fs.readJson(targetPkgPath);
+    targetPkg.name = `${rawPkg.name}-dynamic`;
+    await fs.writeJson(targetPkgPath, targetPkg, { spaces: 2 });
+
+    // Copy config schema to the path RHDH's schemaLocator expects
+    const upstreamSchema = path.join(targetPath, 'dist', '.config-schema.json');
+    const rhdhSchema = path.join(targetPath, 'dist', 'configSchema.json');
+    if (await fs.pathExists(upstreamSchema)) {
+      await fs.copy(upstreamSchema, rhdhSchema);
+    }
   } else if (role === 'frontend-plugin' || role === 'frontend-plugin-module') {
     targetPath = await frontend(roleInfo, opts);
-    configSchemaPaths = [];
+    const configSchemaPaths: string[] = [];
     if (fs.existsSync(path.join(targetPath, 'dist-scalprum'))) {
       configSchemaPaths.push(
         path.join(targetPath, 'dist-scalprum/configSchema.json'),
@@ -57,23 +100,39 @@ export async function command(opts: OptionValues): Promise<void> {
     if (fs.existsSync(path.join(targetPath, 'dist'))) {
       configSchemaPaths.push(path.join(targetPath, 'dist/.config-schema.json'));
     }
+
+    if (configSchemaPaths.length > 0) {
+      Task.log(
+        `Saving self-contained config schema in ${chalk.cyan(configSchemaPaths.join(' and '))}`,
+      );
+
+      const configSchema = await getConfigSchema(rawPkg.name);
+      for (const configSchemaPath of configSchemaPaths) {
+        await fs.writeJson(
+          paths.resolveTarget(configSchemaPath),
+          configSchema,
+          {
+            encoding: 'utf8',
+            spaces: 2,
+          },
+        );
+      }
+    }
   } else {
     throw new Error(
-      'Only packages with the "backend-plugin", "backend-plugin-module" or "frontend-plugin" roles can be exported as dynamic backend plugins',
+      'Only packages with the "backend-plugin", "backend-plugin-module", "frontend-plugin" or "frontend-plugin-module" roles can be exported as dynamic plugins',
     );
   }
 
-  Task.log(
-    `Saving self-contained config schema in ${chalk.cyan(configSchemaPaths.join(' and '))}`,
+  const heavyDepKind: HeavyDepKind =
+    role === 'backend-plugin' || role === 'backend-plugin-module'
+      ? 'backend'
+      : 'frontend';
+  await checkHeavyDependencies(
+    targetPath,
+    Boolean(opts.strictDeps),
+    heavyDepKind,
   );
-
-  const configSchema = await getConfigSchema(rawPkg.name);
-  for (const configSchemaPath of configSchemaPaths) {
-    await fs.writeJson(paths.resolveTarget(configSchemaPath), configSchema, {
-      encoding: 'utf8',
-      spaces: 2,
-    });
-  }
 
   await checkBackstageSupportedVersions(targetPath);
 

@@ -7,6 +7,7 @@ import chalk from 'chalk';
 import { OptionValues } from 'commander';
 import fs from 'fs-extra';
 import { PackageJson } from 'type-fest';
+import * as tar from 'tar';
 import YAML from 'yaml';
 
 import os from 'node:os';
@@ -322,20 +323,16 @@ type StageDistDynamicViaNpmPackOptions = {
 
 /**
  * Stages `dist-dynamic` like a published tarball: `npm pack` to a scratch
- * directory, then `tar -xzf … --strip-components=1` into the target. Omits
+ * directory, then extract with node-tar (strip: 1) into the target. Omits
  * `node_modules/.bin` and other paths npm does not ship (RHDHBUGS-1968).
  *
- * Sends npm/tar stdout and stderr to a temp log file (path is printed only on
- * failure), not to the terminal, by wiring those streams to fd(s) opened on
- * that file in the `spawn` options.
+ * Uses node-tar for extraction instead of system tar to correctly handle
+ * forward-referencing hard links in bundled dependency tarballs.
  *
- * Uses `spawn` with `shell: false`; pack paths are inlined with `bashSingleQuoted`.
- * Does not pass a custom `env` (child inherits PATH so user-managed toolchains
- * resolve — see adjacent NOSONAR). `Task.forCommand` lacks custom env support; `run()`
- * uses `shell: true` on `spawn` and can replay npm output to the CLI.
+ * Sends npm stdout/stderr to a temp log file (path is printed only on
+ * failure), not to the terminal.
  *
- * Requires `bash`, `npm` 7+ for `--pack-destination`, and `tar` on `PATH`
- * (Linux, macOS, Git Bash, or WSL on Windows).
+ * Requires `bash` and `npm` 7+ for `--pack-destination` on `PATH`.
  */
 async function stageDistDynamicViaNpmPack(
   options: StageDistDynamicViaNpmPackOptions,
@@ -353,21 +350,32 @@ async function stageDistDynamicViaNpmPack(
 
     const logFd = openSync(packLogPath, 'w');
     try {
-      // Controlled bash -lc script (paths from bashSingleQuoted); not user-defined.
-      // child inherits PATH so npm/bash/tar resolve (nvm, fnm, Homebrew).
       const child = spawn(
         'bash', // NOSONAR typescript:S4036
-        ['-lc', npmPackExtractScript(packdir, targetDirectory)],
+        ['-lc', npmPackScript(packdir)],
         {
           cwd: distDynamicDirectory,
           stdio: ['ignore', logFd, logFd],
           shell: false,
         },
       );
-      await waitForExit(child, 'npm pack / tar');
+      await waitForExit(child, 'npm pack');
     } finally {
       closeSync(logFd);
     }
+
+    const tgzFiles = fs.readdirSync(packdir).filter(f => f.endsWith('.tgz'));
+    if (tgzFiles.length !== 1) {
+      throw new Error(
+        `expected exactly one .tgz in ${packdir}, got: ${tgzFiles.join(', ')}`,
+      );
+    }
+
+    await tar.x({
+      file: path.join(packdir, tgzFiles[0]),
+      cwd: targetDirectory,
+      strip: 1,
+    });
 
     await fs.remove(packLogPath).catch(() => undefined);
   } catch (err) {
@@ -375,7 +383,7 @@ async function stageDistDynamicViaNpmPack(
       const logContents = await fs
         .readFile(packLogPath, 'utf8')
         .catch(() => '');
-      const logHeader = chalk.yellow(`npm pack / tar output (${packLogPath}):`);
+      const logHeader = chalk.yellow(`npm pack output (${packLogPath}):`);
       process.stderr.write(`${logHeader}\n\n${logContents}\n`);
       await fs.remove(packLogPath).catch(() => undefined);
     }
@@ -397,23 +405,14 @@ function bashSingleQuoted(value: string): string {
 }
 
 /**
- * `npm pack` into `packdir`, then extract into `extractToDir` with the same
- * layout as today’s staging tree (`package/` stripped). Fails if `packdir` does
- * not contain exactly one `.tgz` after pack. Paths are bash-quoted in the script
- * instead of passed via extra `env` entries.
+ * Bash script that runs `npm pack` into the given directory.
+ * Extraction is handled separately by node-tar which correctly resolves
+ * forward-referencing hard links in bundled dependency tarballs.
  */
-function npmPackExtractScript(packdir: string, extractToDir: string): string {
+function npmPackScript(packdir: string): string {
   const qPack = bashSingleQuoted(packdir);
-  const qExtract = bashSingleQuoted(extractToDir);
   return `set -euo pipefail
 npm pack --pack-destination ${qPack} --foreground-scripts=false
-shopt -s nullglob
-tgzs=(${qPack}/*.tgz)
-if (( \${#tgzs[@]} != 1 )); then
-  echo "expected exactly one .tgz in ${packdir}, got: \${tgzs[*]}" >&2
-  exit 1
-fi
-tar -xzf "\${tgzs[0]}" -C ${qExtract} --strip-components=1
 `;
 }
 

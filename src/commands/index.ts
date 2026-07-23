@@ -30,27 +30,6 @@ export function registerPluginCommand(program: Command) {
     .description(
       'Build and export a plugin package to be loaded as a dynamic plugin. The repackaged dynamic plugin is exported inside a ./dist-dynamic sub-folder.',
     )
-    .option('--minify', 'Minify the generated code (backend plugin only).')
-    .option(
-      '--embed-package [package-name...]',
-      'Optional list of packages that should be embedded inside the generated code of a backend dynamic plugin, removed from the plugin dependencies, while their direct dependencies will be hoisted to the dynamic plugin dependencies (backend plugin only).',
-    )
-    .option(
-      '--shared-package [package-name...]',
-      'Optional list of packages that should be considered shared by all dynamic plugins, and will be moved to peer dependencies of the dynamic plugin. The `@backstage` packages are by default considered shared dependencies.',
-    )
-    .option(
-      '--allow-native-package [package-name...]',
-      'Optional list of native packages names that can be included in the exported plugin',
-    )
-    .option(
-      '--suppress-native-package [package-name...]',
-      'Optional list of native package names to be excluded from the exported plugin',
-    )
-    .option(
-      '--ignore-version-check [packageName...]',
-      'Optional list of package names to ignore when doing semver dependency checks',
-    )
     .option(
       '--no-install',
       'Do not run `yarn install` to fill the dynamic plugin `node_modules` folder (backend plugin only).',
@@ -64,6 +43,23 @@ export function registerPluginCommand(program: Command) {
       'Remove the dynamic plugin output before exporting again.',
     )
     .option(
+      '--verbose',
+      'Stream detailed output from internal build, pack, and install steps to the console (backend plugin only).',
+    )
+    .option(
+      '--output-destination <dir>',
+      'Directory in which the bundle subdirectory is created. Defaults to the current package directory (backend plugin only).',
+    )
+    .option(
+      '--pre-packed-dir <path>',
+      'Path to a pre-built dist workspace (from backstage-cli build-workspace --alwaysPack). Skips local dependency packing and uses pre-packed packages directly (backend plugin only).',
+    )
+    .option(
+      '--strict-deps',
+      'Fail export when production dependencies include disallowed heavy packages. Use in CI to enforce dependency rules.',
+      false,
+    )
+    .option(
       '--dev',
       'Allow testing/debugging a dynamic plugin locally. This creates a link from the dynamic plugin content to the plugin package `src` folder, to enable the use of source maps (backend plugin only). This also installs the dynamic plugin content (symlink) into the dynamic plugins root folder configured in the app config (or copies the plugin content to the location explicitely provided by the `--dynamic-plugins-root` argument).',
     )
@@ -75,9 +71,30 @@ export function registerPluginCommand(program: Command) {
       '--scalprum-config <file>',
       'Allows retrieving scalprum configuration from an external JSON file, instead of using a `scalprum` field of the `package.json`. Frontend plugins only.',
     )
+    .option('--minify', '[Deprecated] No longer supported. Ignored.')
+    .option(
+      '--embed-package [package-name...]',
+      '[Deprecated] No longer supported. The upstream bundle command embeds all dependencies automatically. Ignored.',
+    )
+    .option(
+      '--shared-package [package-name...]',
+      '[Deprecated] No longer supported. The upstream bundle command produces fully self-contained bundles. Ignored.',
+    )
+    .option(
+      '--allow-native-package [package-name...]',
+      '[Deprecated] No longer supported. Ignored.',
+    )
+    .option(
+      '--suppress-native-package [package-name...]',
+      '[Deprecated] No longer supported. Ignored.',
+    )
+    .option(
+      '--ignore-version-check [packageName...]',
+      '[Deprecated] No longer supported. Ignored.',
+    )
     .option(
       '--track-dynamic-manifest-and-lock-file',
-      'Adds the `package.json` and `yarn.lock` files, generated in the `dist-dynamic` folder of backend plugins, to source control. By default the whole `dist-dynamic` folder id git-ignored.',
+      '[Deprecated] No longer supported. Ignored.',
       false,
     )
     .option(
