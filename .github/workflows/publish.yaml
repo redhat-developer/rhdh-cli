@@ -42,10 +42,28 @@ jobs:
       - name: Update npm
         run: npm install -g npm@11
 
+      - name: Detect latest GA branch
+        id: detect-ga
+        run: |
+          # Auto-detect the latest GA release branch:
+          # 1. git ls-remote lists all remote release-* branches without cloning history
+          # 2. sed strips everything up to "release-", leaving just the version (e.g., "1.10")
+          # 3. sort -t. splits on "." and sorts each field numerically (-n), so
+          #    1.9 < 1.10 < 1.11 < 2.1 (lexicographic sort would wrongly put 1.10 before 1.9)
+          # 4. tail -1 picks the highest version
+          LATEST_GA=$(git ls-remote --heads origin 'refs/heads/release-*' \
+            | sed 's|.*refs/heads/release-||' \
+            | sort -t. -k1,1n -k2,2n \
+            | tail -1)
+          echo "branch=release-${LATEST_GA}" >> "$GITHUB_OUTPUT"
+
       - name: Publish
         run: |
           if [ "${{ inputs.branch }}" = "main" ]; then
-            npm publish --access public
+            npm publish --access public --tag next
+          elif [ "${{ inputs.branch }}" = "${{ steps.detect-ga.outputs.branch }}" ]; then
+            npm publish --access public --tag latest
+            npm dist-tag add "$(node -p "require('./package.json').name")@$(node -p "require('./package.json').version")" "${{ inputs.branch }}"
           else
             npm publish --access public --tag ${{ inputs.branch }}
           fi

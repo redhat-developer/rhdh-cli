@@ -92,7 +92,19 @@ Publishing is done using [Publish Package to NPM](.github/workflows/publish.yaml
 
 **Make sure not to release MINOR or MAJOR version that are not aligned with the corresponding RHDH release.**
 
-This workflow is **not** currently triggered automatically. It needs to be run manually from the [Actions tab](https://github.com/redhat-developer/rhdh-cli/actions/workflows/publish.yaml) in the GitHub repository.
+This workflow is **not** currently triggered automatically. It needs to be run manually from the [Actions tab](https://github.com/redhat-developer/rhdh-cli/actions/workflows/publish.yaml) in the GitHub repository. Always run the workflow from the `main` branch (the "Use workflow from" dropdown) and select the target release branch via the `branch` input parameter. This ensures the latest workflow definition is used.
+
+#### NPM dist-tags
+
+The workflow automatically assigns npm dist-tags based on the selected branch:
+
+| Branch                                   | Dist-tag                          | Example                                                            |
+| ---------------------------------------- | --------------------------------- | ------------------------------------------------------------------ |
+| `main`                                   | `next`                            | `npm install @red-hat-developer-hub/cli@next`                      |
+| Latest GA release branch (auto-detected) | `latest` + branch name            | `npm install @red-hat-developer-hub/cli@latest` or `@release-1.10` |
+| Older release branches                   | Branch name (e.g., `release-1.9`) | `npm install @red-hat-developer-hub/cli@release-1.9`               |
+
+The latest GA branch is auto-detected as the `release-*` branch with the highest semver version. Plugin builders targeting a specific RHDH version should use a semver range (e.g., `~1.10.0`) or the corresponding branch tag rather than `latest`.
 
 ## Reporting Issues
 
