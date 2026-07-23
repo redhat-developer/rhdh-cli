@@ -34,6 +34,17 @@ dist-types
 
 # Temporary change files created by Vim
 *.swp
+*.swo
+
+# TypeScript build info
+*.tsbuildinfo
+
+# npm cache
+.npm/
+
+# IDE directories
+.vscode/
+.idea/
 
 # MkDocs build output
 site
