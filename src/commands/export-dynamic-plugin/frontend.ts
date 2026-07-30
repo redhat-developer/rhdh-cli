@@ -28,7 +28,7 @@ import { buildScalprumPlugin } from '../../lib/builder/buildScalprumPlugin';
 import { productionPack } from '../../lib/packager/productionPack';
 import { paths } from '../../lib/paths';
 import { Task } from '../../lib/tasks';
-import { customizeForDynamicUse } from './backend';
+import { customizeForDynamicUse, getMonorepoRootResolutions } from './backend';
 import { detectBackstageFeatures } from './features';
 
 function isTruthyCiEnv(value: string | undefined): boolean {
@@ -128,6 +128,9 @@ export async function frontend(
     : undefined;
 
   const monoRepoPackages = await getPackages(paths.targetDir);
+
+  const rootResolutions = await getMonorepoRootResolutions();
+
   await customizeForDynamicUse({
     embedded: [],
     isYarnV1: false,
@@ -142,6 +145,7 @@ export async function frontend(
       scripts: {},
       files,
     },
+    rootResolutions,
     after: detectedFeatures
       ? pkg => {
           pkg.backstage = pkg.backstage ?? {};
