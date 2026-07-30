@@ -67,7 +67,6 @@ jobs:
           - extensions
           - global-header
           - homepage
-          - lightspeed
           - orchestrator
           - quickstart
           - scorecard
