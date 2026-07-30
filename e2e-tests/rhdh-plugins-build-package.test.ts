@@ -104,7 +104,7 @@ describe('export and package rhdh-plugins scorecard workspace plugin', () => {
       const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
       const role = packageJson.backstage?.role;
       const expectedFeatures = expect.objectContaining({
-        './alpha': '@backstage/FrontendPlugin',
+        '.': '@backstage/FrontendPlugin',
       });
       if (role === 'frontend-plugin') {
         // eslint-disable-next-line jest/no-conditional-expect
