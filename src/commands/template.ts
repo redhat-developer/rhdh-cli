@@ -1,4 +1,3 @@
-import chalk from 'chalk';
 import { Command } from 'commander';
 import { execAction, execActionJson } from '../lib/client';
 import {
@@ -49,16 +48,13 @@ export function registerTemplateCommands(program: Command) {
 
   template
     .command('execute')
-    .description(
-      'Execute a software template (dry-run by default, --confirm for real)',
-    )
+    .description('Execute a software template')
     .option(
       '--template-ref <ref>',
       'Template entity ref, e.g. template:default/my-template (required)',
     )
     .option('--values <json>', 'Template input values (JSON string, required)')
     .option('--secrets <json>', 'Template secrets (JSON string)')
-    .option('--confirm', 'Execute for real (default: dry-run only)')
     .option('--output <format>', 'Output format: human (default), json')
     .option('--instance <name>', 'Backstage instance name')
     .action(async opts => {
@@ -71,49 +67,64 @@ export function registerTemplateCommands(program: Command) {
         });
       }
 
+      if (!opts.values) {
+        handleCommandError(new Error('--values is required'), mode, {
+          suggestion:
+            'rhdh-cli template execute --template-ref <ref> --values \'{"key":"value"}\'',
+        });
+      }
+
       try {
-        if (!opts.confirm) {
-          if (mode === 'human') {
-            process.stderr.write(
-              `${chalk.yellow('Dry-run mode')} — pass --confirm to execute for real.\n\n`,
-            );
-          }
+        const raw = await execAction('scaffolder:execute-template', {
+          templateRef: opts.templateRef,
+          values: opts.values,
+          secrets: opts.secrets,
+          instance: opts.instance,
+        });
 
-          const raw = await execAction('scaffolder:dry-run-template', {
-            templateYaml: opts.templateRef,
-            values: opts.values,
-            instance: opts.instance,
-          });
-
-          if (mode === 'json') {
-            process.stdout.write(raw);
-          } else {
-            writeOutput(JSON.parse(raw), mode);
-          }
+        if (mode === 'json') {
+          process.stdout.write(raw);
         } else {
-          if (!opts.values) {
-            handleCommandError(
-              new Error('--values is required for template execution'),
-              mode,
-              {
-                suggestion:
-                  'rhdh-cli template execute --template-ref <ref> --values \'{"key":"value"}\' --confirm',
-              },
-            );
-          }
+          writeOutput(JSON.parse(raw), mode);
+        }
+      } catch (error) {
+        handleCommandError(error, mode, {
+          suggestion: 'rhdh-cli template list',
+        });
+      }
+    });
 
-          const raw = await execAction('scaffolder:execute-template', {
-            templateRef: opts.templateRef,
-            values: opts.values,
-            secrets: opts.secrets,
-            instance: opts.instance,
-          });
+  template
+    .command('dry-run')
+    .description('Validate a software template without making changes')
+    .option(
+      '--template-ref <ref>',
+      'Template entity ref, e.g. template:default/my-template (required)',
+    )
+    .option('--values <json>', 'Template input values (JSON string)')
+    .option('--output <format>', 'Output format: human (default), json')
+    .option('--instance <name>', 'Backstage instance name')
+    .action(async opts => {
+      const mode = parseOutputFlag(opts.output);
 
-          if (mode === 'json') {
-            process.stdout.write(raw);
-          } else {
-            writeOutput(JSON.parse(raw), mode);
-          }
+      if (!opts.templateRef) {
+        handleCommandError(new Error('--template-ref is required'), mode, {
+          suggestion:
+            'rhdh-cli template dry-run --template-ref template:default/my-template',
+        });
+      }
+
+      try {
+        const raw = await execAction('scaffolder:dry-run-template', {
+          templateYaml: opts.templateRef,
+          values: opts.values,
+          instance: opts.instance,
+        });
+
+        if (mode === 'json') {
+          process.stdout.write(raw);
+        } else {
+          writeOutput(JSON.parse(raw), mode);
         }
       } catch (error) {
         handleCommandError(error, mode, {
