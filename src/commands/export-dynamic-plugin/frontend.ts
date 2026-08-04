@@ -28,7 +28,8 @@ import { buildScalprumPlugin } from '../../lib/builder/buildScalprumPlugin';
 import { productionPack } from '../../lib/packager/productionPack';
 import { paths } from '../../lib/paths';
 import { Task } from '../../lib/tasks';
-import { customizeForDynamicUse } from './backend';
+import { customizeForDynamicUse, getMonorepoRootResolutions } from './backend';
+import { detectBackstageFeatures } from './features';
 
 function isTruthyCiEnv(value: string | undefined): boolean {
   if (value === undefined) {
@@ -42,12 +43,8 @@ export async function frontend(
   _: PackageRoleInfo,
   opts: OptionValues,
 ): Promise<string> {
-  const {
-    name,
-    version,
-    scalprum: scalprumInline,
-    files,
-  } = await fs.readJson(paths.resolveTarget('package.json'));
+  const originalPkg = await fs.readJson(paths.resolveTarget('package.json'));
+  const { name, version, scalprum: scalprumInline, files } = originalPkg;
 
   if (!opts.generateScalprumAssets && !opts.generateModuleFederationAssets) {
     throw new Error(
@@ -126,7 +123,14 @@ export async function frontend(
   ) {
     files.push('dist-scalprum');
   }
+  const detectedFeatures = opts.generateModuleFederationAssets
+    ? await detectBackstageFeatures(originalPkg, paths.targetDir)
+    : undefined;
+
   const monoRepoPackages = await getPackages(paths.targetDir);
+
+  const rootResolutions = await getMonorepoRootResolutions();
+
   await customizeForDynamicUse({
     embedded: [],
     isYarnV1: false,
@@ -141,6 +145,13 @@ export async function frontend(
       scripts: {},
       files,
     },
+    rootResolutions,
+    after: detectedFeatures
+      ? pkg => {
+          pkg.backstage = pkg.backstage ?? {};
+          pkg.backstage.features = detectedFeatures;
+        }
+      : undefined,
   })(path.resolve(target, 'package.json'));
 
   if (opts.generateScalprumAssets) {

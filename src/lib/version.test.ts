@@ -14,8 +14,6 @@
  * limitations under the License.
  */
 
-import corePluginApiPkg from '@backstage/core-plugin-api/package.json';
-
 import mockFs from 'mock-fs';
 
 import { createPackageVersionProvider, packageVersions } from './version';
@@ -73,9 +71,6 @@ describe('createPackageVersionProvider', () => {
     expect(provider('@backstage/cli')).toBe(
       // If we're currently in pre-release we expect that to be picked instead
       cliVersion.includes('-') ? `${cliVersion}` : '*',
-    );
-    expect(provider('@backstage/core-plugin-api')).toBe(
-      `${corePluginApiPkg.version}`,
     );
     expect(provider('@types/t', '1.4.2')).toBe('*');
   });

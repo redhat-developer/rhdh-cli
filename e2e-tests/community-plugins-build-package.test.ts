@@ -103,6 +103,9 @@ describe('export and package backstage-community plugin', () => {
       const packageJsonPath = path.join(getFullPluginPath(), 'package.json');
       const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
       const role = packageJson.backstage?.role;
+      const expectedFeatures = expect.objectContaining({
+        './alpha': '@backstage/FrontendPlugin',
+      });
       if (role === 'frontend-plugin') {
         // eslint-disable-next-line jest/no-conditional-expect
         expect(
@@ -113,6 +116,15 @@ describe('export and package backstage-community plugin', () => {
             ),
           ),
         ).toEqual(true);
+
+        const distDynamicPkg = JSON.parse(
+          fs.readFileSync(
+            path.join(getFullPluginPath(), 'dist-dynamic/package.json'),
+            'utf-8',
+          ),
+        );
+        // eslint-disable-next-line jest/no-conditional-expect
+        expect(distDynamicPkg.backstage?.features).toEqual(expectedFeatures);
       }
     });
 

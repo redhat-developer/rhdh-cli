@@ -1,3 +1,4 @@
+src/generated
 dist
 dist-types
 coverage
