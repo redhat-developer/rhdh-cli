@@ -1,5 +1,5 @@
 import { Command } from 'commander';
-import { execPassthrough } from '../lib/client';
+import { execPassthrough } from './client';
 
 // Registers a subcommand that simply forwards all its arguments to the
 // underlying `backstage-cli` invocation, e.g. `rhdh-cli auth login <args>`

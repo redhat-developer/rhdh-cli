@@ -1,7 +1,7 @@
 import { Command } from 'commander';
-import { runEntityListAction, runRawAction } from '../lib/command-helpers';
-import { parseOutputFlag } from '../lib/format';
-import { handleCommandError } from '../lib/intent-errors';
+import { runEntityListAction, runRawAction } from './helpers';
+import { parseOutputFlag } from './format';
+import { handleCommandError } from './intent-errors';
 
 export function registerCatalogCommands(program: Command) {
   const catalog = program

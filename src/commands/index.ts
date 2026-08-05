@@ -19,15 +19,7 @@ import { assertError } from '@backstage/errors';
 import { Command } from 'commander';
 
 import { exitWithError } from '../lib/errors';
-import {
-  registerAuthCommands,
-  registerActionsCommands,
-} from './backstage-passthrough';
-import { registerCatalogCommands } from './catalog';
-import { registerApiCommands } from './api';
-import { registerSearchCommands } from './search';
-import { registerDocsCommands } from './docs';
-import { registerTemplateCommands } from './template';
+import { registerIntentCommands } from './intent-based-actions';
 
 export function registerPluginCommand(program: Command) {
   const command = program
@@ -152,17 +144,7 @@ export function registerPluginCommand(program: Command) {
 }
 export function registerCommands(program: Command) {
   registerPluginCommand(program);
-
-  // Backstage CLI pass-through commands (auth, actions, sources)
-  registerAuthCommands(program);
-  registerActionsCommands(program);
-
-  // Intent-based commands (catalog, api, search, docs, template)
-  registerCatalogCommands(program);
-  registerApiCommands(program);
-  registerSearchCommands(program);
-  registerDocsCommands(program);
-  registerTemplateCommands(program);
+  registerIntentCommands(program);
 }
 
 // Wraps an action function so that it always exits and handles errors

@@ -1,7 +1,7 @@
 import { Command } from 'commander';
-import { runSearchAction } from '../lib/command-helpers';
-import { parseOutputFlag } from '../lib/format';
-import { handleCommandError } from '../lib/intent-errors';
+import { runSearchAction } from './helpers';
+import { parseOutputFlag } from './format';
+import { handleCommandError } from './intent-errors';
 
 export function registerSearchCommands(program: Command) {
   program

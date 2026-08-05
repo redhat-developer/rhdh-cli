@@ -1,14 +1,14 @@
 import chalk from 'chalk';
 import { Command } from 'commander';
-import { execAction, execActionJson } from '../lib/client';
-import { runSearchAction } from '../lib/command-helpers';
+import { execAction, execActionJson } from './client';
+import { runSearchAction } from './helpers';
 import {
   parseOutputFlag,
   writeOutput,
   formatEntityTable,
   extractEntities,
-} from '../lib/format';
-import { handleCommandError } from '../lib/intent-errors';
+} from './format';
+import { handleCommandError } from './intent-errors';
 
 export function registerDocsCommands(program: Command) {
   const docs = program

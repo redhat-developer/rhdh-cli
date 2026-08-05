@@ -1,8 +1,8 @@
 import { Command } from 'commander';
-import { execAction } from '../lib/client';
-import { runEntityListAction } from '../lib/command-helpers';
-import { parseOutputFlag, writeOutput } from '../lib/format';
-import { handleCommandError } from '../lib/intent-errors';
+import { execAction } from './client';
+import { runEntityListAction } from './helpers';
+import { parseOutputFlag, writeOutput } from './format';
+import { handleCommandError } from './intent-errors';
 
 export function registerApiCommands(program: Command) {
   const api = program
