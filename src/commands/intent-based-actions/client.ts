@@ -1,4 +1,4 @@
-import { execSync, spawnSync } from 'node:child_process';
+import { execSync } from 'node:child_process';
 import {
   readFileSync,
   unlinkSync,
@@ -6,6 +6,8 @@ import {
   existsSync,
   rmdirSync,
   statSync,
+  accessSync,
+  constants as fsConstants,
 } from 'node:fs';
 import { join, delimiter } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -17,31 +19,42 @@ function shellEscape(arg: string): string {
   return `'${arg.replace(/'/g, "'\\''")}'`;
 }
 
-// Only search directories that aren't writable by group/other, so a
-// tampered PATH entry can't cause us to resolve a malicious "backstage-cli"
-// or "which" binary (see Sonar rule S4036).
-function getTrustedPath(): string {
+// Resolves "backstage-cli" by walking PATH ourselves (rather than shelling
+// out to `which`), only trusting directories that aren't writable by
+// group/other, so a tampered PATH entry can't cause us to resolve a
+// malicious binary (see Sonar rule S4036: OS commands should not be
+// searched for in PATH).
+function findBackstageCliOnPath(): string | undefined {
   const dirs = (process.env.PATH ?? '').split(delimiter).filter(Boolean);
-  const trustedDirs = dirs.filter(dir => {
+  const binName =
+    process.platform === 'win32' ? 'backstage-cli.cmd' : 'backstage-cli';
+
+  for (const dir of dirs) {
     try {
       // eslint-disable-next-line no-bitwise
-      return (statSync(dir).mode & 0o022) === 0;
+      if ((statSync(dir).mode & 0o022) !== 0) continue;
     } catch {
-      return false;
+      continue;
     }
-  });
-  return trustedDirs.join(delimiter);
+
+    const candidate = join(dir, binName);
+    try {
+      accessSync(candidate, fsConstants.X_OK);
+      return candidate;
+    } catch {
+      continue;
+    }
+  }
+
+  return undefined;
 }
 
 function getBackstageCliCommand(): string {
   if (resolvedCliCommand) return resolvedCliCommand;
 
-  const whichResult = spawnSync('which', ['backstage-cli'], {
-    encoding: 'utf-8',
-    env: { ...process.env, PATH: getTrustedPath() },
-  });
-  if (whichResult.status === 0) {
-    resolvedCliCommand = 'backstage-cli';
+  const found = findBackstageCliOnPath();
+  if (found) {
+    resolvedCliCommand = shellEscape(found);
     return resolvedCliCommand;
   }
 
