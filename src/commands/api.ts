@@ -1,11 +1,7 @@
 import { Command } from 'commander';
-import { execAction, execActionJson } from '../lib/client';
-import {
-  parseOutputFlag,
-  writeOutput,
-  formatEntityTable,
-  extractEntities,
-} from '../lib/format';
+import { execAction } from '../lib/client';
+import { runEntityListAction } from '../lib/command-helpers';
+import { parseOutputFlag, writeOutput } from '../lib/format';
 import { handleCommandError } from '../lib/intent-errors';
 
 export function registerApiCommands(program: Command) {
@@ -22,34 +18,22 @@ export function registerApiCommands(program: Command) {
     .option('--instance <name>', 'Backstage instance name')
     .action(async opts => {
       const mode = parseOutputFlag(opts.output);
-      try {
-        const query: Record<string, unknown> = { kind: 'API' };
-        if (opts.type) query['spec.type'] = opts.type;
 
-        const flags: Record<string, string | number | undefined> = {
-          query: JSON.stringify(query),
-          instance: opts.instance,
-          limit: opts.limit,
-        };
+      const query: Record<string, unknown> = { kind: 'API' };
+      if (opts.type) query['spec.type'] = opts.type;
 
-        if (mode === 'json') {
-          process.stdout.write(
-            await execAction('catalog:query-catalog-entities', flags),
-          );
-        } else {
-          const result = await execActionJson(
-            'catalog:query-catalog-entities',
-            flags,
-          );
-          writeOutput(extractEntities(result), mode, data =>
-            formatEntityTable(data as Array<Record<string, unknown>>),
-          );
-        }
-      } catch (error) {
-        handleCommandError(error, mode, {
-          suggestion: 'rhdh-cli api list',
-        });
-      }
+      const flags: Record<string, string | number | undefined> = {
+        query: JSON.stringify(query),
+        instance: opts.instance,
+        limit: opts.limit,
+      };
+
+      await runEntityListAction(
+        'catalog:query-catalog-entities',
+        flags,
+        mode,
+        'rhdh-cli api list',
+      );
     });
 
   api
@@ -89,10 +73,7 @@ export function registerApiCommands(program: Command) {
         }
 
         if (mode === 'json') {
-          writeOutput(
-            { name: opts.name, type: spec?.type, definition },
-            mode,
-          );
+          writeOutput({ name: opts.name, type: spec?.type, definition }, mode);
         } else {
           const defStr =
             typeof definition === 'string'

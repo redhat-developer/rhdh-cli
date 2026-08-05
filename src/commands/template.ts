@@ -1,11 +1,6 @@
 import { Command } from 'commander';
-import { execAction, execActionJson } from '../lib/client';
-import {
-  parseOutputFlag,
-  writeOutput,
-  formatEntityTable,
-  extractEntities,
-} from '../lib/format';
+import { runEntityListAction, runRawAction } from '../lib/command-helpers';
+import { parseOutputFlag } from '../lib/format';
 import { handleCommandError } from '../lib/intent-errors';
 
 export function registerTemplateCommands(program: Command) {
@@ -21,29 +16,14 @@ export function registerTemplateCommands(program: Command) {
     .option('--instance <name>', 'Backstage instance name')
     .action(async opts => {
       const mode = parseOutputFlag(opts.output);
-      try {
-        const flags: Record<string, string | number | undefined> = {
-          query: JSON.stringify({ kind: 'Template' }),
-          instance: opts.instance,
-          limit: opts.limit,
-        };
 
-        if (mode === 'json') {
-          process.stdout.write(
-            await execAction('catalog:query-catalog-entities', flags),
-          );
-        } else {
-          const result = await execActionJson(
-            'catalog:query-catalog-entities',
-            flags,
-          );
-          writeOutput(extractEntities(result), mode, data =>
-            formatEntityTable(data as Array<Record<string, unknown>>),
-          );
-        }
-      } catch (error) {
-        handleCommandError(error, mode);
-      }
+      const flags: Record<string, string | number | undefined> = {
+        query: JSON.stringify({ kind: 'Template' }),
+        instance: opts.instance,
+        limit: opts.limit,
+      };
+
+      await runEntityListAction('catalog:query-catalog-entities', flags, mode);
     });
 
   template
@@ -74,24 +54,17 @@ export function registerTemplateCommands(program: Command) {
         });
       }
 
-      try {
-        const raw = await execAction('scaffolder:execute-template', {
+      await runRawAction(
+        'scaffolder:execute-template',
+        {
           templateRef: opts.templateRef,
           values: opts.values,
           secrets: opts.secrets,
           instance: opts.instance,
-        });
-
-        if (mode === 'json') {
-          process.stdout.write(raw);
-        } else {
-          writeOutput(JSON.parse(raw), mode);
-        }
-      } catch (error) {
-        handleCommandError(error, mode, {
-          suggestion: 'rhdh-cli template list',
-        });
-      }
+        },
+        mode,
+        'rhdh-cli template list',
+      );
     });
 
   template
@@ -114,22 +87,15 @@ export function registerTemplateCommands(program: Command) {
         });
       }
 
-      try {
-        const raw = await execAction('scaffolder:dry-run-template', {
+      await runRawAction(
+        'scaffolder:dry-run-template',
+        {
           templateYaml: opts.templateRef,
           values: opts.values,
           instance: opts.instance,
-        });
-
-        if (mode === 'json') {
-          process.stdout.write(raw);
-        } else {
-          writeOutput(JSON.parse(raw), mode);
-        }
-      } catch (error) {
-        handleCommandError(error, mode, {
-          suggestion: 'rhdh-cli template list',
-        });
-      }
+        },
+        mode,
+        'rhdh-cli template list',
+      );
     });
 }

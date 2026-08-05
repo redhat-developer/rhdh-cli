@@ -46,6 +46,14 @@ export function handleCommandError(
   process.exit(1);
 }
 
+function getStderr(error: unknown): string | undefined {
+  if (typeof error !== 'object' || error === null || !('stderr' in error)) {
+    return undefined;
+  }
+  const { stderr } = error as { stderr: unknown };
+  return typeof stderr === 'string' ? stderr : undefined;
+}
+
 function extractReason(error: unknown): string {
   if (!(error instanceof Error)) return 'Unknown error';
 
@@ -67,9 +75,12 @@ function extractReason(error: unknown): string {
     return 'No Backstage instance configured. Run: rhdh-cli auth login --backend-url <URL>';
   }
 
-  const stderr = (error as Record<string, unknown>).stderr;
-  if (typeof stderr === 'string' && stderr.trim()) {
-    const lines = stderr.trim().split('\n').filter(l => l.trim());
+  const stderr = getStderr(error);
+  if (stderr && stderr.trim()) {
+    const lines = stderr
+      .trim()
+      .split('\n')
+      .filter(l => l.trim());
     const errorLine = lines.find(l => /^Error:/i.test(l.trim()));
     return errorLine
       ? errorLine.replace(/^\s*Error:\s*/i, '').trim()
@@ -92,12 +103,14 @@ function collectMessages(error: unknown): string {
 function extractPrimaryMessage(error: unknown): string {
   if (!(error instanceof Error)) return String(error);
 
-  const stderr = (error as Record<string, unknown>).stderr;
-  if (typeof stderr === 'string' && stderr.trim()) {
-    const lines = stderr.trim().split('\n').filter(l => l.trim());
+  const stderr = getStderr(error);
+  if (stderr && stderr.trim()) {
+    const lines = stderr
+      .trim()
+      .split('\n')
+      .filter(l => l.trim());
     const errorLine = lines.find(l => /^Error:/i.test(l.trim()));
-    if (errorLine)
-      return errorLine.replace(/^\s*Error:\s*/i, '').trim();
+    if (errorLine) return errorLine.replace(/^\s*Error:\s*/i, '').trim();
     return lines[0].trim();
   }
 

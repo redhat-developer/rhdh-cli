@@ -81,8 +81,10 @@ function pad(str: string, width: number): string {
   return str.length >= width ? str : str + ' '.repeat(width - str.length);
 }
 
-export function extractEntities(result: unknown): Array<Record<string, unknown>> {
+export function extractEntities(
+  result: unknown,
+): Array<Record<string, unknown>> {
   if (Array.isArray(result)) return result;
   const obj = result as Record<string, unknown> | undefined;
-  return ((obj?.items ?? obj?.entities ?? []) as Array<Record<string, unknown>>);
+  return (obj?.items ?? obj?.entities ?? []) as Array<Record<string, unknown>>;
 }

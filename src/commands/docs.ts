@@ -1,10 +1,10 @@
 import chalk from 'chalk';
 import { Command } from 'commander';
 import { execAction, execActionJson } from '../lib/client';
+import { runSearchAction } from '../lib/command-helpers';
 import {
   parseOutputFlag,
   writeOutput,
-  formatSearchResults,
   formatEntityTable,
   extractEntities,
 } from '../lib/format';
@@ -32,37 +32,17 @@ export function registerDocsCommands(program: Command) {
         });
       }
 
-      try {
-        const flags: Record<string, string | number | undefined> = {
-          term,
+      await runSearchAction(
+        term,
+        {
           types: '["techdocs"]',
           pageLimit: opts.pageLimit,
           pageCursor: opts.pageCursor,
           instance: opts.instance,
-        };
-
-        if (mode === 'json') {
-          process.stdout.write(await execAction('search:query', flags));
-        } else {
-          const result = (await execActionJson(
-            'search:query',
-            flags,
-          )) as Record<string, unknown>;
-          const results = (result?.results ?? result) as Array<
-            Record<string, unknown>
-          >;
-          writeOutput(
-            Array.isArray(results) ? results : result,
-            mode,
-            data =>
-              formatSearchResults(data as Array<Record<string, unknown>>),
-          );
-        }
-      } catch (error) {
-        handleCommandError(error, mode, {
-          suggestion: 'rhdh-cli docs search "getting started"',
-        });
-      }
+        },
+        mode,
+        'rhdh-cli docs search "getting started"',
+      );
     });
 
   docs
@@ -208,8 +188,7 @@ export function registerDocsCommands(program: Command) {
             result?.entitiesWithDocs ??
             result?.documentedEntities ??
             result?.documented;
-          const coverage =
-            result?.coveragePercentage ?? result?.coverage;
+          const coverage = result?.coveragePercentage ?? result?.coverage;
 
           if (total !== undefined) {
             const lines = [

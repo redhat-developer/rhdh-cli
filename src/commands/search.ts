@@ -1,6 +1,6 @@
 import { Command } from 'commander';
-import { execAction, execActionJson } from '../lib/client';
-import { parseOutputFlag, writeOutput, formatSearchResults } from '../lib/format';
+import { runSearchAction } from '../lib/command-helpers';
+import { parseOutputFlag } from '../lib/format';
 import { handleCommandError } from '../lib/intent-errors';
 
 export function registerSearchCommands(program: Command) {
@@ -28,37 +28,17 @@ export function registerSearchCommands(program: Command) {
         });
       }
 
-      try {
-        const flags: Record<string, string | number | undefined> = {
-          term,
+      await runSearchAction(
+        term,
+        {
           types: opts.types,
           filters: opts.filters,
           pageLimit: opts.pageLimit,
           pageCursor: opts.pageCursor,
           instance: opts.instance,
-        };
-
-        if (mode === 'json') {
-          process.stdout.write(await execAction('search:query', flags));
-        } else {
-          const result = (await execActionJson(
-            'search:query',
-            flags,
-          )) as Record<string, unknown>;
-          const results = (result?.results ?? result) as Array<
-            Record<string, unknown>
-          >;
-          writeOutput(
-            Array.isArray(results) ? results : result,
-            mode,
-            data =>
-              formatSearchResults(data as Array<Record<string, unknown>>),
-          );
-        }
-      } catch (error) {
-        handleCommandError(error, mode, {
-          suggestion: 'rhdh-cli search "deployment guide"',
-        });
-      }
+        },
+        mode,
+        'rhdh-cli search "deployment guide"',
+      );
     });
 }

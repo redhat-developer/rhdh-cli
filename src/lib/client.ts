@@ -5,8 +5,9 @@ import {
   mkdtempSync,
   existsSync,
   rmdirSync,
+  statSync,
 } from 'node:fs';
-import { join } from 'node:path';
+import { join, delimiter } from 'node:path';
 import { tmpdir } from 'node:os';
 
 let resolvedCliCommand: string | undefined;
@@ -16,19 +17,35 @@ function shellEscape(arg: string): string {
   return `'${arg.replace(/'/g, "'\\''")}'`;
 }
 
+// Only search directories that aren't writable by group/other, so a
+// tampered PATH entry can't cause us to resolve a malicious "backstage-cli"
+// or "which" binary (see Sonar rule S4036).
+function getTrustedPath(): string {
+  const dirs = (process.env.PATH ?? '').split(delimiter).filter(Boolean);
+  const trustedDirs = dirs.filter(dir => {
+    try {
+      // eslint-disable-next-line no-bitwise
+      return (statSync(dir).mode & 0o022) === 0;
+    } catch {
+      return false;
+    }
+  });
+  return trustedDirs.join(delimiter);
+}
+
 function getBackstageCliCommand(): string {
   if (resolvedCliCommand) return resolvedCliCommand;
 
   const whichResult = spawnSync('which', ['backstage-cli'], {
     encoding: 'utf-8',
+    env: { ...process.env, PATH: getTrustedPath() },
   });
   if (whichResult.status === 0) {
     resolvedCliCommand = 'backstage-cli';
     return resolvedCliCommand;
   }
 
-  resolvedCliCommand =
-    'NPM_CONFIG_LEGACY_PEER_DEPS=true npx -y @backstage/cli';
+  resolvedCliCommand = 'NPM_CONFIG_LEGACY_PEER_DEPS=true npx -y @backstage/cli';
   return resolvedCliCommand;
 }
 
@@ -68,13 +85,19 @@ export async function execAction(
   const cleanup = () => {
     try {
       unlinkSync(outFile);
-    } catch {}
+    } catch {
+      // best-effort cleanup, ignore if already removed
+    }
     try {
       unlinkSync(errFile);
-    } catch {}
+    } catch {
+      // best-effort cleanup, ignore if already removed
+    }
     try {
       rmdirSync(dir);
-    } catch {}
+    } catch {
+      // best-effort cleanup, ignore if already removed
+    }
   };
 
   try {

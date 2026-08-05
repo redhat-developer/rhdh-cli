@@ -1,58 +1,61 @@
 import { Command } from 'commander';
 import { execPassthrough } from '../lib/client';
 
+// Registers a subcommand that simply forwards all its arguments to the
+// underlying `backstage-cli` invocation, e.g. `rhdh-cli auth login <args>`
+// becomes `backstage-cli auth login <args>`.
+function registerPassthroughCommand(
+  parent: Command,
+  name: string,
+  description: string,
+  passthroughArgs: string[],
+) {
+  parent
+    .command(name)
+    .description(description)
+    .allowUnknownOption()
+    .action(function passthroughAction(this: Command) {
+      execPassthrough([...passthroughArgs, ...this.args]);
+    });
+}
+
 export function registerAuthCommands(program: Command) {
   const auth = program
     .command('auth')
     .description('Manage authentication to Backstage/RHDH instances');
 
-  auth
-    .command('login')
-    .description('Log in to a Backstage/RHDH instance')
-    .allowUnknownOption()
-    .action(function (this: Command) {
-      execPassthrough(['auth', 'login', ...this.args]);
-    });
-
-  auth
-    .command('logout')
-    .description('Log out and clear stored credentials')
-    .allowUnknownOption()
-    .action(function (this: Command) {
-      execPassthrough(['auth', 'logout', ...this.args]);
-    });
-
-  auth
-    .command('show')
-    .description('Show details of an authenticated instance')
-    .allowUnknownOption()
-    .action(function (this: Command) {
-      execPassthrough(['auth', 'show', ...this.args]);
-    });
-
-  auth
-    .command('list')
-    .description('List authenticated instances')
-    .allowUnknownOption()
-    .action(function (this: Command) {
-      execPassthrough(['auth', 'list', ...this.args]);
-    });
-
-  auth
-    .command('select')
-    .description('Select the default instance')
-    .allowUnknownOption()
-    .action(function (this: Command) {
-      execPassthrough(['auth', 'select', ...this.args]);
-    });
-
-  auth
-    .command('print-token')
-    .description('Print an access token to stdout')
-    .allowUnknownOption()
-    .action(function (this: Command) {
-      execPassthrough(['auth', 'print-token', ...this.args]);
-    });
+  registerPassthroughCommand(
+    auth,
+    'login',
+    'Log in to a Backstage/RHDH instance',
+    ['auth', 'login'],
+  );
+  registerPassthroughCommand(
+    auth,
+    'logout',
+    'Log out and clear stored credentials',
+    ['auth', 'logout'],
+  );
+  registerPassthroughCommand(
+    auth,
+    'show',
+    'Show details of an authenticated instance',
+    ['auth', 'show'],
+  );
+  registerPassthroughCommand(auth, 'list', 'List authenticated instances', [
+    'auth',
+    'list',
+  ]);
+  registerPassthroughCommand(auth, 'select', 'Select the default instance', [
+    'auth',
+    'select',
+  ]);
+  registerPassthroughCommand(
+    auth,
+    'print-token',
+    'Print an access token to stdout',
+    ['auth', 'print-token'],
+  );
 }
 
 export function registerActionsCommands(program: Command) {
@@ -60,47 +63,36 @@ export function registerActionsCommands(program: Command) {
     .command('actions')
     .description('List and execute Backstage actions');
 
-  actions
-    .command('list')
-    .description('List available actions from configured plugin sources')
-    .allowUnknownOption()
-    .action(function (this: Command) {
-      execPassthrough(['actions', 'list', ...this.args]);
-    });
-
-  actions
-    .command('execute')
-    .description('Execute an action')
-    .allowUnknownOption()
-    .action(function (this: Command) {
-      execPassthrough(['actions', 'execute', ...this.args]);
-    });
+  registerPassthroughCommand(
+    actions,
+    'list',
+    'List available actions from configured plugin sources',
+    ['actions', 'list'],
+  );
+  registerPassthroughCommand(actions, 'execute', 'Execute an action', [
+    'actions',
+    'execute',
+  ]);
 
   const sources = actions
     .command('sources')
     .description('Manage plugin sources for action discovery');
 
-  sources
-    .command('add')
-    .description('Add plugin source(s) for action discovery')
-    .allowUnknownOption()
-    .action(function (this: Command) {
-      execPassthrough(['actions', 'sources', 'add', ...this.args]);
-    });
-
-  sources
-    .command('list')
-    .description('List configured plugin sources')
-    .allowUnknownOption()
-    .action(function (this: Command) {
-      execPassthrough(['actions', 'sources', 'list', ...this.args]);
-    });
-
-  sources
-    .command('remove')
-    .description('Remove plugin source(s)')
-    .allowUnknownOption()
-    .action(function (this: Command) {
-      execPassthrough(['actions', 'sources', 'remove', ...this.args]);
-    });
+  registerPassthroughCommand(
+    sources,
+    'add',
+    'Add plugin source(s) for action discovery',
+    ['actions', 'sources', 'add'],
+  );
+  registerPassthroughCommand(
+    sources,
+    'list',
+    'List configured plugin sources',
+    ['actions', 'sources', 'list'],
+  );
+  registerPassthroughCommand(sources, 'remove', 'Remove plugin source(s)', [
+    'actions',
+    'sources',
+    'remove',
+  ]);
 }
