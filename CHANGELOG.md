@@ -4,6 +4,18 @@ All notable changes to `@red-hat-developer-hub/cli` are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 2.0.1 - 2026-08-07
+
+### Fixed
+
+- Resolve `workspace:` / `backstage:` protocol specifiers in `peerDependencies` and pin resolved versions in `resolutions` to prevent dependency drift.
+- Trap yarn install failures, surface `/tmp` install logs, and stop on error instead of continuing ([RHDHBUGS-2819](https://redhat.atlassian.net/browse/RHDHBUGS-2819)).
+
+### Changed
+
+- Bump Yarn Berry from 3.8.6 to 4.17.1 and Node baseline to 24 ([#159](https://github.com/redhat-developer/rhdh-cli/pull/159)).
+- Update `@backstage/cli` to 0.35.4.
+
 ## 1.11.4 - 2026-07-30
 
 ### Fixed
