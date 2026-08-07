@@ -168,14 +168,6 @@ jobs:
 
             plugin_dir="$WORKSPACE_ROOT/$plugin_path"
             plugin_name=$(basename "$plugin_path")
-
-            # Overlays plugins-list may still name removed packages (e.g. dynamic-home-page
-            # → homepage). Skip missing paths; keep testing plugins that remain.
-            if [ ! -d "$plugin_dir" ]; then
-              echo "::warning::Skipping missing plugin path: $plugin_path (not in $WORKSPACE_ROOT)"
-              continue
-            fi
-
             total=$((total + 1))
 
             echo ""
