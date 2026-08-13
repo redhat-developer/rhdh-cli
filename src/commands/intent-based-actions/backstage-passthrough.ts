@@ -1,9 +1,9 @@
 import { Command } from 'commander';
 import { execPassthrough } from './client';
 
-// Registers a subcommand that simply forwards all its arguments to the
-// underlying `backstage-cli` invocation, e.g. `rhdh-cli auth login <args>`
-// becomes `backstage-cli auth login <args>`.
+// Registers a subcommand that simply forwards all its arguments (including
+// `-h`/`--help`) to the underlying `backstage-cli` invocation, e.g.
+// `rhdh-cli auth login <args>` becomes `backstage-cli auth login <args>`.
 function registerPassthroughCommand(
   parent: Command,
   name: string,
@@ -14,6 +14,7 @@ function registerPassthroughCommand(
     .command(name)
     .description(description)
     .allowUnknownOption()
+    .helpOption(false)
     .action(function passthroughAction(this: Command) {
       execPassthrough([...passthroughArgs, ...this.args]);
     });
