@@ -4,6 +4,12 @@ All notable changes to `@red-hat-developer-hub/cli` are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 2.0.2 - 2026-08-24
+
+### Fixed
+
+- **`plugin package`:** Prevent publishing OCI images with empty plugin registry metadata ([RHDHBUGS-3633](https://redhat.atlassian.net/browse/RHDHBUGS-3633)). The command now fails immediately if any plugin export fails or does not produce the expected `dist-dynamic` directory. Previously, export failures were logged but did not stop the packaging process, and if all exports failed, the command would still create and publish an OCI image with an empty `io.backstage.dynamic-packages` annotation (`[]` encoded as base64), causing the RHDH installer to silently register nothing. This fail-fast behavior matches the `export-dynamic.sh` script used in CI and prevents broken images from being published.
+
 ## 2.0.1 - 2026-08-07
 
 ### Fixed
