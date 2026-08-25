@@ -317,6 +317,7 @@ COPY . .
     }
   } catch (e) {
     Task.error(`Error encountered while packaging dynamic plugins: ${e}`);
+    throw e;
   } finally {
     try {
       if (tmpDir && !preserveTempDir) {
