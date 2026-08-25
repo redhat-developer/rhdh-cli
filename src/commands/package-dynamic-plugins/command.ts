@@ -371,9 +371,7 @@ async function stageDistDynamicViaNpmPack(
 
   // Work around npm pack failures with very long paths (RHDHBUGS-3556):
   // Copy dist-dynamic to a temp directory with a shorter path before running npm pack.
-  const tempDistDynamic = fs.mkdtempSync(
-    path.join(packScratchParent, 'dist-'),
-  );
+  const tempDistDynamic = fs.mkdtempSync(path.join(packScratchParent, 'dist-'));
 
   try {
     fs.rmSync(targetDirectory, { recursive: true, force: true });
