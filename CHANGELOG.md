@@ -4,6 +4,14 @@ All notable changes to `@red-hat-developer-hub/cli` are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 2.0.3 - 2026-08-25
+
+### Fixed
+
+- **`plugin package`:** Re-throw errors after logging to ensure proper exit codes ([RHDHBUGS-3556](https://redhat.atlassian.net/browse/RHDHBUGS-3556)). The catch block in the packaging command was swallowing errors after logging them, causing the CLI to exit with code 0 even when packaging failed. This prevented wrapper scripts (like `export-dynamic.sh`) from detecting failures and caused them to attempt pushing non-existent container images. Errors are now re-thrown after logging, ensuring the CLI exits with a non-zero code and failures are properly propagated to calling scripts.
+
+- **`plugin package`:** Work around npm pack failures with very long paths ([RHDHBUGS-3556](https://redhat.atlassian.net/browse/RHDHBUGS-3556)). The `npm pack` command can fail with an internal error ("Exit handler never called!") when run from a directory with a very long absolute path (observed with `search-backend-module-github-discussions` in community-plugins). To avoid this npm bug, the `dist-dynamic` contents are now copied to a temporary directory with a shorter path before running `npm pack`. The temporary directory is cleaned up automatically.
+
 ## 2.0.2 - 2026-08-24
 
 ### Fixed

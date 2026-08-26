@@ -317,6 +317,7 @@ COPY . .
     }
   } catch (e) {
     Task.error(`Error encountered while packaging dynamic plugins: ${e}`);
+    throw e;
   } finally {
     try {
       if (tmpDir && !preserveTempDir) {
@@ -368,9 +369,16 @@ async function stageDistDynamicViaNpmPack(
     `npm-pack-output-${process.pid}-${Date.now()}.log`,
   );
 
+  // Work around npm pack failures with very long paths (RHDHBUGS-3556):
+  // Copy dist-dynamic to a temp directory with a shorter path before running npm pack.
+  const tempDistDynamic = fs.mkdtempSync(path.join(packScratchParent, 'dist-'));
+
   try {
     fs.rmSync(targetDirectory, { recursive: true, force: true });
     fs.mkdirSync(targetDirectory, { recursive: true });
+
+    // Copy dist-dynamic contents to temp directory with shorter path
+    fs.copySync(distDynamicDirectory, tempDistDynamic);
 
     const logFd = openSync(packLogPath, 'w');
     try {
@@ -380,7 +388,7 @@ async function stageDistDynamicViaNpmPack(
         'bash', // NOSONAR typescript:S4036
         ['-lc', npmPackExtractScript(packdir, targetDirectory)],
         {
-          cwd: distDynamicDirectory,
+          cwd: tempDistDynamic,
           stdio: ['ignore', logFd, logFd],
           shell: false,
         },
@@ -403,6 +411,7 @@ async function stageDistDynamicViaNpmPack(
     throw err;
   } finally {
     fs.rmSync(packdir, { recursive: true, force: true });
+    fs.rmSync(tempDistDynamic, { recursive: true, force: true });
   }
 }
 
