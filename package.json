@@ -1,7 +1,7 @@
 {
   "name": "@red-hat-developer-hub/cli",
   "description": "CLI for developing Backstage plugins and apps",
-  "version": "2.0.0",
+  "version": "2.0.3",
   "publishConfig": {
     "access": "public"
   },
@@ -162,5 +162,5 @@
       "prettier --write"
     ]
   },
-  "packageManager": "yarn@3.8.6"
+  "packageManager": "yarn@4.17.1"
 }

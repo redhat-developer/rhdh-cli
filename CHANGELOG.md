@@ -4,6 +4,32 @@ All notable changes to `@red-hat-developer-hub/cli` are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 2.0.3 - 2026-08-25
+
+### Fixed
+
+- **`plugin package`:** Re-throw errors after logging to ensure proper exit codes ([RHDHBUGS-3556](https://redhat.atlassian.net/browse/RHDHBUGS-3556)). The catch block in the packaging command was swallowing errors after logging them, causing the CLI to exit with code 0 even when packaging failed. This prevented wrapper scripts (like `export-dynamic.sh`) from detecting failures and caused them to attempt pushing non-existent container images. Errors are now re-thrown after logging, ensuring the CLI exits with a non-zero code and failures are properly propagated to calling scripts.
+
+- **`plugin package`:** Work around npm pack failures with very long paths ([RHDHBUGS-3556](https://redhat.atlassian.net/browse/RHDHBUGS-3556)). The `npm pack` command can fail with an internal error ("Exit handler never called!") when run from a directory with a very long absolute path (observed with `search-backend-module-github-discussions` in community-plugins). To avoid this npm bug, the `dist-dynamic` contents are now copied to a temporary directory with a shorter path before running `npm pack`. The temporary directory is cleaned up automatically.
+
+## 2.0.2 - 2026-08-24
+
+### Fixed
+
+- **`plugin package`:** Prevent publishing OCI images with empty plugin registry metadata ([RHDHBUGS-3633](https://redhat.atlassian.net/browse/RHDHBUGS-3633)). The command now fails immediately if any plugin export fails or does not produce the expected `dist-dynamic` directory. Previously, export failures were logged but did not stop the packaging process, and if all exports failed, the command would still create and publish an OCI image with an empty `io.backstage.dynamic-packages` annotation (`[]` encoded as base64), causing the RHDH installer to silently register nothing. This fail-fast behavior matches the `export-dynamic.sh` script used in CI and prevents broken images from being published.
+
+## 2.0.1 - 2026-08-07
+
+### Fixed
+
+- Resolve `workspace:` / `backstage:` protocol specifiers in `peerDependencies` and pin resolved versions in `resolutions` to prevent dependency drift.
+- Trap yarn install failures, surface `/tmp` install logs, and stop on error instead of continuing ([RHDHBUGS-2819](https://redhat.atlassian.net/browse/RHDHBUGS-2819)).
+
+### Changed
+
+- Bump Yarn Berry from 3.8.6 to 4.17.1 and Node baseline to 24 ([#159](https://github.com/redhat-developer/rhdh-cli/pull/159)).
+- Update `@backstage/cli` to 0.35.4.
+
 ## 1.11.4 - 2026-07-30
 
 ### Fixed
