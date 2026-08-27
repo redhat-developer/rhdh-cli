@@ -14,12 +14,14 @@ type ActionFlags = Record<string, string | boolean | number | undefined>;
  * Runs a catalog-style action that returns a list of entities, and prints
  * them either as JSON (raw action output) or as a human-readable table.
  * Shared by `catalog list`, `api list`, `template list`, and `docs list`.
+ * When `fields` is given, the human table shows exactly those columns.
  */
 export async function runEntityListAction(
   actionId: string,
   flags: ActionFlags,
   mode: OutputMode,
   suggestion?: string,
+  fields?: string[],
 ): Promise<void> {
   try {
     if (mode === 'json') {
@@ -27,7 +29,7 @@ export async function runEntityListAction(
     } else {
       const result = await execActionJson(actionId, flags);
       writeOutput(extractEntities(result), mode, data =>
-        formatEntityTable(data as Array<Record<string, unknown>>),
+        formatEntityTable(data as Array<Record<string, unknown>>, fields),
       );
     }
   } catch (error) {

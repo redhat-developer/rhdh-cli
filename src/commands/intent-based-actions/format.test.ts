@@ -96,6 +96,41 @@ describe('formatEntityTable', () => {
     expect(output).toContain('NAMESPACE');
     expect(output).toContain('TYPE');
   });
+
+  it('renders a column per requested field, using the last path segment as the header', () => {
+    const output = formatEntityTable(
+      [
+        {
+          kind: 'Component',
+          metadata: { name: 'rhdh', description: 'Developer Hub' },
+        },
+      ],
+      ['metadata.name', 'metadata.description'],
+    );
+    expect(output).toContain('NAME');
+    expect(output).toContain('DESCRIPTION');
+    expect(output).toContain('rhdh');
+    expect(output).toContain('Developer Hub');
+  });
+
+  it('omits the default KIND/TYPE columns when explicit fields are requested', () => {
+    const output = formatEntityTable(
+      [{ kind: 'Component', metadata: { name: 'rhdh' } }],
+      ['metadata.name'],
+    );
+    expect(output).toContain('NAME');
+    expect(output).not.toContain('KIND');
+    expect(output).not.toContain('TYPE');
+  });
+
+  it('renders an empty cell when a requested field is missing on an entity', () => {
+    const output = formatEntityTable(
+      [{ metadata: { name: 'rhdh' } }],
+      ['metadata.name', 'metadata.description'],
+    );
+    expect(output).toContain('rhdh');
+    expect(output).toContain('DESCRIPTION');
+  });
 });
 
 describe('formatSearchResults', () => {

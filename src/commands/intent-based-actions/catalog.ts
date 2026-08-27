@@ -1,7 +1,9 @@
+import { readFileSync } from 'node:fs';
 import { Command } from 'commander';
 import { runEntityListAction, runRawAction } from './helpers';
 import { parseOutputFlag } from './format';
 import { handleCommandError } from './intent-errors';
+import { collect, parseList, resolveJsonInput } from './kv';
 
 export function registerCatalogCommands(program: Command) {
   const catalog = program
@@ -13,9 +15,21 @@ export function registerCatalogCommands(program: Command) {
     .description('List catalog entities')
     .option('--kind <kind>', 'Entity kind (Component, API, System, etc.)')
     .option('--type <type>', 'Entity type (service, website, library, etc.)')
-    .option('--filter <json>', 'Full query predicate (JSON)')
+    .option(
+      '--filter <key=value>',
+      'Query predicate, e.g. --filter spec.lifecycle=production (repeatable)',
+      collect,
+      [] as string[],
+    )
+    .option(
+      '--filters <json>',
+      'Query predicate as a JSON string (alternative to --filter)',
+    )
     .option('--limit <n>', 'Maximum results to return', parseInt)
-    .option('--fields <json>', 'Fields to include (JSON array)')
+    .option(
+      '--fields <list>',
+      'Comma-separated fields to include, e.g. metadata.name,metadata.description',
+    )
     .option('--output <format>', 'Output format: human (default), json')
     .option('--instance <name>', 'Backstage instance name')
     .action(async opts => {
@@ -25,16 +39,28 @@ export function registerCatalogCommands(program: Command) {
       if (opts.kind) query.kind = opts.kind;
       if (opts.type) query['spec.type'] = opts.type;
 
+      let predicate: string | undefined;
+      try {
+        predicate = resolveJsonInput(opts.filter, opts.filters);
+      } catch (error) {
+        handleCommandError(error, mode, {
+          suggestion:
+            'rhdh-cli catalog list --kind Component --filter spec.lifecycle=production',
+        });
+      }
+      // --filter/--filters merge on top of the --kind/--type shortcuts.
+      const merged = predicate ? { ...query, ...JSON.parse(predicate) } : query;
+
+      const fields = parseList(opts.fields);
+
       const flags: Record<string, string | number | undefined> = {
         instance: opts.instance,
         limit: opts.limit,
-        fields: opts.fields,
+        fields: fields ? JSON.stringify(fields) : undefined,
       };
 
-      if (opts.filter) {
-        flags.query = opts.filter;
-      } else if (Object.keys(query).length > 0) {
-        flags.query = JSON.stringify(query);
+      if (Object.keys(merged).length > 0) {
+        flags.query = JSON.stringify(merged);
       }
 
       await runEntityListAction(
@@ -42,6 +68,7 @@ export function registerCatalogCommands(program: Command) {
         flags,
         mode,
         'rhdh-cli catalog list --kind Component',
+        fields,
       );
     });
 
@@ -77,19 +104,35 @@ export function registerCatalogCommands(program: Command) {
   catalog
     .command('validate')
     .description('Validate entity YAML against the catalog schema')
-    .option('--entity <yaml>', 'Entity YAML content (required)')
+    .option('--entity <yaml>', 'Entity YAML content')
+    .option(
+      '--entity-file <path>',
+      'Path to a file containing entity YAML (alternative to --entity)',
+    )
     .option('--location <url>', 'Location to validate')
     .option('--output <format>', 'Output format: human (default), json')
     .option('--instance <name>', 'Backstage instance name')
     .action(async opts => {
       const mode = parseOutputFlag(opts.output);
-      if (!opts.entity) {
+
+      let entity: string | undefined = opts.entity;
+      if (opts.entityFile) {
+        try {
+          entity = readFileSync(opts.entityFile, 'utf-8');
+        } catch (error) {
+          handleCommandError(error, mode, {
+            suggestion: `Check that the file exists: ${opts.entityFile}`,
+          });
+        }
+      }
+
+      if (!entity) {
         handleCommandError(
-          new Error('--entity is required (YAML string)'),
+          new Error('--entity or --entity-file is required'),
           mode,
           {
             suggestion:
-              'rhdh-cli catalog validate --entity "$(cat entity.yaml)"',
+              'rhdh-cli catalog validate --entity-file ./catalog-info.yaml',
           },
         );
       }
@@ -97,7 +140,7 @@ export function registerCatalogCommands(program: Command) {
       await runRawAction(
         'catalog:validate-entity',
         {
-          entity: opts.entity,
+          entity,
           location: opts.location,
           instance: opts.instance,
         },

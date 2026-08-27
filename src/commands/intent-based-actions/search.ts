@@ -2,6 +2,7 @@ import { Command } from 'commander';
 import { runSearchAction } from './helpers';
 import { parseOutputFlag } from './format';
 import { handleCommandError } from './intent-errors';
+import { collect, parseList, resolveJsonInput } from './kv';
 
 export function registerSearchCommands(program: Command) {
   program
@@ -10,10 +11,19 @@ export function registerSearchCommands(program: Command) {
       'Search across all content types (catalog, TechDocs, templates)',
     )
     .option(
-      '--types <json>',
-      'Document types (JSON array, e.g. \'["techdocs"]\')',
+      '--types <list>',
+      'Comma-separated document types, e.g. --types techdocs,software-catalog',
     )
-    .option('--filters <json>', 'Query filters (JSON)')
+    .option(
+      '--filter <key=value>',
+      'Query filter, e.g. --filter kind=Component (repeatable)',
+      collect,
+      [] as string[],
+    )
+    .option(
+      '--filters <json>',
+      'Query filters as a JSON string (alternative to --filter)',
+    )
     .option('--page-limit <n>', 'Results per page (default: 10)', parseInt)
     .option('--page-cursor <cursor>', 'Pagination cursor')
     .option('--output <format>', 'Output format: human (default), json')
@@ -28,17 +38,28 @@ export function registerSearchCommands(program: Command) {
         });
       }
 
+      let filters: string | undefined;
+      try {
+        filters = resolveJsonInput(opts.filter, opts.filters);
+      } catch (error) {
+        handleCommandError(error, mode, {
+          suggestion: 'rhdh-cli search "my service" --filter kind=Component',
+        });
+      }
+
+      const types = parseList(opts.types);
+
       await runSearchAction(
         term,
         {
-          types: opts.types,
-          filters: opts.filters,
+          types: types ? JSON.stringify(types) : undefined,
+          filters,
           pageLimit: opts.pageLimit,
           pageCursor: opts.pageCursor,
           instance: opts.instance,
         },
         mode,
-        'rhdh-cli search "deployment guide"',
+        'rhdh-cli search "deployment guide" --filter kind=Component',
       );
     });
 }

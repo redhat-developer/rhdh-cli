@@ -3,6 +3,7 @@ import { Command } from 'commander';
 import { runEntityListAction, runRawAction } from './helpers';
 import { parseOutputFlag } from './format';
 import { handleCommandError } from './intent-errors';
+import { collect, resolveJsonInput } from './kv';
 
 export function registerTemplateCommands(program: Command) {
   const template = program
@@ -34,8 +35,26 @@ export function registerTemplateCommands(program: Command) {
       '--template-ref <ref>',
       'Template entity ref, e.g. template:default/my-template (required)',
     )
-    .option('--values <json>', 'Template input values (JSON string, required)')
-    .option('--secrets <json>', 'Template secrets (JSON string)')
+    .option(
+      '--value <key=value>',
+      'Template input value, e.g. --value name=my-app (repeatable)',
+      collect,
+      [] as string[],
+    )
+    .option(
+      '--values <json>',
+      'Template input values as a JSON string (alternative to --value)',
+    )
+    .option(
+      '--secret <key=value>',
+      'Template secret, e.g. --secret token=abc (repeatable)',
+      collect,
+      [] as string[],
+    )
+    .option(
+      '--secrets <json>',
+      'Template secrets as a JSON string (alternative to --secret)',
+    )
     .option('--output <format>', 'Output format: human (default), json')
     .option('--instance <name>', 'Backstage instance name')
     .action(async opts => {
@@ -44,14 +63,38 @@ export function registerTemplateCommands(program: Command) {
       if (!opts.templateRef) {
         handleCommandError(new Error('--template-ref is required'), mode, {
           suggestion:
-            'rhdh-cli template execute --template-ref template:default/my-template --values \'{"name":"my-app"}\'',
+            'rhdh-cli template execute --template-ref template:default/my-template --value name=my-app',
         });
       }
 
-      if (!opts.values) {
-        handleCommandError(new Error('--values is required'), mode, {
+      let values: string | undefined;
+      try {
+        values = resolveJsonInput(opts.value, opts.values);
+      } catch (error) {
+        handleCommandError(error, mode, {
           suggestion:
-            'rhdh-cli template execute --template-ref <ref> --values \'{"key":"value"}\'',
+            'rhdh-cli template execute --template-ref <ref> --value key=value --value otherKey=otherValue',
+        });
+      }
+
+      if (!values) {
+        handleCommandError(
+          new Error('--value (or --values) is required'),
+          mode,
+          {
+            suggestion:
+              'rhdh-cli template execute --template-ref <ref> --value key=value',
+          },
+        );
+      }
+
+      let secrets: string | undefined;
+      try {
+        secrets = resolveJsonInput(opts.secret, opts.secrets);
+      } catch (error) {
+        handleCommandError(error, mode, {
+          suggestion:
+            'rhdh-cli template execute --template-ref <ref> --secret token=abc',
         });
       }
 
@@ -59,8 +102,8 @@ export function registerTemplateCommands(program: Command) {
         'scaffolder:execute-template',
         {
           templateRef: opts.templateRef,
-          values: opts.values,
-          secrets: opts.secrets,
+          values,
+          secrets,
           instance: opts.instance,
         },
         mode,
@@ -72,7 +115,16 @@ export function registerTemplateCommands(program: Command) {
     .command('dry-run')
     .description('Validate a software template without making changes')
     .option('--template-file <path>', 'Path to a template YAML file (required)')
-    .option('--values <json>', 'Template input values (JSON string)')
+    .option(
+      '--value <key=value>',
+      'Template input value, e.g. --value name=my-app (repeatable)',
+      collect,
+      [] as string[],
+    )
+    .option(
+      '--values <json>',
+      'Template input values as a JSON string (alternative to --value)',
+    )
     .option('--output <format>', 'Output format: human (default), json')
     .option('--instance <name>', 'Backstage instance name')
     .action(async opts => {
@@ -81,7 +133,17 @@ export function registerTemplateCommands(program: Command) {
       if (!opts.templateFile) {
         handleCommandError(new Error('--template-file is required'), mode, {
           suggestion:
-            'rhdh-cli template dry-run --template-file ./template.yaml',
+            'rhdh-cli template dry-run --template-file ./template.yaml --value name=my-app',
+        });
+      }
+
+      let values: string | undefined;
+      try {
+        values = resolveJsonInput(opts.value, opts.values);
+      } catch (error) {
+        handleCommandError(error, mode, {
+          suggestion:
+            'rhdh-cli template dry-run --template-file ./template.yaml --value key=value',
         });
       }
 
@@ -102,7 +164,7 @@ export function registerTemplateCommands(program: Command) {
         'scaffolder:dry-run-template',
         {
           templateYaml,
-          values: opts.values,
+          values,
           instance: opts.instance,
         },
         mode,
