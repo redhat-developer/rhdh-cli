@@ -4,6 +4,12 @@ All notable changes to `@red-hat-developer-hub/cli` are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 2.0.4 - 2026-08-27
+
+### Added
+
+- Expose the bundled Backstage CLI's intent-based `auth` and `actions` commands through `rhdh-cli` ([#167](https://github.com/redhat-developer/rhdh-cli/pull/167)). The new pass-through commands support logging in to and managing authenticated RHDH instances, as well as listing and executing actions and managing action-discovery sources. Arguments and exit codes are forwarded to the bundled CLI, while command output is rebranded as `rhdh-cli`.
+
 ## 2.0.3 - 2026-08-25
 
 ### Fixed
