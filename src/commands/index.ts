@@ -65,6 +65,11 @@ export function registerPluginCommand(program: Command) {
       'Remove the dynamic plugin output before exporting again.',
     )
     .option(
+      '--strict-deps',
+      'Fail export when production dependencies include disallowed heavy packages. Use in CI to enforce dependency rules.',
+      false,
+    )
+    .option(
       '--dev',
       'Allow testing/debugging a dynamic plugin locally. This creates a link from the dynamic plugin content to the plugin package `src` folder, to enable the use of source maps (backend plugin only). This also installs the dynamic plugin content (symlink) into the dynamic plugins root folder configured in the app config (or copies the plugin content to the location explicitely provided by the `--dynamic-plugins-root` argument).',
     )
