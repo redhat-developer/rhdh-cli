@@ -1,6 +1,18 @@
-import { spawn } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { spawn, execSync } from 'node:child_process';
+import {
+  readFileSync,
+  unlinkSync,
+  mkdtempSync,
+  existsSync,
+  rmdirSync,
+} from 'node:fs';
 import { join, dirname } from 'node:path';
+import { tmpdir } from 'node:os';
+
+function shellEscape(arg: string): string {
+  if (/^[a-zA-Z0-9._:/-]+$/.test(arg)) return arg;
+  return `'${arg.replace(/'/g, "'\\''")}'`;
+}
 
 let resolvedCliBinary: string | undefined;
 
@@ -84,4 +96,90 @@ export function execPassthrough(args: string[]): void {
     stderr.end();
     process.exit(code ?? 1);
   });
+}
+
+export async function execAction(
+  actionId: string,
+  flags: Record<string, string | boolean | number | undefined>,
+): Promise<string> {
+  const bin = resolveBackstageCliBinary();
+  const parts = [
+    shellEscape(process.execPath),
+    shellEscape(bin),
+    'actions',
+    'execute',
+    actionId,
+  ];
+
+  for (const [key, value] of Object.entries(flags)) {
+    if (value === undefined || value === false) continue;
+    parts.push(`--${key}`);
+    if (value !== true) {
+      parts.push(shellEscape(String(value)));
+    }
+  }
+
+  const dir = mkdtempSync(join(tmpdir(), 'rhdh-cli-'));
+  const outFile = join(dir, 'out.json');
+  const errFile = join(dir, 'err.txt');
+
+  const cleanup = () => {
+    try {
+      unlinkSync(outFile);
+    } catch {
+      // best-effort cleanup, ignore if already removed
+    }
+    try {
+      unlinkSync(errFile);
+    } catch {
+      // best-effort cleanup, ignore if already removed
+    }
+    try {
+      rmdirSync(dir);
+    } catch {
+      // best-effort cleanup, ignore if already removed
+    }
+  };
+
+  try {
+    execSync(
+      `${parts.join(' ')} > ${shellEscape(outFile)} 2>${shellEscape(errFile)}`,
+      {
+        encoding: 'utf-8',
+        timeout: 60_000,
+        maxBuffer: 50 * 1024 * 1024,
+        stdio: ['pipe', 'pipe', 'pipe'],
+      },
+    );
+
+    const result = readFileSync(outFile, 'utf-8');
+    cleanup();
+    return result;
+  } catch {
+    let errorMsg = 'backstage-cli command failed';
+    if (existsSync(errFile)) {
+      const stderr = readFileSync(errFile, 'utf-8').trim();
+      if (stderr) {
+        const lines = stderr.split('\n').filter(l => l.trim());
+        const errorLine = lines.find(l => /^Error:/i.test(l.trim()));
+        errorMsg = errorLine
+          ? errorLine.replace(/^\s*Error:\s*/i, '').trim()
+          : lines[lines.length - 1].trim();
+      }
+    }
+    cleanup();
+    throw new Error(rebrand(errorMsg));
+  }
+}
+
+export async function execActionJson(
+  actionId: string,
+  flags: Record<string, string | boolean | number | undefined>,
+): Promise<unknown> {
+  const raw = await execAction(actionId, flags);
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return raw;
+  }
 }
