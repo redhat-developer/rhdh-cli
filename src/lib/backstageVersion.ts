@@ -95,11 +95,7 @@ export async function getBackstageManifest(
   const versionsBaseUrl =
     options?.versionsBaseUrl || process.env.BACKSTAGE_VERSIONS_BASE_URL;
 
-  if (
-    cachedManifest &&
-    cachedManifest.version === backstageVersion &&
-    !manifestFile
-  ) {
+  if (cachedManifest?.version === backstageVersion && !manifestFile) {
     return cachedManifest.packages;
   }
 

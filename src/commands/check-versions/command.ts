@@ -17,7 +17,7 @@
 import chalk from 'chalk';
 import { OptionValues } from 'commander';
 import fs from 'fs-extra';
-import path from 'path';
+import path from 'node:path';
 import semver from 'semver';
 import { paths } from '../../lib/paths';
 import { resolveRhdhVersion } from '../../lib/rhdhVersion';
@@ -59,6 +59,61 @@ export interface CheckVersionsOptions {
 }
 
 /**
+ * Determines if a declared version string is aligned with the manifest expected version
+ */
+function isVersionAligned(
+  declaredVersion: string,
+  expectedVersion: string,
+): boolean {
+  if (declaredVersion === 'backstage:^') {
+    return true;
+  }
+
+  const cleanedDeclared = declaredVersion.replace(/^[\^~]/, '');
+  if (cleanedDeclared === expectedVersion) {
+    return true;
+  }
+
+  const parsedDeclared = semver.clean(declaredVersion);
+  return parsedDeclared === expectedVersion;
+}
+
+/**
+ * Audits a single dependency against the Backstage release manifest
+ */
+function auditDependency(
+  name: string,
+  declaredVersion: string,
+  section: DependencySection,
+  manifestPackages: Map<string, string>,
+): PackageCheckResult | undefined {
+  const isBackstagePkg = name.startsWith('@backstage/');
+  const expectedVersion = manifestPackages.get(name);
+
+  if (!isBackstagePkg && !expectedVersion) {
+    return undefined;
+  }
+
+  if (!expectedVersion) {
+    return {
+      name,
+      section,
+      declared: declaredVersion,
+      status: 'unmanifested',
+    };
+  }
+
+  const isMatch = isVersionAligned(declaredVersion, expectedVersion);
+  return {
+    name,
+    section,
+    declared: declaredVersion,
+    expected: expectedVersion,
+    status: isMatch ? 'match' : 'mismatch',
+  };
+}
+
+/**
  * Checks dependency alignment for a package.json against a target RHDH version
  */
 export async function checkPluginDependencies(
@@ -91,34 +146,15 @@ export async function checkPluginDependencies(
     if (!deps) continue;
 
     for (const [name, declaredVersion] of Object.entries(deps)) {
-      // Only audit @backstage/* packages or packages declared in the Backstage manifest
-      const isBackstagePkg = name.startsWith('@backstage/');
-      const expectedVersion = resolved.packages.get(name);
-
-      if (!isBackstagePkg && !expectedVersion) {
-        continue;
-      }
-
-      if (!expectedVersion) {
-        packages.push({
-          name,
-          section,
-          declared: declaredVersion,
-          status: 'unmanifested',
-        });
-        continue;
-      }
-
-      // Check version matching
-      const isMatch = isVersionAligned(declaredVersion, expectedVersion);
-
-      packages.push({
+      const audited = auditDependency(
         name,
+        declaredVersion,
         section,
-        declared: declaredVersion,
-        expected: expectedVersion,
-        status: isMatch ? 'match' : 'mismatch',
-      });
+        resolved.packages,
+      );
+      if (audited) {
+        packages.push(audited);
+      }
     }
   }
 
@@ -140,30 +176,6 @@ export async function checkPluginDependencies(
     },
     packages,
   };
-}
-
-/**
- * Determines if a declared version string is aligned with the manifest expected version
- */
-function isVersionAligned(
-  declaredVersion: string,
-  expectedVersion: string,
-): boolean {
-  if (declaredVersion === 'backstage:^') {
-    return true;
-  }
-
-  const cleanedDeclared = declaredVersion.replace(/^[\^~]/, '');
-  if (cleanedDeclared === expectedVersion) {
-    return true;
-  }
-
-  const parsedDeclared = semver.clean(declaredVersion);
-  if (parsedDeclared === expectedVersion) {
-    return true;
-  }
-
-  return false;
 }
 
 /**
@@ -237,13 +249,21 @@ export async function command(opts: OptionValues): Promise<void> {
 
   process.stderr.write('\n');
 
-  // Summary line
-  const summary = `${chalk.green(`✓ ${result.counts.matching} matching`)}, ${chalk.red(`✗ ${result.counts.mismatched} mismatched`)}, ${chalk.yellow(`⚠ ${result.counts.unmanifested} unmanifested`)} (${result.counts.total} total)`;
+  // Summary line without nested template literals
+  const matchStr = chalk.green(`✓ ${result.counts.matching} matching`);
+  const mismatchStr = chalk.red(`✗ ${result.counts.mismatched} mismatched`);
+  const unmanifestedStr = chalk.yellow(
+    `⚠ ${result.counts.unmanifested} unmanifested`,
+  );
+  const summary = `${matchStr}, ${mismatchStr}, ${unmanifestedStr} (${result.counts.total} total)`;
   process.stderr.write(`${chalk.bold('Summary:')} ${summary}\n`);
 
   if (!result.valid) {
+    const upgradeCmd = chalk.cyan(
+      `rhdh-cli plugin upgrade ${result.rhdhVersion}`,
+    );
     process.stderr.write(
-      `\n${chalk.yellow('Remediation:')} Run ${chalk.cyan(`rhdh-cli plugin upgrade ${result.rhdhVersion}`)} to align dependencies with RHDH v${result.rhdhVersion}.\n\n`,
+      `\n${chalk.yellow('Remediation:')} Run ${upgradeCmd} to align dependencies with RHDH v${result.rhdhVersion}.\n\n`,
     );
     process.exitCode = 1;
   } else {
