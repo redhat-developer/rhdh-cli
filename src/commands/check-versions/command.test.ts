@@ -32,27 +32,52 @@ describe('checkPluginDependencies', () => {
     typeof resolveRhdhVersion
   >;
 
-  async function writeTestPackageJson(
-    dir: string,
-    sections: {
+  async function setupFixture(
+    pkg: {
       dependencies?: Record<string, string>;
       devDependencies?: Record<string, string>;
       peerDependencies?: Record<string, string>;
     },
+    manifestPackages: [string, string][] = [
+      ['@backstage/core-plugin-api', '1.12.0'],
+    ],
   ) {
-    await fs.writeJson(path.join(dir, 'package.json'), {
+    await fs.writeJson(path.join(tmpDir, 'package.json'), {
       name: 'test-plugin',
-      ...sections,
+      ...pkg,
     });
-  }
-
-  function mockResolution(packages: [string, string][]) {
     mockResolveRhdhVersion.mockResolvedValue({
       rhdhVersion: '2.0.0',
       backstageVersion: '1.52.0',
       source: 'matrix',
-      packages: new Map(packages),
+      packages: new Map(manifestPackages),
     });
+  }
+
+  async function runCommandWithOutput(opts: any = {}) {
+    let stdout = '';
+    let stderr = '';
+    const stdoutSpy = jest
+      .spyOn(process.stdout, 'write')
+      .mockImplementation((chunk: any) => {
+        stdout += chunk;
+        return true;
+      });
+    const stderrSpy = jest
+      .spyOn(process.stderr, 'write')
+      .mockImplementation((chunk: any) => {
+        stderr += chunk;
+        return true;
+      });
+
+    try {
+      await command(opts);
+    } finally {
+      stdoutSpy.mockRestore();
+      stderrSpy.mockRestore();
+    }
+
+    return { stdout, stderr, exitCode: process.exitCode };
   }
 
   beforeEach(async () => {
@@ -76,25 +101,26 @@ describe('checkPluginDependencies', () => {
   });
 
   it('reports matching dependencies when versions align with manifest', async () => {
-    await writeTestPackageJson(tmpDir, {
-      dependencies: {
-        '@backstage/core-plugin-api': '^1.12.0',
-        '@backstage/catalog-model': '~1.7.6',
+    await setupFixture(
+      {
+        dependencies: {
+          '@backstage/core-plugin-api': '^1.12.0',
+          '@backstage/catalog-model': '~1.7.6',
+        },
+        devDependencies: {
+          '@backstage/cli': '0.36.3',
+        },
+        peerDependencies: {
+          '@backstage/config': 'backstage:^',
+        },
       },
-      devDependencies: {
-        '@backstage/cli': '0.36.3',
-      },
-      peerDependencies: {
-        '@backstage/config': 'backstage:^',
-      },
-    });
-
-    mockResolution([
-      ['@backstage/core-plugin-api', '1.12.0'],
-      ['@backstage/catalog-model', '1.7.6'],
-      ['@backstage/cli', '0.36.3'],
-      ['@backstage/config', '1.3.8'],
-    ]);
+      [
+        ['@backstage/core-plugin-api', '1.12.0'],
+        ['@backstage/catalog-model', '1.7.6'],
+        ['@backstage/cli', '0.36.3'],
+        ['@backstage/config', '1.3.8'],
+      ],
+    );
 
     const result = await checkPluginDependencies({ targetDir: tmpDir });
 
@@ -105,21 +131,22 @@ describe('checkPluginDependencies', () => {
   });
 
   it('reports mismatched and unmanifested dependencies when versions differ', async () => {
-    await writeTestPackageJson(tmpDir, {
-      dependencies: {
-        '@backstage/core-plugin-api': '^1.9.0', // Mismatched (expected 1.12.0)
-        '@backstage/unknown-pkg': '^1.0.0', // Unmanifested
-        lodash: '^4.17.21', // Non-backstage: ignored
+    await setupFixture(
+      {
+        dependencies: {
+          '@backstage/core-plugin-api': '^1.9.0',
+          '@backstage/unknown-pkg': '^1.0.0',
+          lodash: '^4.17.21',
+        },
+        devDependencies: {
+          '@backstage/cli': '^0.30.0',
+        },
       },
-      devDependencies: {
-        '@backstage/cli': '^0.30.0', // Mismatched (expected 0.36.3)
-      },
-    });
-
-    mockResolution([
-      ['@backstage/core-plugin-api', '1.12.0'],
-      ['@backstage/cli', '0.36.3'],
-    ]);
+      [
+        ['@backstage/core-plugin-api', '1.12.0'],
+        ['@backstage/cli', '0.36.3'],
+      ],
+    );
 
     const result = await checkPluginDependencies({ targetDir: tmpDir });
 
@@ -145,74 +172,38 @@ describe('checkPluginDependencies', () => {
 
   describe('CLI command handler', () => {
     it('outputs JSON when --json flag is passed and sets exitCode on failure', async () => {
-      await writeTestPackageJson(tmpDir, {
+      await setupFixture({
         dependencies: { '@backstage/core-plugin-api': '^1.9.0' },
       });
-      mockResolution([['@backstage/core-plugin-api', '1.12.0']]);
 
-      const stdoutSpy = jest
-        .spyOn(process.stdout, 'write')
-        .mockImplementation(() => true);
-
-      try {
-        await command({ json: true });
-
-        expect(stdoutSpy).toHaveBeenCalled();
-        const jsonCall = stdoutSpy.mock.calls[0][0] as string;
-        const parsed = JSON.parse(jsonCall);
-        expect(parsed.valid).toBe(false);
-        expect(parsed.counts.mismatched).toBe(1);
-        expect(process.exitCode).toBe(1);
-      } finally {
-        stdoutSpy.mockRestore();
-      }
+      const res = await runCommandWithOutput({ json: true });
+      const parsed = JSON.parse(res.stdout);
+      expect(parsed.valid).toBe(false);
+      expect(parsed.counts.mismatched).toBe(1);
+      expect(res.exitCode).toBe(1);
     });
 
     it('prints formatted table and remediation when run in human mode', async () => {
-      await writeTestPackageJson(tmpDir, {
+      await setupFixture({
         dependencies: { '@backstage/core-plugin-api': '^1.9.0' },
       });
-      mockResolution([['@backstage/core-plugin-api', '1.12.0']]);
 
-      const stderrSpy = jest
-        .spyOn(process.stderr, 'write')
-        .mockImplementation(() => true);
-
-      try {
-        await command({});
-
-        expect(stderrSpy).toHaveBeenCalled();
-        const output = stderrSpy.mock.calls.map(c => c[0]).join('');
-        expect(output).toContain('Package');
-        expect(output).toContain('@backstage/core-plugin-api');
-        expect(output).toContain('mismatch');
-        expect(output).toContain('rhdh-cli plugin upgrade 2.0.0');
-        expect(process.exitCode).toBe(1);
-      } finally {
-        stderrSpy.mockRestore();
-      }
+      const res = await runCommandWithOutput({});
+      expect(res.stderr).toContain('Package');
+      expect(res.stderr).toContain('@backstage/core-plugin-api');
+      expect(res.stderr).toContain('mismatch');
+      expect(res.stderr).toContain('rhdh-cli plugin upgrade 2.0.0');
+      expect(res.exitCode).toBe(1);
     });
 
     it('prints success message when dependencies are aligned', async () => {
-      await writeTestPackageJson(tmpDir, {
+      await setupFixture({
         dependencies: { '@backstage/core-plugin-api': '^1.12.0' },
       });
-      mockResolution([['@backstage/core-plugin-api', '1.12.0']]);
 
-      const stderrSpy = jest
-        .spyOn(process.stderr, 'write')
-        .mockImplementation(() => true);
-
-      try {
-        await command({});
-
-        expect(stderrSpy).toHaveBeenCalled();
-        const output = stderrSpy.mock.calls.map(c => c[0]).join('');
-        expect(output).toContain('All @backstage dependencies are aligned');
-        expect(process.exitCode).toBeUndefined();
-      } finally {
-        stderrSpy.mockRestore();
-      }
+      const res = await runCommandWithOutput({});
+      expect(res.stderr).toContain('All @backstage dependencies are aligned');
+      expect(res.exitCode).toBeUndefined();
     });
   });
 });
