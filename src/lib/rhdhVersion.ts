@@ -81,9 +81,7 @@ export function normalizeRhdhVersion(input?: string): string {
   }
 
   // Strip leading 'v' or 'v.'
-  const clean = trimmed.replace(/^v\.?/, '');
-
-  return clean;
+  return trimmed.replace(/^v\.?/, '');
 }
 
 /**
@@ -215,6 +213,59 @@ export function getSupportedRhdhVersions(): string[] {
 }
 
 /**
+ * Resolves default target RHDH version by inspecting current backstage.json
+ */
+async function getDefaultTargetVersion(): Promise<string | undefined> {
+  const currentBsVersion = await getCurrentBackstageVersion();
+  if (!currentBsVersion) {
+    return undefined;
+  }
+  for (const [rVer, bsVer] of Object.entries(RHDH_COMPATIBILITY_MATRIX)) {
+    if (bsVer === currentBsVersion && rVer !== 'main' && rVer !== 'next') {
+      return rVer;
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Resolves Backstage version using remote metadata or static compatibility matrix
+ */
+async function resolveBackstageVersionForRhdh(
+  normalized: string,
+  isOffline: boolean,
+): Promise<
+  | {
+      backstageVersion: string;
+      resolvedRhdhVersion: string;
+      source: RhdhVersionSource;
+    }
+  | undefined
+> {
+  if (!isOffline) {
+    const remote = await fetchRemoteRhdhMetadata(normalized);
+    if (remote) {
+      return {
+        backstageVersion: remote.backstageVersion,
+        resolvedRhdhVersion: remote.rhdhVersion,
+        source: 'remote',
+      };
+    }
+  }
+
+  const backstageVersion = findStaticMatrixBackstageVersion(normalized);
+  if (backstageVersion) {
+    return {
+      backstageVersion,
+      resolvedRhdhVersion: normalized,
+      source: 'matrix',
+    };
+  }
+
+  return undefined;
+}
+
+/**
  * Resolves an RHDH version query to its underlying Backstage version and package release manifest.
  *
  * 3-tier resolution:
@@ -226,55 +277,22 @@ export async function resolveRhdhVersion(
   rhdhVersionInput?: string,
   options?: ResolveRhdhVersionOptions,
 ): Promise<ResolvedRhdhVersion> {
-  let targetVersion = rhdhVersionInput;
-
-  // If no version specified, try backstage.json in current project first, else default
-  if (!targetVersion) {
-    const currentBsVersion = await getCurrentBackstageVersion();
-    if (currentBsVersion) {
-      // Check if current backstage.json version matches any known RHDH version in matrix
-      for (const [rVer, bsVer] of Object.entries(RHDH_COMPATIBILITY_MATRIX)) {
-        if (bsVer === currentBsVersion && rVer !== 'main' && rVer !== 'next') {
-          targetVersion = rVer;
-          break;
-        }
-      }
-    }
-  }
-
+  const targetVersion = rhdhVersionInput || (await getDefaultTargetVersion());
   const normalized = normalizeRhdhVersion(targetVersion);
   const cacheKey = `${normalized}:${options?.manifestFile || ''}:${options?.offline || ''}`;
 
-  if (cachedRhdhVersions.has(cacheKey)) {
-    return cachedRhdhVersions.get(cacheKey)!;
+  const cached = cachedRhdhVersions.get(cacheKey);
+  if (cached) {
+    return cached;
   }
-
-  let backstageVersion: string | undefined;
-  let source: RhdhVersionSource = 'matrix';
-  let resolvedRhdhVersion = normalized;
 
   const isOffline =
     options?.offline ||
     process.env.RHDH_OFFLINE === 'true' ||
     Boolean(options?.manifestFile || process.env.BACKSTAGE_MANIFEST_FILE);
 
-  // Tier 1: Try remote lookup if online
-  if (!isOffline) {
-    const remote = await fetchRemoteRhdhMetadata(normalized);
-    if (remote) {
-      backstageVersion = remote.backstageVersion;
-      resolvedRhdhVersion = remote.rhdhVersion;
-      source = 'remote';
-    }
-  }
-
-  // Tier 2: Static compatibility matrix fallback
-  if (!backstageVersion) {
-    backstageVersion = findStaticMatrixBackstageVersion(normalized);
-    source = 'matrix';
-  }
-
-  if (!backstageVersion) {
+  const resolved = await resolveBackstageVersionForRhdh(normalized, isOffline);
+  if (!resolved) {
     const supported = getSupportedRhdhVersions().join(', ');
     throw new Error(
       `Unsupported or unknown RHDH version "${rhdhVersionInput}". ` +
@@ -282,17 +300,16 @@ export async function resolveRhdhVersion(
     );
   }
 
-  // Tier 3: Fetch Backstage release manifest
-  const packages = await getBackstageManifest(backstageVersion, {
+  const packages = await getBackstageManifest(resolved.backstageVersion, {
     manifestFile: options?.manifestFile,
     versionsBaseUrl: options?.versionsBaseUrl,
   });
 
   const result: ResolvedRhdhVersion = {
-    rhdhVersion: resolvedRhdhVersion,
-    backstageVersion,
+    rhdhVersion: resolved.resolvedRhdhVersion,
+    backstageVersion: resolved.backstageVersion,
     packages,
-    source,
+    source: resolved.source,
   };
 
   cachedRhdhVersions.set(cacheKey, result);

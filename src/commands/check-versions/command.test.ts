@@ -16,7 +16,7 @@
 
 import fs from 'fs-extra';
 import os from 'os';
-import path from 'path';
+import path from 'node:path';
 import { resolveRhdhVersion } from '../../lib/rhdhVersion';
 import { checkPluginDependencies, command } from './command';
 
@@ -31,6 +31,29 @@ describe('checkPluginDependencies', () => {
   const mockResolveRhdhVersion = resolveRhdhVersion as jest.MockedFunction<
     typeof resolveRhdhVersion
   >;
+
+  async function writeTestPackageJson(
+    dir: string,
+    sections: {
+      dependencies?: Record<string, string>;
+      devDependencies?: Record<string, string>;
+      peerDependencies?: Record<string, string>;
+    },
+  ) {
+    await fs.writeJson(path.join(dir, 'package.json'), {
+      name: 'test-plugin',
+      ...sections,
+    });
+  }
+
+  function mockResolution(packages: [string, string][]) {
+    mockResolveRhdhVersion.mockResolvedValue({
+      rhdhVersion: '2.0.0',
+      backstageVersion: '1.52.0',
+      source: 'matrix',
+      packages: new Map(packages),
+    });
+  }
 
   beforeEach(async () => {
     originalCwd = process.cwd();
@@ -53,8 +76,7 @@ describe('checkPluginDependencies', () => {
   });
 
   it('reports matching dependencies when versions align with manifest', async () => {
-    const pkgJson = {
-      name: 'test-plugin',
+    await writeTestPackageJson(tmpDir, {
       dependencies: {
         '@backstage/core-plugin-api': '^1.12.0',
         '@backstage/catalog-model': '~1.7.6',
@@ -65,20 +87,14 @@ describe('checkPluginDependencies', () => {
       peerDependencies: {
         '@backstage/config': 'backstage:^',
       },
-    };
-    await fs.writeJson(path.join(tmpDir, 'package.json'), pkgJson);
-
-    mockResolveRhdhVersion.mockResolvedValue({
-      rhdhVersion: '2.0.0',
-      backstageVersion: '1.52.0',
-      source: 'matrix',
-      packages: new Map([
-        ['@backstage/core-plugin-api', '1.12.0'],
-        ['@backstage/catalog-model', '1.7.6'],
-        ['@backstage/cli', '0.36.3'],
-        ['@backstage/config', '1.3.8'],
-      ]),
     });
+
+    mockResolution([
+      ['@backstage/core-plugin-api', '1.12.0'],
+      ['@backstage/catalog-model', '1.7.6'],
+      ['@backstage/cli', '0.36.3'],
+      ['@backstage/config', '1.3.8'],
+    ]);
 
     const result = await checkPluginDependencies({ targetDir: tmpDir });
 
@@ -89,8 +105,7 @@ describe('checkPluginDependencies', () => {
   });
 
   it('reports mismatched and unmanifested dependencies when versions differ', async () => {
-    const pkgJson = {
-      name: 'test-plugin',
+    await writeTestPackageJson(tmpDir, {
       dependencies: {
         '@backstage/core-plugin-api': '^1.9.0', // Mismatched (expected 1.12.0)
         '@backstage/unknown-pkg': '^1.0.0', // Unmanifested
@@ -99,18 +114,12 @@ describe('checkPluginDependencies', () => {
       devDependencies: {
         '@backstage/cli': '^0.30.0', // Mismatched (expected 0.36.3)
       },
-    };
-    await fs.writeJson(path.join(tmpDir, 'package.json'), pkgJson);
-
-    mockResolveRhdhVersion.mockResolvedValue({
-      rhdhVersion: '2.0.0',
-      backstageVersion: '1.52.0',
-      source: 'matrix',
-      packages: new Map([
-        ['@backstage/core-plugin-api', '1.12.0'],
-        ['@backstage/cli', '0.36.3'],
-      ]),
     });
+
+    mockResolution([
+      ['@backstage/core-plugin-api', '1.12.0'],
+      ['@backstage/cli', '0.36.3'],
+    ]);
 
     const result = await checkPluginDependencies({ targetDir: tmpDir });
 
@@ -136,20 +145,10 @@ describe('checkPluginDependencies', () => {
 
   describe('CLI command handler', () => {
     it('outputs JSON when --json flag is passed and sets exitCode on failure', async () => {
-      const pkgJson = {
-        name: 'test-plugin',
-        dependencies: {
-          '@backstage/core-plugin-api': '^1.9.0',
-        },
-      };
-      await fs.writeJson(path.join(tmpDir, 'package.json'), pkgJson);
-
-      mockResolveRhdhVersion.mockResolvedValue({
-        rhdhVersion: '2.0.0',
-        backstageVersion: '1.52.0',
-        source: 'matrix',
-        packages: new Map([['@backstage/core-plugin-api', '1.12.0']]),
+      await writeTestPackageJson(tmpDir, {
+        dependencies: { '@backstage/core-plugin-api': '^1.9.0' },
       });
+      mockResolution([['@backstage/core-plugin-api', '1.12.0']]);
 
       const stdoutSpy = jest
         .spyOn(process.stdout, 'write')
@@ -170,20 +169,10 @@ describe('checkPluginDependencies', () => {
     });
 
     it('prints formatted table and remediation when run in human mode', async () => {
-      const pkgJson = {
-        name: 'test-plugin',
-        dependencies: {
-          '@backstage/core-plugin-api': '^1.9.0',
-        },
-      };
-      await fs.writeJson(path.join(tmpDir, 'package.json'), pkgJson);
-
-      mockResolveRhdhVersion.mockResolvedValue({
-        rhdhVersion: '2.0.0',
-        backstageVersion: '1.52.0',
-        source: 'matrix',
-        packages: new Map([['@backstage/core-plugin-api', '1.12.0']]),
+      await writeTestPackageJson(tmpDir, {
+        dependencies: { '@backstage/core-plugin-api': '^1.9.0' },
       });
+      mockResolution([['@backstage/core-plugin-api', '1.12.0']]);
 
       const stderrSpy = jest
         .spyOn(process.stderr, 'write')
@@ -205,20 +194,10 @@ describe('checkPluginDependencies', () => {
     });
 
     it('prints success message when dependencies are aligned', async () => {
-      const pkgJson = {
-        name: 'test-plugin',
-        dependencies: {
-          '@backstage/core-plugin-api': '^1.12.0',
-        },
-      };
-      await fs.writeJson(path.join(tmpDir, 'package.json'), pkgJson);
-
-      mockResolveRhdhVersion.mockResolvedValue({
-        rhdhVersion: '2.0.0',
-        backstageVersion: '1.52.0',
-        source: 'matrix',
-        packages: new Map([['@backstage/core-plugin-api', '1.12.0']]),
+      await writeTestPackageJson(tmpDir, {
+        dependencies: { '@backstage/core-plugin-api': '^1.12.0' },
       });
+      mockResolution([['@backstage/core-plugin-api', '1.12.0']]);
 
       const stderrSpy = jest
         .spyOn(process.stderr, 'write')
