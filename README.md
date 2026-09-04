@@ -86,6 +86,15 @@ Our versioning scheme follows the pattern of `$MAJOR.$MINOR.$PATCH` (e.g., 1.8.0
 
 - **Patch Version ($PATCH)**: The patch version is incremented for new releases of the CLI that contain bug fixes or minor, non-breaking feature enhancements specific to the CLI. The patch version of `rhdh-cli` is not lock-stepped with RHDH's patch releases. For instance, `rhdh-cli` versions `1.8.0` and `1.8.1` are both intended for use with any RHDH `1.8.z` installation. We always recommend using the latest available patch release for your RHDH version.
 
+### Release Process
+
+Releases follow a straightforward manual workflow:
+
+1. **Update `CHANGELOG.md`**: Add a new version heading (e.g., `## 2.0.5 - YYYY-MM-DD`) following [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) format, categorizing changes under `Added`, `Changed`, `Fixed`, etc., with links to relevant Jira issues and pull requests.
+2. **Bump version in `package.json`**: Update the `"version"` field to the target version matching the [Versioning Strategy](#versioning-strategy).
+3. **Submit PR**: Open a pull request titled `chore: bump version to X.Y.Z` and merge it after review and CI checks pass.
+4. **Publish**: Trigger the [Publish Package to NPM](#publishing-to-npm) GitHub Action workflow for the target branch.
+
 ### Publishing to NPM
 
 Publishing is done using [Publish Package to NPM](.github/workflows/publish.yaml) workflow.
