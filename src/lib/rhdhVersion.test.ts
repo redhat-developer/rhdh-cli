@@ -99,6 +99,10 @@ describe('rhdhVersion', () => {
       expect(normalizeRhdhVersion('main')).toBe('main');
     });
 
+    it('preserves backstage: prefix', () => {
+      expect(normalizeRhdhVersion('backstage:1.54.0')).toBe('backstage:1.54.0');
+    });
+
     it('strips leading v from version strings', () => {
       expect(normalizeRhdhVersion('v2.0.0')).toBe('2.0.0');
       expect(normalizeRhdhVersion('V1.9.0')).toBe('1.9.0');
@@ -125,7 +129,7 @@ describe('rhdhVersion', () => {
       expect(findStaticMatrixBackstageVersion('2.0.0')).toBe('1.52.0');
       expect(findStaticMatrixBackstageVersion('1.9.0')).toBe('1.45.3');
       expect(findStaticMatrixBackstageVersion('1.8.0')).toBe('1.42.5');
-      expect(findStaticMatrixBackstageVersion('main')).toBe('1.52.0');
+      expect(findStaticMatrixBackstageVersion('main')).toBe('1.54.0');
     });
 
     it('resolves minor versions without patch to matrix entry', () => {
@@ -206,6 +210,31 @@ describe('rhdhVersion', () => {
       expect(resolved.packages.get('@backstage/core-plugin-api')).toBe(
         '1.12.0',
       );
+    });
+
+    it('resolves direct Backstage version when requested', async () => {
+      setupFetchMock({
+        manifestVersion: '1.54.0',
+        packages: [{ name: '@backstage/core-plugin-api', version: '1.14.0' }],
+      });
+
+      const resolved = await resolveRhdhVersion('backstage:1.54.0');
+      expect(resolved.backstageVersion).toBe('1.54.0');
+      expect(resolved.rhdhVersion).toBe('backstage:1.54.0');
+      expect(resolved.packages.get('@backstage/core-plugin-api')).toBe(
+        '1.14.0',
+      );
+    });
+
+    it('resolves raw Backstage version string', async () => {
+      setupFetchMock({
+        manifestVersion: '1.54.0',
+        packages: [{ name: '@backstage/core-plugin-api', version: '1.14.0' }],
+      });
+
+      const resolved = await resolveRhdhVersion('1.54.0');
+      expect(resolved.backstageVersion).toBe('1.54.0');
+      expect(resolved.rhdhVersion).toBe('backstage:1.54.0');
     });
 
     it('falls back to static compatibility matrix (Tier 2) when remote fails', async () => {

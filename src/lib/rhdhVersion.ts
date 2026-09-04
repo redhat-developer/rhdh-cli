@@ -25,7 +25,7 @@ import {
  * Used for offline/air-gapped operations and as a fallback when remote metadata lookup is unavailable.
  */
 export const RHDH_COMPATIBILITY_MATRIX: Record<string, string> = {
-  '2.1.0': '1.52.0',
+  '2.1.0': '1.54.0',
   '2.0.4': '1.52.0',
   '2.0.0': '1.52.0',
   '1.10.0': '1.49.4',
@@ -33,8 +33,8 @@ export const RHDH_COMPATIBILITY_MATRIX: Record<string, string> = {
   '1.8.0': '1.42.5',
   '1.7.0': '1.39.1',
   '1.6.0': '1.36.1',
-  main: '1.52.0',
-  next: '1.52.0',
+  main: '1.54.0',
+  next: '1.54.0',
 };
 
 /**
@@ -80,6 +80,11 @@ export function normalizeRhdhVersion(input?: string): string {
     return 'main';
   }
 
+  // Preserve explicit backstage: prefix
+  if (trimmed.startsWith('backstage:')) {
+    return trimmed;
+  }
+
   // Strip leading 'v' or 'v.'
   return trimmed.replace(/^v\.?/, '');
 }
@@ -102,7 +107,7 @@ export function getRhdhGitRef(version: string): string {
 }
 
 /**
- * Fetches build-metadata.json from target RHDH repository release branch
+ * Fetches build-metadata.json from target RHDH repository release branch (falling back to main)
  */
 export async function fetchRemoteRhdhMetadata(
   rhdhVersion: string,
@@ -113,48 +118,50 @@ export async function fetchRemoteRhdhMetadata(
     options?.baseUrl ||
     process.env.RHDH_METADATA_BASE_URL ||
     'https://raw.githubusercontent.com/redhat-developer/rhdh';
-  const metadataUrl = `${baseUrl}/${gitRef}/packages/app/src/build-metadata.json`;
 
-  const timeoutMs = options?.timeoutMs ?? 3000;
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  // If targeting a release branch that hasn't been cut yet, candidate fallbacks check main
+  const candidateRefs = gitRef === 'main' ? ['main'] : [gitRef, 'main'];
 
-  try {
-    const response = await fetch(metadataUrl, {
-      signal: controller.signal,
-      headers: {
-        Accept: 'application/json',
-      },
-    });
+  for (const ref of candidateRefs) {
+    const metadataUrl = `${baseUrl}/${ref}/packages/app/src/build-metadata.json`;
+    const timeoutMs = options?.timeoutMs ?? 3000;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
-    if (!response.ok) {
-      return undefined;
+    try {
+      const response = await fetch(metadataUrl, {
+        signal: controller.signal,
+        headers: {
+          Accept: 'application/json',
+        },
+      });
+
+      if (response.ok) {
+        const data = (await response.json()) as any;
+        const bsVersion =
+          data?.card?.['Backstage Version'] ||
+          data?.card?.backstageVersion ||
+          data?.backstageVersion;
+
+        const resolvedRhdhVersion =
+          data?.card?.['RHDH Version'] ||
+          data?.card?.rhdhVersion ||
+          data?.rhdhVersion ||
+          rhdhVersion;
+
+        if (bsVersion && typeof bsVersion === 'string') {
+          const validBsVersion = semver.clean(bsVersion) || bsVersion.trim();
+          return {
+            rhdhVersion: resolvedRhdhVersion,
+            backstageVersion: validBsVersion,
+          };
+        }
+      }
+    } catch {
+      // Try next candidate ref or fall through
+    } finally {
+      clearTimeout(timeoutId);
     }
-
-    const data = (await response.json()) as any;
-    const bsVersion =
-      data?.card?.['Backstage Version'] ||
-      data?.card?.backstageVersion ||
-      data?.backstageVersion;
-
-    const resolvedRhdhVersion =
-      data?.card?.['RHDH Version'] ||
-      data?.card?.rhdhVersion ||
-      data?.rhdhVersion ||
-      rhdhVersion;
-
-    if (bsVersion && typeof bsVersion === 'string') {
-      const validBsVersion = semver.clean(bsVersion) || bsVersion.trim();
-      return {
-        rhdhVersion: resolvedRhdhVersion,
-        backstageVersion: validBsVersion,
-      };
-    }
-  } catch {
-    // Network error, abort timeout, or invalid JSON: fall back to matrix
-    return undefined;
-  } finally {
-    clearTimeout(timeoutId);
   }
 
   return undefined;
@@ -229,7 +236,7 @@ async function getDefaultTargetVersion(): Promise<string | undefined> {
 }
 
 /**
- * Resolves Backstage version using remote metadata or static compatibility matrix
+ * Resolves Backstage version using explicit version, remote metadata, or static matrix
  */
 async function resolveBackstageVersionForRhdh(
   normalized: string,
@@ -242,6 +249,32 @@ async function resolveBackstageVersionForRhdh(
     }
   | undefined
 > {
+  // Support explicit Backstage versions (e.g. "backstage:1.54.0" or "1.54.0")
+  if (normalized.startsWith('backstage:')) {
+    const bsVer = normalized.replace(/^backstage:/, '').trim();
+    if (semver.valid(bsVer)) {
+      return {
+        backstageVersion: bsVer,
+        resolvedRhdhVersion: `backstage:${bsVer}`,
+        source: 'matrix',
+      };
+    }
+  }
+
+  const parsed = semver.coerce(normalized);
+  if (
+    parsed &&
+    parsed.major === 1 &&
+    parsed.minor >= 30 &&
+    !RHDH_COMPATIBILITY_MATRIX[normalized]
+  ) {
+    return {
+      backstageVersion: normalized,
+      resolvedRhdhVersion: `backstage:${normalized}`,
+      source: 'matrix',
+    };
+  }
+
   if (!isOffline) {
     const remote = await fetchRemoteRhdhMetadata(normalized);
     if (remote) {
@@ -296,7 +329,7 @@ export async function resolveRhdhVersion(
     const supported = getSupportedRhdhVersions().join(', ');
     throw new Error(
       `Unsupported or unknown RHDH version "${rhdhVersionInput}". ` +
-        `Supported versions are: ${supported} (or 'latest', 'next', 'main').`,
+        `Supported versions are: ${supported} (or 'latest', 'next', 'main', or direct 'backstage:<version>').`,
     );
   }
 
