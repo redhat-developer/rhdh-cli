@@ -99,25 +99,16 @@ export async function detectPackageManager(
 }
 
 /**
- * Upgrades @backstage/* dependencies in a package.json to match target RHDH release manifest
+ * Applies upgrades across all dependency sections in package.json
  */
-export async function upgradePluginDependencies(
-  options: UpgradePluginOptions = {},
-): Promise<UpgradePluginResult> {
-  const targetDir = options.targetDir || paths.targetDir;
-  const packageJsonPath = path.join(targetDir, 'package.json');
-
-  if (!(await fs.pathExists(packageJsonPath))) {
-    throw new Error(
-      `No package.json found at "${targetDir}". Make sure you run this command inside a plugin package directory.`,
-    );
-  }
-
-  const packageJson = await fs.readJson(packageJsonPath);
-  const resolved = await resolveRhdhVersion(options.rhdhVersion, {
-    manifestFile: options.manifestFile,
-  });
-
+function applyDependencyUpgrades(
+  packageJson: Record<string, any>,
+  manifestPackages: Map<string, string>,
+): {
+  changes: PackageUpgradeChange[];
+  unmanifested: string[];
+  modified: boolean;
+} {
   const sections: DependencySection[] = [
     'dependencies',
     'devDependencies',
@@ -126,7 +117,7 @@ export async function upgradePluginDependencies(
 
   const changes: PackageUpgradeChange[] = [];
   const unmanifested: string[] = [];
-  let packageJsonModified = false;
+  let modified = false;
 
   for (const section of sections) {
     const deps = packageJson[section] as Record<string, string> | undefined;
@@ -134,7 +125,7 @@ export async function upgradePluginDependencies(
 
     for (const [name, currentVersion] of Object.entries(deps)) {
       const isBackstagePkg = name.startsWith('@backstage/');
-      const manifestExpected = resolved.packages.get(name);
+      const manifestExpected = manifestPackages.get(name);
 
       if (!isBackstagePkg && !manifestExpected) {
         continue;
@@ -161,46 +152,98 @@ export async function upgradePluginDependencies(
 
       if (isChanged) {
         packageJson[section][name] = targetVersion;
-        packageJsonModified = true;
+        modified = true;
       }
     }
   }
+
+  return { changes, unmanifested, modified };
+}
+
+/**
+ * Synchronizes backstage.json with target Backstage version if present
+ */
+async function syncBackstageJson(
+  targetDir: string,
+  targetBackstageVersion: string,
+): Promise<string | undefined> {
+  const backstageJsonPath = path.join(targetDir, BACKSTAGE_JSON);
+  if (!(await fs.pathExists(backstageJsonPath))) {
+    return undefined;
+  }
+
+  try {
+    const backstageJson = await fs.readJson(backstageJsonPath);
+    if (backstageJson.version !== targetBackstageVersion) {
+      backstageJson.version = targetBackstageVersion;
+      await fs.writeJson(backstageJsonPath, backstageJson, { spaces: 2 });
+      return BACKSTAGE_JSON;
+    }
+  } catch {
+    // Ignore JSON read errors
+  }
+  return undefined;
+}
+
+/**
+ * Executes package manager install in target directory
+ */
+async function runInstallDependencies(targetDir: string): Promise<boolean> {
+  const pm = await detectPackageManager(targetDir);
+  try {
+    await Task.forItem('installing', 'dependencies', async () => {
+      await runPlain(pm, 'install');
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Upgrades @backstage/* dependencies in a package.json to match target RHDH release manifest
+ */
+export async function upgradePluginDependencies(
+  options: UpgradePluginOptions = {},
+): Promise<UpgradePluginResult> {
+  const targetDir = options.targetDir || paths.targetDir;
+  const packageJsonPath = path.join(targetDir, 'package.json');
+
+  if (!(await fs.pathExists(packageJsonPath))) {
+    throw new Error(
+      `No package.json found at "${targetDir}". Make sure you run this command inside a plugin package directory.`,
+    );
+  }
+
+  const packageJson = await fs.readJson(packageJsonPath);
+  const resolved = await resolveRhdhVersion(options.rhdhVersion, {
+    manifestFile: options.manifestFile,
+  });
+
+  const { changes, unmanifested, modified } = applyDependencyUpgrades(
+    packageJson,
+    resolved.packages,
+  );
 
   const updatedFiles: string[] = [];
   let installed = false;
 
   if (!options.dryRun) {
-    if (packageJsonModified) {
+    if (modified) {
       await fs.writeJson(packageJsonPath, packageJson, { spaces: 2 });
       updatedFiles.push('package.json');
     }
 
-    // Update or create backstage.json if needed
-    const backstageJsonPath = path.join(targetDir, BACKSTAGE_JSON);
-    if (await fs.pathExists(backstageJsonPath)) {
-      try {
-        const backstageJson = await fs.readJson(backstageJsonPath);
-        if (backstageJson.version !== resolved.backstageVersion) {
-          backstageJson.version = resolved.backstageVersion;
-          await fs.writeJson(backstageJsonPath, backstageJson, { spaces: 2 });
-          updatedFiles.push(BACKSTAGE_JSON);
-        }
-      } catch {
-        // Ignore JSON read errors
-      }
+    const updatedBsJson = await syncBackstageJson(
+      targetDir,
+      resolved.backstageVersion,
+    );
+    if (updatedBsJson) {
+      updatedFiles.push(updatedBsJson);
     }
 
-    // Run package manager install unless skipped
-    if (!options.skipInstall && packageJsonModified) {
-      const pm = await detectPackageManager(targetDir);
-      try {
-        await Task.forItem('installing', 'dependencies', async () => {
-          await runPlain(pm, 'install');
-        });
-        installed = true;
-      } catch {
-        // Logged by task / caller
-      }
+    if (!options.skipInstall && modified) {
+      installed = await runInstallDependencies(targetDir);
     }
   }
 
