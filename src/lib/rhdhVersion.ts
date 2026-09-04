@@ -263,8 +263,7 @@ async function resolveBackstageVersionForRhdh(
 
   const parsed = semver.coerce(normalized);
   if (
-    parsed &&
-    parsed.major === 1 &&
+    parsed?.major === 1 &&
     parsed.minor >= 30 &&
     !RHDH_COMPATIBILITY_MATRIX[normalized]
   ) {
