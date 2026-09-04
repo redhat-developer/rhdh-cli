@@ -141,7 +141,46 @@ export function registerPluginCommand(program: Command) {
     .action(
       lazy(() => import('./package-dynamic-plugins').then(m => m.command)),
     );
+
+  command
+    .command('check-versions')
+    .alias('versions:lint')
+    .description(
+      'Check dynamic plugin dependencies in package.json against target RHDH release Backstage manifest',
+    )
+    .option(
+      '--rhdh-version <version>',
+      'Target RHDH version to check compatibility against (e.g. 2.0.0, 1.9, latest)',
+    )
+    .option(
+      '--manifest-file <path>',
+      'Path to local Backstage release manifest JSON file (for offline usage)',
+    )
+    .option('--json', 'Output results as JSON')
+    .action(lazy(() => import('./check-versions').then(m => m.command)));
+
+  command
+    .command('upgrade [rhdhVersion]')
+    .alias('versions:bump')
+    .description(
+      'Upgrade dynamic plugin dependencies in package.json to match a target RHDH release',
+    )
+    .option(
+      '--dry-run',
+      'Display planned dependency updates without modifying files on disk',
+    )
+    .option(
+      '--skip-install',
+      'Do not run package manager install after updating dependencies',
+    )
+    .option(
+      '--manifest-file <path>',
+      'Path to local Backstage release manifest JSON file (for offline usage)',
+    )
+    .option('--json', 'Output upgrade results as JSON')
+    .action(lazy(() => import('./upgrade').then(m => m.command)));
 }
+
 export function registerCommands(program: Command) {
   registerPluginCommand(program);
   registerIntentCommands(program);
@@ -156,7 +195,7 @@ function lazy(
       const actionFunc = await getActionFunc();
       await actionFunc(...args);
 
-      process.exit(0);
+      process.exit(process.exitCode ?? 0);
     } catch (error) {
       assertError(error);
       exitWithError(error);

@@ -4,6 +4,13 @@ All notable changes to `@red-hat-developer-hub/cli` are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 2.0.5 - 2026-09-04
+
+### Added
+
+- **`plugin upgrade`:** Add `rhdh-cli plugin upgrade <version>` (alias `plugin versions:bump`) command ([RHIDP-16666](https://redhat.atlassian.net/browse/RHIDP-16666)). Automatically aligns all `@backstage/*` package dependencies in `package.json` (`dependencies`, `devDependencies`, `peerDependencies`) and `backstage.json` to the exact manifest versions for a target RHDH release, preserving range specifiers and non-manifest dependencies. Supports `--dry-run`, `--skip-install`, and offline `--manifest-file` options.
+- **`plugin check-versions`:** Add `rhdh-cli plugin check-versions` (alias `plugin versions:lint`) command and RHDH-to-Backstage version mapping engine ([RHIDP-16665](https://redhat.atlassian.net/browse/RHIDP-16665), [RHIDP-16667](https://redhat.atlassian.net/browse/RHIDP-16667), [#176](https://github.com/redhat-developer/rhdh-cli/pull/176)). Supports auditing `@backstage/*` dependencies in `package.json` against target RHDH release manifests using a 3-tier resolution engine (remote GitHub build-metadata, embedded static compatibility matrix fallback, and Backstage release manifests).
+
 ## 2.0.4 - 2026-08-27
 
 ### Added
