@@ -158,6 +158,27 @@ export function registerPluginCommand(program: Command) {
     )
     .option('--json', 'Output results as JSON')
     .action(lazy(() => import('./check-versions').then(m => m.command)));
+
+  command
+    .command('upgrade [rhdhVersion]')
+    .alias('versions:bump')
+    .description(
+      'Upgrade dynamic plugin dependencies in package.json to match a target RHDH release',
+    )
+    .option(
+      '--dry-run',
+      'Display planned dependency updates without modifying files on disk',
+    )
+    .option(
+      '--skip-install',
+      'Do not run package manager install after updating dependencies',
+    )
+    .option(
+      '--manifest-file <path>',
+      'Path to local Backstage release manifest JSON file (for offline usage)',
+    )
+    .option('--json', 'Output upgrade results as JSON')
+    .action(lazy(() => import('./upgrade').then(m => m.command)));
 }
 
 export function registerCommands(program: Command) {
