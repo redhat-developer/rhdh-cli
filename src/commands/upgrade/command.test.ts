@@ -269,7 +269,7 @@ describe('upgrade command', () => {
       const parsed = JSON.parse(res.stdout);
       expect(parsed.rhdhVersion).toBe('2.0.0');
       expect(parsed.backstageVersion).toBe('1.52.0');
-      expect(parsed.changes.length).toBe(1);
+      expect(parsed.changes).toHaveLength(1);
       expect(parsed.changes[0].changed).toBe(true);
     });
 
