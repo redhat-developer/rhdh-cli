@@ -29,6 +29,48 @@ import {
 describe('rhdhVersion', () => {
   const originalFetch = globalThis.fetch;
 
+  function setupFetchMock({
+    metadata,
+    metadataError,
+    manifestVersion = '1.52.0',
+    packages = [],
+    manifestError,
+  }: {
+    metadata?: any;
+    metadataError?: Error;
+    manifestVersion?: string;
+    packages?: { name: string; version: string }[];
+    manifestError?: Error;
+  } = {}) {
+    const fn = jest.fn().mockImplementation((url: string) => {
+      if (url.includes('build-metadata.json')) {
+        if (metadataError) return Promise.reject(metadataError);
+        if (metadata) {
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            json: async () => metadata,
+          } as any);
+        }
+        return Promise.resolve({ ok: false, status: 404 } as any);
+      }
+      if (url.includes('manifest.json')) {
+        if (manifestError) return Promise.reject(manifestError);
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: async () => ({
+            releaseVersion: manifestVersion,
+            packages,
+          }),
+        } as any);
+      }
+      return Promise.reject(new Error(`Unexpected url: ${url}`));
+    });
+    globalThis.fetch = fn;
+    return fn;
+  }
+
   beforeEach(() => {
     clearRhdhVersionCache();
     clearManifestCache();
@@ -110,17 +152,14 @@ describe('rhdhVersion', () => {
 
   describe('fetchRemoteRhdhMetadata', () => {
     it('fetches and parses remote build-metadata.json successfully', async () => {
-      const mockMetadata = {
-        card: {
-          'RHDH Version': '2.0.0',
-          'Backstage Version': '1.52.0',
+      setupFetchMock({
+        metadata: {
+          card: {
+            'RHDH Version': '2.0.0',
+            'Backstage Version': '1.52.0',
+          },
         },
-      };
-
-      globalThis.fetch = jest.fn().mockResolvedValue({
-        ok: true,
-        json: async () => mockMetadata,
-      } as any);
+      });
 
       const result = await fetchRemoteRhdhMetadata('2.0.0');
       expect(result).toEqual({
@@ -134,19 +173,14 @@ describe('rhdhVersion', () => {
     });
 
     it('handles HTTP error gracefully by returning undefined', async () => {
-      globalThis.fetch = jest.fn().mockResolvedValue({
-        ok: false,
-        status: 404,
-      } as any);
+      setupFetchMock({});
 
       const result = await fetchRemoteRhdhMetadata('9.9.9');
       expect(result).toBeUndefined();
     });
 
     it('handles network failure / fetch exception gracefully', async () => {
-      globalThis.fetch = jest
-        .fn()
-        .mockRejectedValue(new Error('Network error'));
+      setupFetchMock({ metadataError: new Error('Network error') });
 
       const result = await fetchRemoteRhdhMetadata('2.0.0');
       expect(result).toBeUndefined();
@@ -155,31 +189,14 @@ describe('rhdhVersion', () => {
 
   describe('resolveRhdhVersion', () => {
     it('resolves remote metadata when available (Tier 1)', async () => {
-      globalThis.fetch = jest.fn().mockImplementation((url: string) => {
-        if (url.includes('build-metadata.json')) {
-          return Promise.resolve({
-            ok: true,
-            json: async () => ({
-              card: {
-                'RHDH Version': '2.0.0',
-                'Backstage Version': '1.52.0',
-              },
-            }),
-          });
-        }
-        if (url.includes('manifest.json')) {
-          return Promise.resolve({
-            ok: true,
-            status: 200,
-            json: async () => ({
-              releaseVersion: '1.52.0',
-              packages: [
-                { name: '@backstage/core-plugin-api', version: '1.12.0' },
-              ],
-            }),
-          });
-        }
-        return Promise.reject(new Error(`Unexpected url: ${url}`));
+      setupFetchMock({
+        metadata: {
+          card: {
+            'RHDH Version': '2.0.0',
+            'Backstage Version': '1.52.0',
+          },
+        },
+        packages: [{ name: '@backstage/core-plugin-api', version: '1.12.0' }],
       });
 
       const resolved = await resolveRhdhVersion('2.0.0');
@@ -192,23 +209,10 @@ describe('rhdhVersion', () => {
     });
 
     it('falls back to static compatibility matrix (Tier 2) when remote fails', async () => {
-      globalThis.fetch = jest.fn().mockImplementation((url: string) => {
-        if (url.includes('build-metadata.json')) {
-          return Promise.reject(new Error('Network unreachable'));
-        }
-        if (url.includes('manifest.json')) {
-          return Promise.resolve({
-            ok: true,
-            status: 200,
-            json: async () => ({
-              releaseVersion: '1.45.3',
-              packages: [
-                { name: '@backstage/core-plugin-api', version: '1.10.9' },
-              ],
-            }),
-          });
-        }
-        return Promise.reject(new Error(`Unexpected url: ${url}`));
+      setupFetchMock({
+        metadataError: new Error('Network unreachable'),
+        manifestVersion: '1.45.3',
+        packages: [{ name: '@backstage/core-plugin-api', version: '1.10.9' }],
       });
 
       const resolved = await resolveRhdhVersion('1.9.0');
@@ -221,20 +225,10 @@ describe('rhdhVersion', () => {
     });
 
     it('skips remote lookup when offline option is provided', async () => {
-      const fetchMock = jest.fn().mockImplementation((url: string) => {
-        if (url.includes('manifest.json')) {
-          return Promise.resolve({
-            ok: true,
-            status: 200,
-            json: async () => ({
-              releaseVersion: '1.52.0',
-              packages: [],
-            }),
-          });
-        }
-        return Promise.reject(new Error('Should not be called'));
+      const fetchMock = setupFetchMock({
+        manifestVersion: '1.52.0',
+        packages: [],
       });
-      globalThis.fetch = fetchMock;
 
       const resolved = await resolveRhdhVersion('2.0.0', { offline: true });
       expect(resolved.source).toBe('matrix');
@@ -245,10 +239,7 @@ describe('rhdhVersion', () => {
     });
 
     it('throws descriptive error on unknown RHDH version', async () => {
-      globalThis.fetch = jest.fn().mockResolvedValue({
-        ok: false,
-        status: 404,
-      } as any);
+      setupFetchMock({});
 
       await expect(resolveRhdhVersion('999.0.0')).rejects.toThrow(
         /Unsupported or unknown RHDH version "999.0.0"/,
@@ -256,37 +247,19 @@ describe('rhdhVersion', () => {
     });
 
     it('caches resolution results on consecutive calls', async () => {
-      const fetchMock = jest.fn().mockImplementation((url: string) => {
-        if (url.includes('build-metadata.json')) {
-          return Promise.resolve({
-            ok: true,
-            json: async () => ({
-              card: {
-                'RHDH Version': '2.0.0',
-                'Backstage Version': '1.52.0',
-              },
-            }),
-          });
-        }
-        if (url.includes('manifest.json')) {
-          return Promise.resolve({
-            ok: true,
-            status: 200,
-            json: async () => ({
-              releaseVersion: '1.52.0',
-              packages: [],
-            }),
-          });
-        }
-        return Promise.reject(new Error(`Unexpected url: ${url}`));
+      const fetchMock = setupFetchMock({
+        metadata: {
+          card: {
+            'RHDH Version': '2.0.0',
+            'Backstage Version': '1.52.0',
+          },
+        },
       });
-      globalThis.fetch = fetchMock;
 
       const res1 = await resolveRhdhVersion('2.0.0');
       const res2 = await resolveRhdhVersion('2.0.0');
 
       expect(res1).toBe(res2);
-      // Fetch for build-metadata and manifest should each only have been called once
       expect(fetchMock).toHaveBeenCalledTimes(2);
     });
   });
