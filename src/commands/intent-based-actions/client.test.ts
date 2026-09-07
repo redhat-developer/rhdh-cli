@@ -40,6 +40,26 @@ describe('execPassthrough', () => {
     stderrSpy.mockRestore();
   });
 
+  it.each([
+    {
+      description: 'an unsupported command',
+      args: ['unsupported'],
+      expectedMessage: 'Unsupported pass-through command: unsupported',
+    },
+    {
+      description: 'a missing command',
+      args: [],
+      expectedMessage: 'Unsupported pass-through command: undefined',
+    },
+  ])(
+    'rejects $description without spawning a child process',
+    ({ args, expectedMessage }) => {
+      expect(() => execPassthrough(args)).toThrow(new Error(expectedMessage));
+      expect(mockSpawn).not.toHaveBeenCalled();
+      expect(exitSpy).not.toHaveBeenCalled();
+    },
+  );
+
   it('spawns the resolved binary with the given passthrough args', () => {
     const child = createFakeChild();
     mockSpawn.mockReturnValue(child as unknown as ReturnType<typeof spawn>);
