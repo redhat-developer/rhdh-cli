@@ -56,8 +56,8 @@ function findUpstreamCliName(text: string) {
 
 function rebrand(text: string): string {
   return text
-    .replaceAll(/backstage-cli/g, 'rhdh-cli')
-    .replaceAll(/@backstage\/cli-module-(?:actions|auth)/g, 'rhdh-cli');
+    .replace(/backstage-cli/g, 'rhdh-cli')
+    .replace(/@backstage\/cli-module-(?:actions|auth)/g, 'rhdh-cli');
 }
 
 // Rebrands output as it streams in, without buffering more than a couple
