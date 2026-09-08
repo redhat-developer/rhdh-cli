@@ -73,26 +73,10 @@ export function registerPluginCommand(program: Command) {
       'Provides the dynamic plugins root folder when the dynamic plugins content should be copied when using the `--dev` argument.',
     )
     .option(
-      '--scalprum-config <file>',
-      'Allows retrieving scalprum configuration from an external JSON file, instead of using a `scalprum` field of the `package.json`. Frontend plugins only.',
-    )
-    .option(
       '--track-dynamic-manifest-and-lock-file',
       'Adds the `package.json` and `yarn.lock` files, generated in the `dist-dynamic` folder of backend plugins, to source control. By default the whole `dist-dynamic` folder id git-ignored.',
       false,
     )
-    .option(
-      '--generate-scalprum-assets',
-      'Generate the dynamic frontend plugin assets through Scalprum in the `dist-scalprum` folder.',
-      true,
-    )
-    .option('--no-generate-scalprum-assets', '', false)
-    .option(
-      '--generate-module-federation-assets',
-      'Generate the dynamic frontend plugin assets through standard module federation in the `dist` folder.',
-      true,
-    )
-    .option('--no-generate-module-federation-assets', '', false)
     .action(lazy(() => import('./export-dynamic-plugin').then(m => m.command)));
 
   command
