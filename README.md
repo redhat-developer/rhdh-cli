@@ -41,6 +41,8 @@ Use `--json` for machine-readable output. To target a Backstage version directly
 
 For air-gapped environments, provide a local release manifest with `--manifest-file`. `--manifest-file` avoids the Backstage manifest download; also set `RHDH_OFFLINE=true` to skip the RHDH GitHub metadata lookup.
 
+When adding support for a new RHDH release, update `RHDH_COMPATIBILITY_MATRIX` in `src/lib/rhdhVersion.ts` with its Backstage version before releasing the corresponding CLI version. This matrix is maintained manually until its release metadata can be automated.
+
 ## Development
 
 ### Contributing
