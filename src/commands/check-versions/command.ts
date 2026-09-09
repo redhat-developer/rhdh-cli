@@ -285,9 +285,10 @@ export async function command(opts: OptionValues): Promise<void> {
     );
     throw new ExitCodeError(1);
   } else if (result.counts.unverifiable > 0) {
-    process.stderr.write(
-      `\n${chalk.yellow(`⚠ ${result.counts.unverifiable} backstage:^ dependencies cannot be verified against the target RHDH release.`)}\n\n`,
+    const message = chalk.yellow(
+      `⚠ ${result.counts.unverifiable} backstage:^ dependencies cannot be verified against the target RHDH release.`,
     );
+    process.stderr.write(`\n${message}\n\n`);
   } else {
     process.stderr.write(
       `\n${chalk.green('✔ All @backstage dependencies are aligned with target RHDH release.')}\n\n`,
