@@ -21,18 +21,24 @@ import { command } from './command';
 
 describe('package-dynamic-plugins command', () => {
   let tmpDir: string;
+  let originalCwd: string;
 
   beforeEach(() => {
     // Create a fresh temp directory for each test
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'rhdh-cli-test-'));
     // Change to temp directory for tests
+    originalCwd = process.cwd();
     process.chdir(tmpDir);
   });
 
   afterEach(() => {
+    process.chdir(originalCwd);
     // Clean up temp directory
     if (tmpDir && fs.existsSync(tmpDir)) {
       fs.removeSync(tmpDir);
+    }
+    if (process.cwd() !== originalCwd) {
+      throw new Error('test did not restore the original working directory');
     }
   });
 
