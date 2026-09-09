@@ -41,7 +41,7 @@ export const RHDH_COMPATIBILITY_MATRIX: Record<string, string> = {
 /**
  * Default stable RHDH GA release version
  */
-export const DEFAULT_RHDH_VERSION = '2.0.0';
+export const DEFAULT_RHDH_VERSION = '2.1.0';
 
 export type RhdhVersionSource = 'remote' | 'matrix' | 'explicit';
 

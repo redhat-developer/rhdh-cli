@@ -102,6 +102,7 @@ describe('rhdhVersion', () => {
 
   describe('normalizeRhdhVersion', () => {
     it('returns default version when no input provided', () => {
+      expect(DEFAULT_RHDH_VERSION).toBe('2.1.0');
       expect(normalizeRhdhVersion()).toBe(DEFAULT_RHDH_VERSION);
       expect(normalizeRhdhVersion('')).toBe(DEFAULT_RHDH_VERSION);
     });
