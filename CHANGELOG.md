@@ -4,6 +4,13 @@ All notable changes to `@red-hat-developer-hub/cli` are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Added
+
+- Add intent-based `catalog`, `api`, `search`, `docs`, and `template` commands,
+  including human-readable and JSON output modes ([#156](https://github.com/redhat-developer/rhdh-cli/pull/156)).
+
 ## 2.0.4 - 2026-08-27
 
 ### Added

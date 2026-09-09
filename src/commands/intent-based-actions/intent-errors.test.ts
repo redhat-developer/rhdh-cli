@@ -125,6 +125,14 @@ describe('handleCommandError', () => {
     expect(writtenError().reason).toMatch(/was not found/);
   });
 
+  it('does not classify an incidental 404 in an entity name as not found', () => {
+    handleCommandError(
+      new Error('Entity service-404 failed validation'),
+      'json',
+    );
+    expect(writtenError().reason).toBe('Entity service-404 failed validation');
+  });
+
   it('maps an ECONNREFUSED error to a connectivity reason', () => {
     handleCommandError(new Error('connect ECONNREFUSED 127.0.0.1'), 'json');
     expect(writtenError().reason).toMatch(/Could not connect/);

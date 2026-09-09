@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { Command } from 'commander';
-import { runEntityListAction, runRawAction } from './helpers';
+import { runEntityListAction, runRawAction, type ActionFlags } from './helpers';
 import { parseOutputFlag } from './format';
 import { handleCommandError } from './intent-errors';
 import { collect, resolveJsonInput } from './kv';
@@ -19,7 +19,7 @@ export function registerTemplateCommands(program: Command) {
     .action(async opts => {
       const mode = parseOutputFlag(opts.output);
 
-      const flags: Record<string, string | number | undefined> = {
+      const flags: ActionFlags = {
         query: JSON.stringify({ kind: 'Template' }),
         instance: opts.instance,
         limit: opts.limit,

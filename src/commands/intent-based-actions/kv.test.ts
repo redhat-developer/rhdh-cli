@@ -37,6 +37,12 @@ describe('parseKeyValuePairs', () => {
     });
   });
 
+  it('preserves whitespace-only values as strings', () => {
+    expect(parseKeyValuePairs(['description=   '])).toEqual({
+      description: '   ',
+    });
+  });
+
   it('keeps values with embedded "=" intact', () => {
     expect(parseKeyValuePairs(['query=kind=Component'])).toEqual({
       query: 'kind=Component',

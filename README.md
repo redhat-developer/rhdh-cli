@@ -54,6 +54,35 @@ or when executing from the project root you can also use:
 npx @red-hat-developer-hub/cli
 ```
 
+## Commands
+
+The CLI exposes the bundled Backstage authentication and action commands, as
+well as higher-level intent-based commands:
+
+- `auth`: log in to, select, inspect, and manage authenticated Backstage instances.
+- `actions`: list and execute actions, and manage action-discovery sources.
+- `catalog`: list, get, validate, register, and unregister catalog entities.
+- `api`: list API entities and retrieve their specifications.
+- `search`: search catalog, TechDocs, and template content.
+- `docs`: search TechDocs and, on RHDH instances, list entities, retrieve pages,
+  and view coverage.
+- `template`: list, execute, and dry-run software templates.
+
+Examples:
+
+```bash
+rhdh-cli auth login --backend-url https://backstage.example.com
+rhdh-cli catalog list --kind Component
+rhdh-cli search "deployment guide" --types techdocs
+rhdh-cli template execute \
+  --template-ref template:default/my-template \
+  --value name=my-app
+```
+
+The `--secret` and `--secrets` template options are forwarded to
+`backstage-cli actions execute` as action input flags. Avoid using them on
+shared machines where other users can inspect process arguments.
+
 ### Bumping Backstage Dependencies
 
 To update the `@backstage/*` dependencies to a new Backstage release:

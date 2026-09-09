@@ -161,6 +161,13 @@ describe('formatSearchResults', () => {
     expect(output).toContain('/flat');
   });
 
+  it('falls back to top-level text when document is absent', () => {
+    const output = formatSearchResults([
+      { title: 'Flat result', text: 'Flat result text' },
+    ]);
+    expect(output).toContain('Flat result text');
+  });
+
   it('omits the location line when no location is present', () => {
     const output = formatSearchResults([{ title: 'No location' }]);
     expect(output).toContain('No location');

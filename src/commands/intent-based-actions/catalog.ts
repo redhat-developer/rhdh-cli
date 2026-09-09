@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { Command } from 'commander';
-import { runEntityListAction, runRawAction } from './helpers';
+import { runEntityListAction, runRawAction, type ActionFlags } from './helpers';
 import { parseOutputFlag } from './format';
 import { handleCommandError } from './intent-errors';
 import { collect, parseList, resolveJsonInput } from './kv';
@@ -53,7 +53,7 @@ export function registerCatalogCommands(program: Command) {
 
       const fields = parseList(opts.fields);
 
-      const flags: Record<string, string | number | undefined> = {
+      const flags: ActionFlags = {
         instance: opts.instance,
         limit: opts.limit,
         fields: fields ? JSON.stringify(fields) : undefined,

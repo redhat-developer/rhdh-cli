@@ -48,7 +48,7 @@ export function parseList(value: string | undefined): string[] | undefined {
 function coerceValue(raw: string): unknown {
   if (raw === 'true') return true;
   if (raw === 'false') return false;
-  if (raw !== '' && !Number.isNaN(Number(raw))) return Number(raw);
+  if (raw.trim() !== '' && !Number.isNaN(Number(raw))) return Number(raw);
   return raw;
 }
 

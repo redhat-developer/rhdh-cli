@@ -59,10 +59,10 @@ function extractReason(error: unknown): string {
 
   const fullMessage = collectMessages(error);
 
-  if (fullMessage.includes('401') || fullMessage.includes('Unauthorized')) {
+  if (hasStatusCode(fullMessage, 401) || fullMessage.includes('Unauthorized')) {
     return 'Authentication failed or token expired. Re-authenticate with: rhdh-cli auth login';
   }
-  if (fullMessage.includes('404') || fullMessage.includes('Not Found')) {
+  if (hasStatusCode(fullMessage, 404) || fullMessage.includes('Not Found')) {
     return 'The requested resource was not found. Check the entity name, kind, or namespace.';
   }
   if (
@@ -75,19 +75,14 @@ function extractReason(error: unknown): string {
     return 'No Backstage instance configured. Run: rhdh-cli auth login --backend-url <URL>';
   }
 
-  const stderr = getStderr(error);
-  if (stderr && stderr.trim()) {
-    const lines = stderr
-      .trim()
-      .split('\n')
-      .filter(l => l.trim());
-    const errorLine = lines.find(l => /^Error:/i.test(l.trim()));
-    return errorLine
-      ? errorLine.replace(/^\s*Error:\s*/i, '').trim()
-      : lines[0].trim();
-  }
+  const stderrMessage = extractStderrMessage(error);
+  if (stderrMessage) return stderrMessage;
 
   return extractPrimaryMessage(error);
+}
+
+function hasStatusCode(message: string, statusCode: number): boolean {
+  return new RegExp(`(?:^|[\\s:=])${statusCode}(?:$|[\\s,.;])`).test(message);
 }
 
 function collectMessages(error: unknown): string {
@@ -103,16 +98,22 @@ function collectMessages(error: unknown): string {
 function extractPrimaryMessage(error: unknown): string {
   if (!(error instanceof Error)) return String(error);
 
-  const stderr = getStderr(error);
-  if (stderr && stderr.trim()) {
-    const lines = stderr
-      .trim()
-      .split('\n')
-      .filter(l => l.trim());
-    const errorLine = lines.find(l => /^Error:/i.test(l.trim()));
-    if (errorLine) return errorLine.replace(/^\s*Error:\s*/i, '').trim();
-    return lines[0].trim();
-  }
+  const stderrMessage = extractStderrMessage(error);
+  if (stderrMessage) return stderrMessage;
 
   return error.message;
+}
+
+function extractStderrMessage(error: unknown): string | undefined {
+  const stderr = getStderr(error);
+  if (!stderr || !stderr.trim()) return undefined;
+
+  const lines = stderr
+    .trim()
+    .split('\n')
+    .filter(l => l.trim());
+  const errorLine = lines.find(l => /^Error:/i.test(l.trim()));
+  return errorLine
+    ? errorLine.replace(/^\s*Error:\s*/i, '').trim()
+    : lines[0].trim();
 }

@@ -1,6 +1,6 @@
 import { Command } from 'commander';
 import { execAction } from './client';
-import { runEntityListAction } from './helpers';
+import { runEntityListAction, type ActionFlags } from './helpers';
 import { parseOutputFlag, writeOutput } from './format';
 import { handleCommandError } from './intent-errors';
 
@@ -22,7 +22,7 @@ export function registerApiCommands(program: Command) {
       const query: Record<string, unknown> = { kind: 'API' };
       if (opts.type) query['spec.type'] = opts.type;
 
-      const flags: Record<string, string | number | undefined> = {
+      const flags: ActionFlags = {
         query: JSON.stringify(query),
         instance: opts.instance,
         limit: opts.limit,

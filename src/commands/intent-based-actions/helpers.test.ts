@@ -28,7 +28,7 @@ describe('runEntityListAction', () => {
   });
 
   it('writes the raw action output directly in json mode', async () => {
-    mockExecAction.mockResolvedValue('{"items":[]}');
+    mockExecAction.mockReturnValue('{"items":[]}');
 
     await runEntityListAction(
       'catalog:query-catalog-entities',
@@ -45,7 +45,7 @@ describe('runEntityListAction', () => {
   });
 
   it('extracts entities and renders a table in human mode', async () => {
-    mockExecActionJson.mockResolvedValue({
+    mockExecActionJson.mockReturnValue({
       items: [{ kind: 'Component', metadata: { name: 'my-service' } }],
     });
 
@@ -67,7 +67,9 @@ describe('runEntityListAction', () => {
 
   it('routes errors from execAction to handleCommandError with the given suggestion', async () => {
     const error = new Error('boom');
-    mockExecAction.mockRejectedValue(error);
+    mockExecAction.mockImplementation(() => {
+      throw error;
+    });
 
     await runEntityListAction(
       'catalog:query-catalog-entities',
@@ -83,7 +85,9 @@ describe('runEntityListAction', () => {
 
   it('calls handleCommandError without a suggestion when none is given', async () => {
     const error = new Error('boom');
-    mockExecActionJson.mockRejectedValue(error);
+    mockExecActionJson.mockImplementation(() => {
+      throw error;
+    });
 
     await runEntityListAction('catalog:query-catalog-entities', {}, 'human');
 
@@ -110,7 +114,7 @@ describe('runRawAction', () => {
   });
 
   it('writes the raw string directly in json mode', async () => {
-    mockExecAction.mockResolvedValue('{"foo":"bar"}');
+    mockExecAction.mockReturnValue('{"foo":"bar"}');
 
     await runRawAction('catalog:get-catalog-entity', { name: 'x' }, 'json');
 
@@ -118,7 +122,7 @@ describe('runRawAction', () => {
   });
 
   it('pretty-prints the parsed JSON in human mode', async () => {
-    mockExecAction.mockResolvedValue('{"foo":"bar"}');
+    mockExecAction.mockReturnValue('{"foo":"bar"}');
 
     await runRawAction('catalog:get-catalog-entity', { name: 'x' }, 'human');
 
@@ -129,7 +133,9 @@ describe('runRawAction', () => {
 
   it('routes execAction errors to handleCommandError', async () => {
     const error = new Error('boom');
-    mockExecAction.mockRejectedValue(error);
+    mockExecAction.mockImplementation(() => {
+      throw error;
+    });
 
     await runRawAction(
       'catalog:get-catalog-entity',
@@ -144,7 +150,7 @@ describe('runRawAction', () => {
   });
 
   it('routes JSON parse failures in human mode to handleCommandError', async () => {
-    mockExecAction.mockResolvedValue('not valid json');
+    mockExecAction.mockReturnValue('not valid json');
 
     await runRawAction('catalog:get-catalog-entity', {}, 'human');
 
@@ -168,7 +174,7 @@ describe('runSearchAction', () => {
   });
 
   it('merges the term into the flags passed to the search:query action', async () => {
-    mockExecAction.mockResolvedValue('{}');
+    mockExecAction.mockReturnValue('{}');
 
     await runSearchAction('my service', { instance: 'default' }, 'json');
 
@@ -179,7 +185,7 @@ describe('runSearchAction', () => {
   });
 
   it('writes the raw output directly in json mode', async () => {
-    mockExecAction.mockResolvedValue('{"results":[]}');
+    mockExecAction.mockReturnValue('{"results":[]}');
 
     await runSearchAction('term', {}, 'json');
 
@@ -187,7 +193,7 @@ describe('runSearchAction', () => {
   });
 
   it('extracts result.results and renders snippets in human mode', async () => {
-    mockExecActionJson.mockResolvedValue({
+    mockExecActionJson.mockReturnValue({
       results: [{ document: { title: 'Doc title', text: 'some text' } }],
     });
 
@@ -199,7 +205,7 @@ describe('runSearchAction', () => {
   });
 
   it('treats a bare array result as the results list directly', async () => {
-    mockExecActionJson.mockResolvedValue([
+    mockExecActionJson.mockReturnValue([
       { document: { title: 'Bare result' } },
     ]);
 
@@ -209,9 +215,23 @@ describe('runSearchAction', () => {
     expect(output).toContain('Bare result');
   });
 
+  it('falls back to JSON output for a non-array search result', async () => {
+    const result = { message: 'unexpected response shape' };
+    mockExecActionJson.mockReturnValue(result);
+
+    await runSearchAction('term', {}, 'human');
+
+    expect(writeSpy).toHaveBeenCalledWith(
+      `${JSON.stringify(result, null, 2)}\n`,
+    );
+    expect(mockHandleCommandError).not.toHaveBeenCalled();
+  });
+
   it('routes errors to handleCommandError with the given suggestion', async () => {
     const error = new Error('boom');
-    mockExecActionJson.mockRejectedValue(error);
+    mockExecActionJson.mockImplementation(() => {
+      throw error;
+    });
 
     await runSearchAction('term', {}, 'human', 'rhdh-cli search "term"');
 

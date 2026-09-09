@@ -1,7 +1,7 @@
 import chalk from 'chalk';
 import { Command } from 'commander';
 import { execAction, execActionJson } from './client';
-import { runSearchAction } from './helpers';
+import { runSearchAction, type ActionFlags } from './helpers';
 import {
   parseOutputFlag,
   writeOutput,
@@ -9,6 +9,9 @@ import {
   extractEntities,
 } from './format';
 import { handleCommandError } from './intent-errors';
+
+const RHDH_ONLY_SUGGESTION =
+  'Use an RHDH instance with techdocs-mcp-extras enabled.';
 
 export function registerDocsCommands(program: Command) {
   const docs = program
@@ -65,7 +68,7 @@ export function registerDocsCommands(program: Command) {
     .action(async opts => {
       const mode = parseOutputFlag(opts.output);
       try {
-        const flags: Record<string, string | undefined> = {
+        const flags: ActionFlags = {
           entityType: opts.entityType,
           owner: opts.owner,
           lifecycle: opts.lifecycle,
@@ -93,7 +96,7 @@ export function registerDocsCommands(program: Command) {
         }
       } catch (error) {
         handleCommandError(error, mode, {
-          suggestion: 'rhdh-cli docs list',
+          suggestion: RHDH_ONLY_SUGGESTION,
         });
       }
     });
@@ -119,7 +122,7 @@ export function registerDocsCommands(program: Command) {
         });
       }
       try {
-        const flags: Record<string, string | undefined> = {
+        const flags: ActionFlags = {
           entityRef: opts.entityRef,
           pagePath: opts.pagePath,
           instance: opts.instance,
@@ -151,7 +154,7 @@ export function registerDocsCommands(program: Command) {
         }
       } catch (error) {
         handleCommandError(error, mode, {
-          suggestion: 'rhdh-cli docs list',
+          suggestion: RHDH_ONLY_SUGGESTION,
         });
       }
     });
@@ -166,7 +169,7 @@ export function registerDocsCommands(program: Command) {
     .action(async opts => {
       const mode = parseOutputFlag(opts.output);
       try {
-        const flags: Record<string, string | undefined> = {
+        const flags: ActionFlags = {
           instance: opts.instance,
         };
 
@@ -189,14 +192,15 @@ export function registerDocsCommands(program: Command) {
             result?.documentedEntities ??
             result?.documented;
           const coverage = result?.coveragePercentage ?? result?.coverage;
+          const coverageLabel = coverage === undefined ? 'N/A' : `${coverage}%`;
 
           if (total !== undefined) {
             const lines = [
               `${chalk.bold('TechDocs Coverage Report')}`,
               '',
               `Total entities:       ${total}`,
-              `Documented entities:  ${documented}`,
-              `Coverage:             ${coverage}%`,
+              `Documented entities:  ${documented ?? 'N/A'}`,
+              `Coverage:             ${coverageLabel}`,
             ];
             process.stdout.write(`${lines.join('\n')}\n`);
           } else {
@@ -205,7 +209,7 @@ export function registerDocsCommands(program: Command) {
         }
       } catch (error) {
         handleCommandError(error, mode, {
-          suggestion: 'rhdh-cli docs coverage',
+          suggestion: RHDH_ONLY_SUGGESTION,
         });
       }
     });

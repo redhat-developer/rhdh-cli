@@ -8,7 +8,7 @@ import {
 } from './format';
 import { handleCommandError } from './intent-errors';
 
-type ActionFlags = Record<string, string | boolean | number | undefined>;
+export type ActionFlags = Record<string, string | boolean | number | undefined>;
 
 /**
  * Runs a catalog-style action that returns a list of entities, and prints
@@ -77,16 +77,21 @@ export async function runSearchAction(
     if (mode === 'json') {
       process.stdout.write(await execAction('search:query', flags));
     } else {
-      const result = (await execActionJson('search:query', flags)) as Record<
-        string,
-        unknown
-      >;
-      const results = (result?.results ?? result) as Array<
-        Record<string, unknown>
-      >;
-      writeOutput(Array.isArray(results) ? results : result, mode, data =>
-        formatSearchResults(data as Array<Record<string, unknown>>),
-      );
+      const result = await execActionJson('search:query', flags);
+      let results: unknown;
+      if (Array.isArray(result)) {
+        results = result;
+      } else if (result && typeof result === 'object' && 'results' in result) {
+        results = result.results;
+      }
+
+      if (Array.isArray(results)) {
+        writeOutput(results, mode, data =>
+          formatSearchResults(data as Array<Record<string, unknown>>),
+        );
+      } else {
+        writeOutput(result, mode);
+      }
     }
   } catch (error) {
     handleCommandError(error, mode, suggestion ? { suggestion } : undefined);
