@@ -110,12 +110,15 @@ describe('export and package rhdh-plugins scorecard workspace plugin', () => {
         // eslint-disable-next-line jest/no-conditional-expect
         expect(
           fs.existsSync(
-            path.join(
-              getFullPluginPath(),
-              'dist-dynamic/dist-scalprum/plugin-manifest.json',
-            ),
+            path.join(getFullPluginPath(), 'dist-dynamic/dist/remoteEntry.js'),
           ),
         ).toEqual(true);
+        // eslint-disable-next-line jest/no-conditional-expect
+        expect(
+          fs.existsSync(
+            path.join(getFullPluginPath(), 'dist-dynamic/dist-scalprum'),
+          ),
+        ).toEqual(false);
 
         const distDynamicPkg = JSON.parse(
           fs.readFileSync(
@@ -125,6 +128,8 @@ describe('export and package rhdh-plugins scorecard workspace plugin', () => {
         );
         // eslint-disable-next-line jest/no-conditional-expect
         expect(distDynamicPkg.backstage?.features).toEqual(expectedFeatures);
+        // eslint-disable-next-line jest/no-conditional-expect
+        expect(distDynamicPkg).not.toHaveProperty('scalprum');
       }
     });
 
