@@ -28,6 +28,7 @@ describe('package-dynamic-plugins command', () => {
     // Create a fresh temp directory for each test
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'rhdh-cli-test-'));
     // Change to temp directory for tests
+    originalCwd = process.cwd();
     process.chdir(tmpDir);
   });
 
@@ -36,6 +37,9 @@ describe('package-dynamic-plugins command', () => {
     // Clean up temp directory
     if (tmpDir && fs.existsSync(tmpDir)) {
       fs.removeSync(tmpDir);
+    }
+    if (process.cwd() !== origCwd) {
+      throw new Error('test did not restore the original working directory');
     }
   });
 
