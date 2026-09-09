@@ -19,6 +19,8 @@ import { OptionValues } from 'commander';
 import fs from 'fs-extra';
 import path from 'node:path';
 import semver from 'semver';
+
+import { ExitCodeError } from '../../lib/errors';
 import { paths } from '../../lib/paths';
 import { resolveRhdhVersion } from '../../lib/rhdhVersion';
 import { Task } from '../../lib/tasks';
@@ -59,7 +61,6 @@ export interface CheckVersionsResult {
 export interface CheckVersionsOptions {
   rhdhVersion?: string;
   manifestFile?: string;
-  json?: boolean;
   targetDir?: string;
 }
 
@@ -173,7 +174,7 @@ export async function checkPluginDependencies(
   const mismatched = packages.filter(p => p.status === 'mismatch').length;
   const unmanifested = packages.filter(p => p.status === 'unmanifested').length;
   const unverifiable = packages.filter(p => p.status === 'unverifiable').length;
-  const valid = mismatched === 0 && unmanifested === 0 && unverifiable === 0;
+  const valid = mismatched === 0 && unmanifested === 0;
 
   return {
     rhdhVersion: resolved.rhdhVersion,
@@ -200,13 +201,12 @@ export async function command(opts: OptionValues): Promise<void> {
   const result = await checkPluginDependencies({
     rhdhVersion,
     manifestFile,
-    json,
   });
 
   if (json) {
     process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
     if (!result.valid) {
-      process.exitCode = 1;
+      throw new ExitCodeError(1);
     }
     return;
   }
@@ -283,7 +283,11 @@ export async function command(opts: OptionValues): Promise<void> {
     process.stderr.write(
       `\n${chalk.yellow('Remediation:')} Run ${upgradeCmd} to align dependencies with RHDH v${result.rhdhVersion}.\n\n`,
     );
-    process.exitCode = 1;
+    throw new ExitCodeError(1);
+  } else if (result.counts.unverifiable > 0) {
+    process.stderr.write(
+      `\n${chalk.yellow(`⚠ ${result.counts.unverifiable} backstage:^ dependencies cannot be verified against the target RHDH release.`)}\n\n`,
+    );
   } else {
     process.stderr.write(
       `\n${chalk.green('✔ All @backstage dependencies are aligned with target RHDH release.')}\n\n`,

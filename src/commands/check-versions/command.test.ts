@@ -17,6 +17,8 @@
 import fs from 'fs-extra';
 import os from 'os';
 import path from 'node:path';
+
+import { ExitCodeError } from '../../lib/errors';
 import { resolveRhdhVersion } from '../../lib/rhdhVersion';
 import { checkPluginDependencies, command } from './command';
 
@@ -57,6 +59,7 @@ describe('checkPluginDependencies', () => {
   async function runCommandWithOutput(opts: any = {}) {
     let stdout = '';
     let stderr = '';
+    let error: Error | undefined;
     const stdoutSpy = jest
       .spyOn(process.stdout, 'write')
       .mockImplementation((chunk: any) => {
@@ -72,12 +75,14 @@ describe('checkPluginDependencies', () => {
 
     try {
       await command(opts);
+    } catch (caughtError) {
+      error = caughtError as Error;
     } finally {
       stdoutSpy.mockRestore();
       stderrSpy.mockRestore();
     }
 
-    return { stdout, stderr, exitCode: process.exitCode };
+    return { stdout, stderr, error };
   }
 
   beforeEach(async () => {
@@ -124,7 +129,7 @@ describe('checkPluginDependencies', () => {
 
     const result = await checkPluginDependencies({ targetDir: tmpDir });
 
-    expect(result.valid).toBe(false);
+    expect(result.valid).toBe(true);
     expect(result.counts.matching).toBe(3);
     expect(result.counts.mismatched).toBe(0);
     expect(result.counts.unmanifested).toBe(0);
@@ -184,7 +189,8 @@ describe('checkPluginDependencies', () => {
 
       const res = await runCommandWithOutput({});
       expect(res.stderr).toContain('cannot verify backstage:^');
-      expect(res.exitCode).toBe(1);
+      expect(res.stderr).toContain('cannot be verified');
+      expect(res.error).toBeUndefined();
     });
 
     it('outputs JSON when --json flag is passed and sets exitCode on failure', async () => {
@@ -196,7 +202,7 @@ describe('checkPluginDependencies', () => {
       const parsed = JSON.parse(res.stdout);
       expect(parsed.valid).toBe(false);
       expect(parsed.counts.mismatched).toBe(1);
-      expect(res.exitCode).toBe(1);
+      expect(res.error).toEqual(new ExitCodeError(1));
     });
 
     it('prints formatted table and remediation when run in human mode', async () => {
@@ -209,7 +215,7 @@ describe('checkPluginDependencies', () => {
       expect(res.stderr).toContain('@backstage/core-plugin-api');
       expect(res.stderr).toContain('mismatch');
       expect(res.stderr).toContain('rhdh-cli plugin upgrade 2.0.0');
-      expect(res.exitCode).toBe(1);
+      expect(res.error).toEqual(new ExitCodeError(1));
     });
 
     it('prints success message when dependencies are aligned', async () => {
@@ -219,7 +225,7 @@ describe('checkPluginDependencies', () => {
 
       const res = await runCommandWithOutput({});
       expect(res.stderr).toContain('All @backstage dependencies are aligned');
-      expect(res.exitCode).toBeUndefined();
+      expect(res.error).toBeUndefined();
     });
   });
 });

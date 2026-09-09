@@ -14,10 +14,14 @@
  * limitations under the License.
  */
 
-import { clearManifestCache } from './backstageVersion';
 import fs from 'fs-extra';
-import os from 'os';
+import os from 'node:os';
 import path from 'node:path';
+
+import {
+  clearManifestCache,
+  getCurrentBackstageVersion,
+} from './backstageVersion';
 import {
   clearRhdhVersionCache,
   DEFAULT_RHDH_VERSION,
@@ -29,8 +33,17 @@ import {
   resolveRhdhVersion,
 } from './rhdhVersion';
 
+jest.mock('./backstageVersion', () => ({
+  ...jest.requireActual('./backstageVersion'),
+  getCurrentBackstageVersion: jest.fn(),
+}));
+
 describe('rhdhVersion', () => {
   const originalFetch = globalThis.fetch;
+  const mockGetCurrentBackstageVersion =
+    getCurrentBackstageVersion as jest.MockedFunction<
+      typeof getCurrentBackstageVersion
+    >;
 
   function setupFetchMock({
     metadata,
@@ -80,6 +93,7 @@ describe('rhdhVersion', () => {
     delete process.env.RHDH_OFFLINE;
     delete process.env.BACKSTAGE_MANIFEST_FILE;
     delete process.env.BACKSTAGE_VERSIONS_BASE_URL;
+    mockGetCurrentBackstageVersion.mockReset();
   });
 
   afterEach(() => {
@@ -124,6 +138,10 @@ describe('rhdhVersion', () => {
       expect(getRhdhGitRef('2.0')).toBe('release-2.0');
       expect(getRhdhGitRef('1.9.0')).toBe('release-1.9');
       expect(getRhdhGitRef('1.10.0')).toBe('release-1.10');
+    });
+
+    it('rejects unsafe branch names', () => {
+      expect(getRhdhGitRef('../main')).toBeUndefined();
     });
   });
 
@@ -197,6 +215,14 @@ describe('rhdhVersion', () => {
       const result = await fetchRemoteRhdhMetadata('2.0.0');
       expect(result).toBeUndefined();
     });
+
+    it('rejects invalid Backstage versions from remote metadata', async () => {
+      setupFetchMock({
+        metadata: { card: { 'Backstage Version': 'not-a-version' } },
+      });
+
+      await expect(fetchRemoteRhdhMetadata('2.0.0')).resolves.toBeUndefined();
+    });
   });
 
   describe('resolveRhdhVersion', () => {
@@ -233,6 +259,25 @@ describe('rhdhVersion', () => {
       expect(resolved.packages.get('@backstage/core-plugin-api')).toBe(
         '1.14.0',
       );
+    });
+
+    it('normalizes two-component explicit Backstage versions', async () => {
+      setupFetchMock({ packages: [] });
+
+      const resolved = await resolveRhdhVersion('backstage:1.54');
+
+      expect(resolved.backstageVersion).toBe('1.54.0');
+      expect(resolved.rhdhVersion).toBe('backstage:1.54.0');
+    });
+
+    it('uses the current Backstage version to select the default RHDH target', async () => {
+      mockGetCurrentBackstageVersion.mockResolvedValue('1.45.3');
+      setupFetchMock({ packages: [] });
+
+      const resolved = await resolveRhdhVersion(undefined, { offline: true });
+
+      expect(resolved.rhdhVersion).toBe('1.9.0');
+      expect(resolved.backstageVersion).toBe('1.45.3');
     });
 
     it('rejects an ambiguous bare Backstage version', async () => {
@@ -300,6 +345,26 @@ describe('rhdhVersion', () => {
       await fs.remove(path.dirname(manifestFile));
     });
 
+    it('allows an explicit online option to override RHDH_OFFLINE', async () => {
+      process.env.RHDH_OFFLINE = 'true';
+      const fetchMock = setupFetchMock({
+        metadata: {
+          card: {
+            'RHDH Version': '2.0.0',
+            'Backstage Version': '1.52.0',
+          },
+        },
+      });
+
+      const resolved = await resolveRhdhVersion('2.0.0', { offline: false });
+
+      expect(resolved.source).toBe('remote');
+      expect(fetchMock).toHaveBeenCalledWith(
+        expect.stringContaining('build-metadata.json'),
+        expect.anything(),
+      );
+    });
+
     it('throws descriptive error on unknown RHDH version', async () => {
       setupFetchMock({});
 
@@ -323,6 +388,26 @@ describe('rhdhVersion', () => {
 
       expect(res1).toBe(res2);
       expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
+
+    it('does not reuse a manifest resolved from a different base URL', async () => {
+      const fetchMock = setupFetchMock({
+        metadata: {
+          card: {
+            'RHDH Version': '2.0.0',
+            'Backstage Version': '1.52.0',
+          },
+        },
+      });
+
+      await resolveRhdhVersion('2.0.0', {
+        versionsBaseUrl: 'https://one.example.test',
+      });
+      await resolveRhdhVersion('2.0.0', {
+        versionsBaseUrl: 'https://two.example.test',
+      });
+
+      expect(fetchMock).toHaveBeenCalledTimes(4);
     });
   });
 });

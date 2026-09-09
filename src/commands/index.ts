@@ -18,7 +18,7 @@ import { assertError } from '@backstage/errors';
 
 import { Command } from 'commander';
 
-import { exitWithError } from '../lib/errors';
+import { ExitCodeError, exitWithError } from '../lib/errors';
 import { registerIntentCommands } from './intent-based-actions';
 
 export function registerPluginCommand(program: Command) {
@@ -149,7 +149,6 @@ export function registerPluginCommand(program: Command) {
 
   command
     .command('check-versions')
-    .alias('versions:lint')
     .description(
       'Check dynamic plugin dependencies in package.json against target RHDH release Backstage manifest',
     )
@@ -179,9 +178,12 @@ function lazy(
       const actionFunc = await getActionFunc();
       await actionFunc(...args);
 
-      process.exit(process.exitCode ?? 0);
+      process.exit(0);
     } catch (error) {
       assertError(error);
+      if (error instanceof ExitCodeError) {
+        process.exit(error.code);
+      }
       exitWithError(error);
     }
   };

@@ -44,7 +44,11 @@ const PROTOCOL = 'backstage:';
  * Cache for the release manifest to avoid fetching it multiple times
  */
 let cachedManifest:
-  | { version: string; packages: Map<string, string> }
+  | {
+      version: string;
+      versionsBaseUrl?: string;
+      packages: Map<string, string>;
+    }
   | undefined;
 
 /**
@@ -95,7 +99,11 @@ export async function getBackstageManifest(
   const versionsBaseUrl =
     options?.versionsBaseUrl || process.env.BACKSTAGE_VERSIONS_BASE_URL;
 
-  if (cachedManifest?.version === backstageVersion && !manifestFile) {
+  if (
+    cachedManifest?.version === backstageVersion &&
+    cachedManifest.versionsBaseUrl === versionsBaseUrl &&
+    !manifestFile
+  ) {
     return cachedManifest.packages;
   }
 
@@ -135,7 +143,7 @@ export async function getBackstageManifest(
     packages.set(pkg.name, pkg.version);
   }
 
-  cachedManifest = { version: backstageVersion, packages };
+  cachedManifest = { version: backstageVersion, versionsBaseUrl, packages };
   return packages;
 }
 

@@ -15,6 +15,7 @@
  */
 
 import semver from 'semver';
+
 import {
   getBackstageManifest,
   getCurrentBackstageVersion,
@@ -92,9 +93,13 @@ export function normalizeRhdhVersion(input?: string): string {
 /**
  * Maps an RHDH version or branch name to a GitHub repository ref/branch in redhat-developer/rhdh
  */
-export function getRhdhGitRef(version: string): string {
+export function getRhdhGitRef(version: string): string | undefined {
   if (version === 'main' || version === 'next') {
     return 'main';
+  }
+
+  if (!/^[a-z0-9._-]+$/.test(version)) {
+    return undefined;
   }
 
   // For versions like 2.0.0, 2.0, 1.9.0, extract major.minor for release branch (e.g. release-2.0)
@@ -114,6 +119,9 @@ export async function fetchRemoteRhdhMetadata(
   options?: { timeoutMs?: number; baseUrl?: string },
 ): Promise<{ rhdhVersion: string; backstageVersion: string } | undefined> {
   const gitRef = getRhdhGitRef(rhdhVersion);
+  if (!gitRef) {
+    return undefined;
+  }
   const baseUrl =
     options?.baseUrl ||
     process.env.RHDH_METADATA_BASE_URL ||
@@ -146,11 +154,13 @@ export async function fetchRemoteRhdhMetadata(
         rhdhVersion;
 
       if (bsVersion && typeof bsVersion === 'string') {
-        const validBsVersion = semver.clean(bsVersion) || bsVersion.trim();
-        return {
-          rhdhVersion: resolvedRhdhVersion,
-          backstageVersion: validBsVersion,
-        };
+        const validBsVersion = semver.clean(bsVersion);
+        if (validBsVersion) {
+          return {
+            rhdhVersion: resolvedRhdhVersion,
+            backstageVersion: validBsVersion,
+          };
+        }
       }
     }
   } catch {
@@ -247,10 +257,11 @@ async function resolveBackstageVersionForRhdh(
   // Support explicit Backstage versions (e.g. "backstage:1.54.0").
   if (normalized.startsWith('backstage:')) {
     const bsVer = normalized.replace(/^backstage:/, '').trim();
-    if (semver.valid(bsVer)) {
+    const parsed = semver.coerce(bsVer);
+    if (parsed) {
       return {
-        backstageVersion: bsVer,
-        resolvedRhdhVersion: `backstage:${bsVer}`,
+        backstageVersion: parsed.version,
+        resolvedRhdhVersion: `backstage:${parsed.version}`,
         source: 'explicit',
       };
     }
@@ -293,14 +304,17 @@ export async function resolveRhdhVersion(
 ): Promise<ResolvedRhdhVersion> {
   const targetVersion = rhdhVersionInput || (await getDefaultTargetVersion());
   const normalized = normalizeRhdhVersion(targetVersion);
-  const cacheKey = `${normalized}:${options?.manifestFile || ''}:${options?.offline || ''}`;
+  const isOffline = options?.offline ?? process.env.RHDH_OFFLINE === 'true';
+  const manifestFile =
+    options?.manifestFile || process.env.BACKSTAGE_MANIFEST_FILE;
+  const versionsBaseUrl =
+    options?.versionsBaseUrl || process.env.BACKSTAGE_VERSIONS_BASE_URL;
+  const cacheKey = `${normalized}:${manifestFile || ''}:${versionsBaseUrl || ''}:${isOffline}`;
 
   const cached = cachedRhdhVersions.get(cacheKey);
   if (cached) {
     return cached;
   }
-
-  const isOffline = options?.offline || process.env.RHDH_OFFLINE === 'true';
 
   const resolved = await resolveBackstageVersionForRhdh(normalized, isOffline);
   if (!resolved) {
