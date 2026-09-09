@@ -1,4 +1,4 @@
 base: https://raw.githubusercontent.com/fullsend-ai/agents/ec2f8a5b4369b844323ee1ee87c1d4a599a42817/harness/review.yaml#sha256=ef5b7ed3e85a1e6d11af8918e3a5a462c7729fdc3d86b70bc2a2d23e3ada2a6f
 
-model: claude-sonnet-4-5@20250929
+model: claude-sonnet-4@20250514
 timeout_minutes: 45
