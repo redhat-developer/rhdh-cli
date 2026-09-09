@@ -205,7 +205,7 @@ throw new Error(
     }
 
     // Remove the `node_modules` sub-folder of the embedded package,
-    // if it has been copied (in the case typical case of wrappers).
+    // if it has been copied.
     if (fs.pathExistsSync(path.join(embeddedDestDir, 'node_modules'))) {
       fs.rmSync(path.join(embeddedDestDir, 'node_modules'), {
         force: true,
