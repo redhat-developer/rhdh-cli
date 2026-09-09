@@ -124,10 +124,14 @@ describe('checkPluginDependencies', () => {
 
     const result = await checkPluginDependencies({ targetDir: tmpDir });
 
-    expect(result.valid).toBe(true);
-    expect(result.counts.matching).toBe(4);
+    expect(result.valid).toBe(false);
+    expect(result.counts.matching).toBe(3);
     expect(result.counts.mismatched).toBe(0);
     expect(result.counts.unmanifested).toBe(0);
+    expect(result.counts.unverifiable).toBe(1);
+    expect(
+      result.packages.find(p => p.name === '@backstage/config')?.status,
+    ).toBe('unverifiable');
   });
 
   it('reports mismatched and unmanifested dependencies when versions differ', async () => {
@@ -154,6 +158,7 @@ describe('checkPluginDependencies', () => {
     expect(result.counts.matching).toBe(0);
     expect(result.counts.mismatched).toBe(2);
     expect(result.counts.unmanifested).toBe(1);
+    expect(result.counts.unverifiable).toBe(0);
     expect(result.counts.total).toBe(3);
 
     const corePluginApi = result.packages.find(
@@ -171,6 +176,17 @@ describe('checkPluginDependencies', () => {
   });
 
   describe('CLI command handler', () => {
+    it('reports backstage:^ dependencies as unverifiable', async () => {
+      await setupFixture(
+        { peerDependencies: { '@backstage/config': 'backstage:^' } },
+        [['@backstage/config', '1.3.8']],
+      );
+
+      const res = await runCommandWithOutput({});
+      expect(res.stderr).toContain('cannot verify backstage:^');
+      expect(res.exitCode).toBe(1);
+    });
+
     it('outputs JSON when --json flag is passed and sets exitCode on failure', async () => {
       await setupFixture({
         dependencies: { '@backstage/core-plugin-api': '^1.9.0' },

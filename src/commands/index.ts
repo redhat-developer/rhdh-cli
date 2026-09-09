@@ -155,11 +155,11 @@ export function registerPluginCommand(program: Command) {
     )
     .option(
       '--rhdh-version <version>',
-      'Target RHDH version to check compatibility against (e.g. 2.0.0, 1.9, latest)',
+      'Target RHDH version to check compatibility against (e.g. 2.0.0, 1.9, latest, backstage:1.54.0)',
     )
     .option(
       '--manifest-file <path>',
-      'Path to local Backstage release manifest JSON file (for offline usage)',
+      'Path to a local Backstage release manifest JSON file (required for air-gapped use)',
     )
     .option('--json', 'Output results as JSON')
     .action(lazy(() => import('./check-versions').then(m => m.command)));

@@ -23,7 +23,11 @@ import { paths } from '../../lib/paths';
 import { resolveRhdhVersion } from '../../lib/rhdhVersion';
 import { Task } from '../../lib/tasks';
 
-export type DependencyStatus = 'match' | 'mismatch' | 'unmanifested';
+export type DependencyStatus =
+  | 'match'
+  | 'mismatch'
+  | 'unmanifested'
+  | 'unverifiable';
 export type DependencySection =
   | 'dependencies'
   | 'devDependencies'
@@ -40,12 +44,13 @@ export interface PackageCheckResult {
 export interface CheckVersionsResult {
   rhdhVersion: string;
   backstageVersion: string;
-  source: 'remote' | 'matrix';
+  source: 'remote' | 'matrix' | 'explicit';
   valid: boolean;
   counts: {
     matching: number;
     mismatched: number;
     unmanifested: number;
+    unverifiable: number;
     total: number;
   };
   packages: PackageCheckResult[];
@@ -59,16 +64,12 @@ export interface CheckVersionsOptions {
 }
 
 /**
- * Determines if a declared version string is aligned with the manifest expected version
+ * Determines if a declared version string is aligned with the manifest expected version.
  */
 function isVersionAligned(
   declaredVersion: string,
   expectedVersion: string,
 ): boolean {
-  if (declaredVersion === 'backstage:^') {
-    return true;
-  }
-
   const cleanedDeclared = declaredVersion.replace(/^[\^~]/, '');
   if (cleanedDeclared === expectedVersion) {
     return true;
@@ -100,6 +101,16 @@ function auditDependency(
       section,
       declared: declaredVersion,
       status: 'unmanifested',
+    };
+  }
+
+  if (declaredVersion === 'backstage:^') {
+    return {
+      name,
+      section,
+      declared: declaredVersion,
+      expected: expectedVersion,
+      status: 'unverifiable',
     };
   }
 
@@ -161,7 +172,8 @@ export async function checkPluginDependencies(
   const matching = packages.filter(p => p.status === 'match').length;
   const mismatched = packages.filter(p => p.status === 'mismatch').length;
   const unmanifested = packages.filter(p => p.status === 'unmanifested').length;
-  const valid = mismatched === 0 && unmanifested === 0;
+  const unverifiable = packages.filter(p => p.status === 'unverifiable').length;
+  const valid = mismatched === 0 && unmanifested === 0 && unverifiable === 0;
 
   return {
     rhdhVersion: resolved.rhdhVersion,
@@ -172,6 +184,7 @@ export async function checkPluginDependencies(
       matching,
       mismatched,
       unmanifested,
+      unverifiable,
       total: packages.length,
     },
     packages,
@@ -239,6 +252,8 @@ export async function command(opts: OptionValues): Promise<void> {
       statusLabel = chalk.green('✓ match');
     } else if (pkg.status === 'mismatch') {
       statusLabel = chalk.red('✗ mismatch');
+    } else if (pkg.status === 'unverifiable') {
+      statusLabel = chalk.yellow('⚠ cannot verify backstage:^');
     } else {
       statusLabel = chalk.yellow('⚠ unmanifested');
     }
@@ -255,7 +270,10 @@ export async function command(opts: OptionValues): Promise<void> {
   const unmanifestedStr = chalk.yellow(
     `⚠ ${result.counts.unmanifested} unmanifested`,
   );
-  const summary = `${matchStr}, ${mismatchStr}, ${unmanifestedStr} (${result.counts.total} total)`;
+  const unverifiableStr = chalk.yellow(
+    `⚠ ${result.counts.unverifiable} unverifiable`,
+  );
+  const summary = `${matchStr}, ${mismatchStr}, ${unmanifestedStr}, ${unverifiableStr} (${result.counts.total} total)`;
   process.stderr.write(`${chalk.bold('Summary:')} ${summary}\n`);
 
   if (!result.valid) {

@@ -15,6 +15,9 @@
  */
 
 import { clearManifestCache } from './backstageVersion';
+import fs from 'fs-extra';
+import os from 'os';
+import path from 'node:path';
 import {
   clearRhdhVersionCache,
   DEFAULT_RHDH_VERSION,
@@ -176,11 +179,16 @@ describe('rhdhVersion', () => {
       );
     });
 
-    it('handles HTTP error gracefully by returning undefined', async () => {
+    it('does not fall back to main for a missing release branch', async () => {
       setupFetchMock({});
 
       const result = await fetchRemoteRhdhMetadata('9.9.9');
       expect(result).toBeUndefined();
+      expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+      expect(globalThis.fetch).toHaveBeenCalledWith(
+        'https://raw.githubusercontent.com/redhat-developer/rhdh/release-9.9/packages/app/src/build-metadata.json',
+        expect.anything(),
+      );
     });
 
     it('handles network failure / fetch exception gracefully', async () => {
@@ -221,20 +229,18 @@ describe('rhdhVersion', () => {
       const resolved = await resolveRhdhVersion('backstage:1.54.0');
       expect(resolved.backstageVersion).toBe('1.54.0');
       expect(resolved.rhdhVersion).toBe('backstage:1.54.0');
+      expect(resolved.source).toBe('explicit');
       expect(resolved.packages.get('@backstage/core-plugin-api')).toBe(
         '1.14.0',
       );
     });
 
-    it('resolves raw Backstage version string', async () => {
-      setupFetchMock({
-        manifestVersion: '1.54.0',
-        packages: [{ name: '@backstage/core-plugin-api', version: '1.14.0' }],
-      });
+    it('rejects an ambiguous bare Backstage version', async () => {
+      setupFetchMock({});
 
-      const resolved = await resolveRhdhVersion('1.54.0');
-      expect(resolved.backstageVersion).toBe('1.54.0');
-      expect(resolved.rhdhVersion).toBe('backstage:1.54.0');
+      await expect(resolveRhdhVersion('1.54.0')).rejects.toThrow(
+        /Unsupported or unknown RHDH version "1.54.0"/,
+      );
     });
 
     it('falls back to static compatibility matrix (Tier 2) when remote fails', async () => {
@@ -265,6 +271,33 @@ describe('rhdhVersion', () => {
         expect.stringContaining('build-metadata.json'),
         expect.anything(),
       );
+    });
+
+    it('uses a local manifest without skipping remote metadata lookup', async () => {
+      const manifestFile = path.join(
+        await fs.mkdtemp(path.join(os.tmpdir(), 'rhdh-version-test-')),
+        'manifest.json',
+      );
+      await fs.writeJson(manifestFile, {
+        packages: [{ name: '@backstage/core-plugin-api', version: '1.12.0' }],
+      });
+      const fetchMock = setupFetchMock({
+        metadata: {
+          card: {
+            'RHDH Version': '2.0.0',
+            'Backstage Version': '1.52.0',
+          },
+        },
+      });
+
+      const resolved = await resolveRhdhVersion('2.0.0', { manifestFile });
+
+      expect(resolved.source).toBe('remote');
+      expect(fetchMock).toHaveBeenCalledWith(
+        expect.stringContaining('build-metadata.json'),
+        expect.anything(),
+      );
+      await fs.remove(path.dirname(manifestFile));
     });
 
     it('throws descriptive error on unknown RHDH version', async () => {
