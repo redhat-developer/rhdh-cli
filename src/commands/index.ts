@@ -19,6 +19,7 @@ import { assertError } from '@backstage/errors';
 import { Command } from 'commander';
 
 import { exitWithError } from '../lib/errors';
+import { registerIntentCommands } from './intent-based-actions';
 
 export function registerPluginCommand(program: Command) {
   const command = program
@@ -62,6 +63,11 @@ export function registerPluginCommand(program: Command) {
     .option(
       '--clean',
       'Remove the dynamic plugin output before exporting again.',
+    )
+    .option(
+      '--strict-deps',
+      'Fail export when production dependencies include disallowed heavy packages. Use in CI to enforce dependency rules.',
+      false,
     )
     .option(
       '--dev',
@@ -143,6 +149,7 @@ export function registerPluginCommand(program: Command) {
 }
 export function registerCommands(program: Command) {
   registerPluginCommand(program);
+  registerIntentCommands(program);
 }
 
 // Wraps an action function so that it always exits and handles errors

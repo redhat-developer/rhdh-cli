@@ -15,12 +15,11 @@ on:
           - release-1.8
 
 jobs:
-  version:
-    name: Version Packages
+  publish:
+    name: Publish to NPM
     runs-on: ubuntu-latest
     permissions:
-      contents: write
-      pull-requests: write
+      contents: read
       id-token: write
     steps:
       - name: Checkout Repo
@@ -65,5 +64,5 @@ jobs:
             npm publish --access public --tag latest
             npm dist-tag add "$(node -p "require('./package.json').name")@$(node -p "require('./package.json').version")" "${{ inputs.branch }}"
           else
-            npm publish --access public --tag ${{ inputs.branch }}
+            npm publish --access public --tag "${{ inputs.branch }}"
           fi

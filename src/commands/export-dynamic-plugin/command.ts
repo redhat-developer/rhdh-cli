@@ -27,6 +27,7 @@ import { paths } from '../../lib/paths';
 import { getConfigSchema } from '../../lib/schema/collect';
 import { Task } from '../../lib/tasks';
 import { backend } from './backend';
+import { checkHeavyDependencies, HeavyDepKind } from './check-heavy-deps';
 import { applyDevOptions } from './dev';
 import { frontend } from './frontend';
 
@@ -74,6 +75,16 @@ export async function command(opts: OptionValues): Promise<void> {
       spaces: 2,
     });
   }
+
+  const heavyDepKind: HeavyDepKind =
+    role === 'backend-plugin' || role === 'backend-plugin-module'
+      ? 'backend'
+      : 'frontend';
+  await checkHeavyDependencies(
+    targetPath,
+    Boolean(opts.strictDeps),
+    heavyDepKind,
+  );
 
   await checkBackstageSupportedVersions(targetPath);
 
