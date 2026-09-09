@@ -149,7 +149,10 @@ export async function frontend(
     after: detectedFeatures
       ? pkg => {
           pkg.backstage = pkg.backstage ?? {};
-          pkg.backstage.features = detectedFeatures;
+          pkg.backstage.features = {
+            ...(pkg.backstage.features ?? {}),
+            ...detectedFeatures,
+          };
         }
       : undefined,
   })(path.resolve(target, 'package.json'));
