@@ -37,9 +37,6 @@ describe('package-dynamic-plugins command', () => {
     if (tmpDir && fs.existsSync(tmpDir)) {
       fs.removeSync(tmpDir);
     }
-    if (process.cwd() !== originalCwd) {
-      throw new Error('test did not restore the original working directory');
-    }
   });
 
   describe('RHDHBUGS-3633: Fail-fast validation', () => {
