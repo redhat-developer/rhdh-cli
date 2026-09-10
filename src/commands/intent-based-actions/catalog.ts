@@ -53,11 +53,16 @@ export function registerCatalogCommands(program: Command) {
       const merged = predicate ? { ...query, ...JSON.parse(predicate) } : query;
 
       const fields = parseList(opts.fields);
+      const actionFields =
+        fields ??
+        (mode === 'human'
+          ? ['metadata.name', 'kind', 'metadata.namespace', 'spec.type']
+          : undefined);
 
       const flags: ActionFlags = {
         instance: opts.instance,
         limit: opts.limit,
-        fields: fields ? JSON.stringify(fields) : undefined,
+        fields: actionFields ? JSON.stringify(actionFields) : undefined,
       };
 
       if (Object.keys(merged).length > 0) {

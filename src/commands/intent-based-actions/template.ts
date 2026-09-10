@@ -47,6 +47,15 @@ export function registerTemplateCommands(program: Command) {
         query: JSON.stringify(merged),
         instance: opts.instance,
         limit: opts.limit,
+        fields:
+          mode === 'human'
+            ? JSON.stringify([
+                'metadata.name',
+                'kind',
+                'metadata.namespace',
+                'spec.type',
+              ])
+            : undefined,
       };
 
       await runEntityListAction('catalog:query-catalog-entities', flags, mode);
