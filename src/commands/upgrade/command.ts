@@ -19,6 +19,7 @@ import chalk from 'chalk';
 import { OptionValues } from 'commander';
 import fs from 'fs-extra';
 import path from 'node:path';
+import semver from 'semver';
 
 import { ExitCodeError } from '../../lib/errors';
 import { paths } from '../../lib/paths';
@@ -64,15 +65,18 @@ export function computeTargetVersion(
     return 'backstage:^';
   }
 
-  if (currentDeclared.startsWith('^')) {
-    return `^${manifestExpected}`;
+  const rangePrefix = currentDeclared.match(
+    /^(?:workspace:)?(?:\^|~|>=|<=|>|<|=)/,
+  )?.[0];
+  if (rangePrefix) {
+    return `${rangePrefix}${manifestExpected}`;
   }
 
-  if (currentDeclared.startsWith('~')) {
-    return `~${manifestExpected}`;
+  if (semver.valid(currentDeclared)) {
+    return manifestExpected;
   }
 
-  return manifestExpected;
+  return currentDeclared;
 }
 
 /**
@@ -269,6 +273,9 @@ export async function upgradePluginDependencies(
   };
 }
 
+/**
+ * Renders human-readable results for a plugin dependency upgrade.
+ */
 function printUpgradeResult(
   result: UpgradePluginResult,
   dryRun: boolean,
@@ -315,9 +322,7 @@ function printUpgradeResult(
 
   const header = `${'Package'.padEnd(colNameWidth)}  ${'Section'.padEnd(colSecWidth)}  ${'Current'.padEnd(colCurWidth)}  ${'Target'.padEnd(colTarWidth)}  Status`;
   process.stderr.write(`${chalk.bold(header)}\n`);
-  process.stderr.write(
-    `${chalk.gray('-'.repeat(header.length + '  Status'.length))}\n`,
-  );
+  process.stderr.write(`${chalk.gray('-'.repeat(header.length))}\n`);
 
   for (const change of result.changes) {
     const statusLabel = change.changed

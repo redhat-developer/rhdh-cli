@@ -15,7 +15,7 @@
  */
 
 import fs from 'fs-extra';
-import os from 'os';
+import os from 'node:os';
 import path from 'node:path';
 
 import { ExitCodeError } from '../../lib/errors';
@@ -127,6 +127,18 @@ describe('upgrade command', () => {
 
     it('preserves tilde prefix', () => {
       expect(computeTargetVersion('~1.10.0', '1.12.0')).toBe('~1.12.0');
+    });
+
+    it('preserves comparator prefixes', () => {
+      expect(computeTargetVersion('>=1.10.0', '1.12.0')).toBe('>=1.12.0');
+      expect(computeTargetVersion('workspace:^1.10.0', '1.12.0')).toBe(
+        'workspace:^1.12.0',
+      );
+    });
+
+    it('leaves unsupported ranges unchanged', () => {
+      expect(computeTargetVersion('*', '1.12.0')).toBe('*');
+      expect(computeTargetVersion('workspace:*', '1.12.0')).toBe('workspace:*');
     });
 
     it('preserves exact version pin', () => {
