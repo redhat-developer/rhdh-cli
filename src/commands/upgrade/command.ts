@@ -65,8 +65,8 @@ export function computeTargetVersion(
     return 'backstage:^';
   }
 
-  const rangePrefix = currentDeclared.match(
-    /^(?:workspace:)?(?:\^|~|>=|<=|>|<|=)/,
+  const rangePrefix = /^(?:workspace:)?(?:\^|~|>=|<=|>|<|=)/.exec(
+    currentDeclared,
   )?.[0];
   if (rangePrefix) {
     return `${rangePrefix}${manifestExpected}`;
