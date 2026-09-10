@@ -9,6 +9,7 @@ Complete guide for using `rhdh-cli` to interact with Red Hat Developer Hub insta
 - [RHDH Instance Configuration](#rhdh-instance-configuration)
 - [Authentication](#authentication)
 - [Register Action Sources](#register-action-sources)
+- [Command to Action Mapping](#command-to-action-mapping)
 - [Commands Reference](#commands-reference)
   - [Catalog Commands](#catalog-commands)
   - [API Commands](#api-commands)
@@ -154,6 +155,32 @@ rhdh-cli actions sources list
 - Source registration is per-instance. Switching instances with `auth select` requires re-adding sources.
 - Only add sources for plugins that have the actions backend endpoint.
 - Adding a source for a plugin without it causes `actions list` to fail entirely.
+
+## Command to Action Mapping
+
+The following table shows how intent-based CLI commands map to underlying Backstage actions:
+
+| Command | Action ID | Notes |
+|---------|-----------|-------|
+| `catalog list` | `catalog:query-catalog-entities` | Supports `--kind`, `--type`, `--filter` (repeatable), `--limit`, `--fields` |
+| `catalog get` | `catalog:get-catalog-entity` | Requires `--name`, optional `--kind`, `--namespace` |
+| `catalog validate` | `catalog:validate-entity` | Accepts `--entity` or `--entity-file` |
+| `catalog register` | `catalog:register-entity` | Requires `--location-url` |
+| `catalog unregister` | `catalog:unregister-entity` | Requires `--location-id` or `--location-url` |
+| `api list` | `catalog:query-catalog-entities` | Hardcoded `kind=API`, supports `--type`, `--filter` (repeatable) |
+| `api get-spec` | `catalog:get-catalog-entity` | Extracts `spec.definition` from API entity |
+| `search <term>` | `search:query` | Supports `--types`, `--page-limit`, `--page-cursor` |
+| `docs search <term>` | `search:query` | Hardcoded `types=["techdocs"]` |
+| `docs list` | `techdocs-mcp-extras:fetch-techdocs` | RHDH only, requires plugin; supports `--kind`, `--owner`, `--lifecycle`, `--tags`, `--limit` |
+| `docs get` | `techdocs-mcp-extras:retrieve-techdocs-content` | RHDH only, requires plugin |
+| `docs coverage` | `techdocs-mcp-extras:analyze-techdocs-coverage` | RHDH only, requires plugin |
+| `template list` | `catalog:query-catalog-entities` | Hardcoded `kind=Template`, supports `--filter` (repeatable) |
+| `template execute` | `scaffolder:execute-template` | Requires `--template-ref`; `--value` (repeatable) and `--secret` (repeatable) are optional |
+| `template dry-run` | `scaffolder:dry-run-template` | Requires `--template-file`; `--value` (repeatable) is optional; reads YAML from disk |
+| `auth *` | Pass-through to `backstage-cli auth *` | Output rebranded as `rhdh-cli` |
+| `actions *` | Pass-through to `backstage-cli actions *` | Output rebranded as `rhdh-cli` |
+
+**Note:** Commands marked "RHDH only" require the `techdocs-mcp-extras` plugin to be installed on your RHDH instance. See [RHDH Instance Configuration](#rhdh-instance-configuration) for setup instructions.
 
 ## Commands Reference
 
