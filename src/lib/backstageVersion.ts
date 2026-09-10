@@ -44,7 +44,11 @@ const PROTOCOL = 'backstage:';
  * Cache for the release manifest to avoid fetching it multiple times
  */
 let cachedManifest:
-  | { version: string; packages: Map<string, string> }
+  | {
+      version: string;
+      versionsBaseUrl?: string;
+      packages: Map<string, string>;
+    }
   | undefined;
 
 /**
@@ -83,17 +87,29 @@ export async function getCurrentBackstageVersion(): Promise<
  * - BACKSTAGE_MANIFEST_FILE: Read manifest from a local file instead of fetching
  * - BACKSTAGE_VERSIONS_BASE_URL: Custom base URL for fetching manifests
  */
-async function getBackstageManifest(
+export async function getBackstageManifest(
   backstageVersion: string,
+  options?: {
+    manifestFile?: string;
+    versionsBaseUrl?: string;
+  },
 ): Promise<Map<string, string>> {
-  if (cachedManifest && cachedManifest.version === backstageVersion) {
+  const manifestFile =
+    options?.manifestFile || process.env.BACKSTAGE_MANIFEST_FILE;
+  const versionsBaseUrl =
+    options?.versionsBaseUrl || process.env.BACKSTAGE_VERSIONS_BASE_URL;
+
+  if (
+    cachedManifest?.version === backstageVersion &&
+    cachedManifest.versionsBaseUrl === versionsBaseUrl &&
+    !manifestFile
+  ) {
     return cachedManifest.packages;
   }
 
   let manifest: ReleaseManifest;
 
   // Support BACKSTAGE_MANIFEST_FILE for offline usage (same as yarn plugin)
-  const manifestFile = process.env.BACKSTAGE_MANIFEST_FILE;
   if (manifestFile) {
     try {
       manifest = await fs.readJson(manifestFile);
@@ -107,12 +123,10 @@ async function getBackstageManifest(
       manifest = await getManifestByVersion({
         version: backstageVersion,
         // Support BACKSTAGE_VERSIONS_BASE_URL for custom manifest server (same as yarn plugin)
-        versionsBaseUrl: process.env.BACKSTAGE_VERSIONS_BASE_URL,
+        versionsBaseUrl,
       });
     } catch (error) {
-      const baseUrl =
-        process.env.BACKSTAGE_VERSIONS_BASE_URL ||
-        'https://versions.backstage.io';
+      const baseUrl = versionsBaseUrl || 'https://versions.backstage.io';
       throw new Error(
         `Failed to fetch Backstage release manifest for version ${backstageVersion} from ${baseUrl}: ${error}\n\n` +
           `To resolve this issue, you can:\n` +
@@ -129,7 +143,7 @@ async function getBackstageManifest(
     packages.set(pkg.name, pkg.version);
   }
 
-  cachedManifest = { version: backstageVersion, packages };
+  cachedManifest = { version: backstageVersion, versionsBaseUrl, packages };
   return packages;
 }
 

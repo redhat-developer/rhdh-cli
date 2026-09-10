@@ -4,12 +4,11 @@ All notable changes to `@red-hat-developer-hub/cli` are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## Unreleased
+## 2.0.5 - 2026-09-04
 
 ### Added
 
-- Add intent-based `catalog`, `api`, `search`, `docs`, and `template` commands,
-  including human-readable and JSON output modes ([#156](https://github.com/redhat-developer/rhdh-cli/pull/156)).
+- **`plugin check-versions`:** Add `rhdh-cli plugin check-versions` (alias `plugin versions:lint`) command and RHDH-to-Backstage version mapping engine ([RHIDP-16665](https://redhat.atlassian.net/browse/RHIDP-16665), [RHIDP-16667](https://redhat.atlassian.net/browse/RHIDP-16667), [#176](https://github.com/redhat-developer/rhdh-cli/pull/176)). Supports auditing `@backstage/*` dependencies in `package.json` against target RHDH release manifests using a 3-tier resolution engine (remote GitHub build-metadata, embedded static compatibility matrix fallback, and Backstage release manifests).
 
 ## 2.0.4 - 2026-08-27
 
