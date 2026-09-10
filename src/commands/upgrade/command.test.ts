@@ -18,6 +18,7 @@ import fs from 'fs-extra';
 import os from 'os';
 import path from 'node:path';
 
+import { ExitCodeError } from '../../lib/errors';
 import { resolveRhdhVersion } from '../../lib/rhdhVersion';
 import { Task } from '../../lib/tasks';
 import {
@@ -75,6 +76,7 @@ describe('upgrade command', () => {
   async function runCommandWithOutput(rhdhVersion?: string, opts: any = {}) {
     let stdout = '';
     let stderr = '';
+    let error: Error | undefined;
     const stdoutSpy = jest
       .spyOn(process.stdout, 'write')
       .mockImplementation((chunk: any) => {
@@ -90,12 +92,14 @@ describe('upgrade command', () => {
 
     try {
       await command(rhdhVersion, opts);
+    } catch (caught) {
+      error = caught as Error;
     } finally {
       stdoutSpy.mockRestore();
       stderrSpy.mockRestore();
     }
 
-    return { stdout, stderr };
+    return { stdout, stderr, error };
   }
 
   beforeEach(async () => {
@@ -212,10 +216,13 @@ describe('upgrade command', () => {
       expect(pkg.dependencies['@backstage/core-plugin-api']).toBe('^1.9.0');
     });
 
-    it('tracks unmanifested @backstage packages', async () => {
+    it('deduplicates unmanifested @backstage packages', async () => {
       await setupFixture(
         {
           dependencies: {
+            '@backstage/unknown-pkg': '^1.0.0',
+          },
+          peerDependencies: {
             '@backstage/unknown-pkg': '^1.0.0',
           },
         },
@@ -227,7 +234,7 @@ describe('upgrade command', () => {
         skipInstall: true,
       });
 
-      expect(result.unmanifested).toContain('@backstage/unknown-pkg');
+      expect(result.unmanifested).toEqual(['@backstage/unknown-pkg']);
     });
 
     it('runs package manager install unless skipInstall is true', async () => {
@@ -260,7 +267,7 @@ describe('upgrade command', () => {
 
       expect(res.stderr).toContain('installation failed');
       expect(res.stderr).not.toContain('Successfully upgraded');
-      expect(process.exitCode).toBe(1);
+      expect(res.error).toEqual(new ExitCodeError(1));
     });
   });
 
@@ -306,6 +313,23 @@ describe('upgrade command', () => {
 
       const res = await runCommandWithOutput('2.0.0', { dryRun: true });
       expect(res.stderr).toContain('Dry run completed');
+    });
+
+    it('warns when all Backstage dependencies are unmanifested', async () => {
+      await setupFixture(
+        {
+          dependencies: {
+            '@backstage/unknown-pkg': '^1.0.0',
+          },
+        },
+        [],
+      );
+
+      const res = await runCommandWithOutput('2.0.0', { skipInstall: true });
+
+      expect(res.stderr).toContain('@backstage/unknown-pkg');
+      expect(res.stderr).toContain('not present in the release manifest');
+      expect(res.stderr).not.toContain('No @backstage dependencies found');
     });
   });
 });

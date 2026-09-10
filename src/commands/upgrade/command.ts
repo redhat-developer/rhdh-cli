@@ -20,14 +20,11 @@ import { OptionValues } from 'commander';
 import fs from 'fs-extra';
 import path from 'node:path';
 
+import { ExitCodeError } from '../../lib/errors';
 import { paths } from '../../lib/paths';
+import { DependencySection } from '../../lib/pluginDependencies';
 import { resolveRhdhVersion } from '../../lib/rhdhVersion';
 import { Task } from '../../lib/tasks';
-
-export type DependencySection =
-  | 'dependencies'
-  | 'devDependencies'
-  | 'peerDependencies';
 
 export interface PackageUpgradeChange {
   name: string;
@@ -42,7 +39,6 @@ export interface UpgradePluginOptions {
   dryRun?: boolean;
   skipInstall?: boolean;
   manifestFile?: string;
-  json?: boolean;
   targetDir?: string;
 }
 
@@ -116,7 +112,7 @@ function applyDependencyUpgrades(
   ];
 
   const changes: PackageUpgradeChange[] = [];
-  const unmanifested: string[] = [];
+  const unmanifested = new Set<string>();
   let modified = false;
 
   for (const section of sections) {
@@ -132,7 +128,7 @@ function applyDependencyUpgrades(
       }
 
       if (!manifestExpected) {
-        unmanifested.push(name);
+        unmanifested.add(name);
         continue;
       }
 
@@ -157,7 +153,7 @@ function applyDependencyUpgrades(
     }
   }
 
-  return { changes, unmanifested, modified };
+  return { changes, unmanifested: Array.from(unmanifested), modified };
 }
 
 /**
@@ -271,11 +267,17 @@ export async function command(
     dryRun,
     skipInstall,
     manifestFile,
-    json,
   });
+
+  const changedCount = result.changes.filter(c => c.changed).length;
+  const installFailed =
+    !dryRun && !skipInstall && changedCount > 0 && !result.installed;
 
   if (json) {
     process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+    if (installFailed) {
+      throw new ExitCodeError(1);
+    }
     return;
   }
 
@@ -284,8 +286,17 @@ export async function command(
     `Upgrading plugin dependencies to RHDH v${result.rhdhVersion} (Backstage v${result.backstageVersion}) [${result.source}]${modeLabel}...`,
   );
 
+  if (result.unmanifested.length > 0) {
+    const unmanCountStr = chalk.yellow(
+      `${result.unmanifested.length} unmanifested`,
+    );
+    process.stderr.write(
+      `\n${chalk.yellow('Warning:')} Found ${unmanCountStr} @backstage packages not present in the release manifest: ${result.unmanifested.join(', ')}\n`,
+    );
+  }
+
   if (result.changes.length === 0) {
-    Task.log('No @backstage dependencies found to upgrade.');
+    Task.log('No manifest-matched @backstage dependencies found to upgrade.');
     return;
   }
 
@@ -325,7 +336,6 @@ export async function command(
 
   process.stderr.write('\n');
 
-  const changedCount = result.changes.filter(c => c.changed).length;
   const unchangedCount = result.changes.filter(c => !c.changed).length;
 
   const updatedStr = chalk.yellow(`↻ ${changedCount} updated`);
@@ -333,24 +343,15 @@ export async function command(
   const summary = `${updatedStr}, ${unchangedStr} (${result.changes.length} total)`;
   process.stderr.write(`${chalk.bold('Summary:')} ${summary}\n`);
 
-  if (result.unmanifested.length > 0) {
-    const unmanCountStr = chalk.yellow(
-      `${result.unmanifested.length} unmanifested`,
-    );
-    process.stderr.write(
-      `\n${chalk.yellow('Warning:')} Found ${unmanCountStr} @backstage packages not present in the release manifest: ${result.unmanifested.join(', ')}\n`,
-    );
-  }
-
   if (dryRun) {
     process.stderr.write(
       `\n${chalk.cyan('Dry run completed:')} No files were modified on disk.\n\n`,
     );
-  } else if (!skipInstall && changedCount > 0 && !result.installed) {
+  } else if (installFailed) {
     Task.error(
       'Dependencies were updated, but installation failed. Resolve the installation error and retry.',
     );
-    process.exitCode = 1;
+    throw new ExitCodeError(1);
   } else if (result.updatedFiles.length > 0) {
     const filesStr = chalk.cyan(result.updatedFiles.join(', '));
     process.stderr.write(

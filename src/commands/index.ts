@@ -170,6 +170,10 @@ export function registerPluginCommand(program: Command) {
       'Upgrade dynamic plugin dependencies in package.json to match a target RHDH release',
     )
     .option(
+      '--rhdh-version <version>',
+      'Target RHDH version to upgrade compatibility to (e.g. 2.0.0, 1.9, latest, backstage:1.54.0)',
+    )
+    .option(
       '--dry-run',
       'Display planned dependency updates without modifying files on disk',
     )

@@ -43,6 +43,20 @@ For air-gapped environments, provide a local release manifest with `--manifest-f
 
 When adding support for a new RHDH release, update `RHDH_COMPATIBILITY_MATRIX` in `src/lib/rhdhVersion.ts` with its Backstage version before releasing the corresponding CLI version. This matrix is maintained manually until its release metadata can be automated.
 
+## Upgrading Plugin Versions
+
+Use `plugin upgrade` to update a plugin's `@backstage/*` dependencies to the versions from an RHDH release manifest:
+
+```bash
+rhdh-cli plugin upgrade --rhdh-version 2.0.0
+```
+
+The command also accepts the RHDH version as a positional argument, for example `rhdh-cli plugin upgrade 2.0.0`. Its `plugin versions:bump` alias provides the same behavior.
+
+Use `--dry-run` to preview dependency changes without writing files and `--skip-install` to avoid updating the lockfile after applying changes. Use `--json` for machine-readable output.
+
+For air-gapped environments, provide a local Backstage release manifest with `--manifest-file` and set `RHDH_OFFLINE=true` to skip the RHDH GitHub metadata lookup.
+
 ## Development
 
 ### Contributing

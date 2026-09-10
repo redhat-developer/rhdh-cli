@@ -20,6 +20,7 @@ import fs from 'fs-extra';
 import path from 'node:path';
 import semver from 'semver';
 
+import { DependencySection } from '../../lib/pluginDependencies';
 import { ExitCodeError } from '../../lib/errors';
 import { paths } from '../../lib/paths';
 import { resolveRhdhVersion } from '../../lib/rhdhVersion';
@@ -30,11 +31,6 @@ export type DependencyStatus =
   | 'mismatch'
   | 'unmanifested'
   | 'unverifiable';
-export type DependencySection =
-  | 'dependencies'
-  | 'devDependencies'
-  | 'peerDependencies';
-
 export interface PackageCheckResult {
   name: string;
   section: DependencySection;
