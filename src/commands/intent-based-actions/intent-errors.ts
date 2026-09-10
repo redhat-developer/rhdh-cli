@@ -69,10 +69,10 @@ function extractReason(error: unknown): string {
     fullMessage.includes('ECONNREFUSED') ||
     fullMessage.includes('fetch failed')
   ) {
-    return 'Could not connect to the Backstage instance. Check that the instance is running and reachable.';
+    return 'Could not connect to the RHDH instance. Check that the instance is running and reachable.';
   }
   if (fullMessage.includes('No authenticated instances')) {
-    return 'No Backstage instance configured. Run: rhdh-cli auth login --backend-url <URL>';
+    return 'No RHDH instance configured. Run: rhdh-cli auth login --rhdh-url <URL>';
   }
 
   const stderrMessage = extractStderrMessage(error);

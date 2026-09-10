@@ -53,26 +53,25 @@ export function registerDocsCommands(program: Command) {
     .description(
       'List entities with TechDocs (RHDH only, via techdocs-mcp-extras)',
     )
-    .option(
-      '--entity-type <kind>',
-      'Filter by entity kind (Component, API, etc.)',
-    )
+    .option('--kind <kind>', 'Filter by entity kind (Component, API, etc.)')
     .option('--owner <owner>', 'Filter by owner')
     .option(
       '--lifecycle <lifecycle>',
       'Filter by lifecycle (production, experimental, etc.)',
     )
     .option('--tags <tags>', 'Filter by tags (comma-separated)')
+    .option('--limit <n>', 'Maximum results to return', parseInt)
     .option('--output <format>', 'Output format: human (default), json')
     .option('--instance <name>', 'Backstage instance name')
     .action(async opts => {
       const mode = parseOutputFlag(opts.output);
       try {
         const flags: ActionFlags = {
-          entityType: opts.entityType,
+          entityType: opts.kind,
           owner: opts.owner,
           lifecycle: opts.lifecycle,
           tags: opts.tags,
+          limit: opts.limit,
           instance: opts.instance,
         };
 

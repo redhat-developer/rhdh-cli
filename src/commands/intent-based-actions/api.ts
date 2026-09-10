@@ -3,6 +3,7 @@ import { execAction } from './client';
 import { runEntityListAction, type ActionFlags } from './helpers';
 import { parseOutputFlag, writeOutput } from './format';
 import { handleCommandError } from './intent-errors';
+import { collect, resolveJsonInput } from './kv';
 
 export function registerApiCommands(program: Command) {
   const api = program
@@ -13,6 +14,12 @@ export function registerApiCommands(program: Command) {
     .command('list')
     .description('List API entities in the catalog')
     .option('--type <type>', 'API type (openapi, asyncapi, graphql, grpc)')
+    .option(
+      '--filter <key=value>',
+      'Query predicate, e.g. --filter spec.owner=team-a (repeatable)',
+      collect,
+      [] as string[],
+    )
     .option('--limit <n>', 'Maximum results to return', parseInt)
     .option('--output <format>', 'Output format: human (default), json')
     .option('--instance <name>', 'Backstage instance name')
@@ -22,8 +29,19 @@ export function registerApiCommands(program: Command) {
       const query: Record<string, unknown> = { kind: 'API' };
       if (opts.type) query['spec.type'] = opts.type;
 
+      let predicate: string | undefined;
+      try {
+        predicate = resolveJsonInput(opts.filter);
+      } catch (error) {
+        handleCommandError(error, mode, {
+          suggestion: 'rhdh-cli api list --type openapi --filter spec.owner=team-a',
+        });
+      }
+      // --filter flags merge on top of the --type shortcut.
+      const merged = predicate ? { ...query, ...JSON.parse(predicate) } : query;
+
       const flags: ActionFlags = {
-        query: JSON.stringify(query),
+        query: JSON.stringify(merged),
         instance: opts.instance,
         limit: opts.limit,
       };

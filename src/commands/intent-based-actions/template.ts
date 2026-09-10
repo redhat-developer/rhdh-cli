@@ -13,14 +13,33 @@ export function registerTemplateCommands(program: Command) {
   template
     .command('list')
     .description('List available software templates')
+    .option(
+      '--filter <key=value>',
+      'Query predicate, e.g. --filter metadata.tags=nodejs (repeatable)',
+      collect,
+      [] as string[],
+    )
     .option('--limit <n>', 'Maximum results to return', parseInt)
     .option('--output <format>', 'Output format: human (default), json')
     .option('--instance <name>', 'Backstage instance name')
     .action(async opts => {
       const mode = parseOutputFlag(opts.output);
 
+      const query: Record<string, unknown> = { kind: 'Template' };
+
+      let predicate: string | undefined;
+      try {
+        predicate = resolveJsonInput(opts.filter);
+      } catch (error) {
+        handleCommandError(error, mode, {
+          suggestion: 'rhdh-cli template list --filter metadata.tags=nodejs',
+        });
+      }
+      // --filter flags merge on top of the kind=Template query.
+      const merged = predicate ? { ...query, ...JSON.parse(predicate) } : query;
+
       const flags: ActionFlags = {
-        query: JSON.stringify({ kind: 'Template' }),
+        query: JSON.stringify(merged),
         instance: opts.instance,
         limit: opts.limit,
       };

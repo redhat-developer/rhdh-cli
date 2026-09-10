@@ -21,10 +21,6 @@ export function registerCatalogCommands(program: Command) {
       collect,
       [] as string[],
     )
-    .option(
-      '--filters <json>',
-      'Query predicate as a JSON string (alternative to --filter)',
-    )
     .option('--limit <n>', 'Maximum results to return', parseInt)
     .option(
       '--fields <list>',
@@ -41,14 +37,14 @@ export function registerCatalogCommands(program: Command) {
 
       let predicate: string | undefined;
       try {
-        predicate = resolveJsonInput(opts.filter, opts.filters);
+        predicate = resolveJsonInput(opts.filter);
       } catch (error) {
         handleCommandError(error, mode, {
           suggestion:
             'rhdh-cli catalog list --kind Component --filter spec.lifecycle=production',
         });
       }
-      // --filter/--filters merge on top of the --kind/--type shortcuts.
+      // --filter flags merge on top of the --kind/--type shortcuts.
       const merged = predicate ? { ...query, ...JSON.parse(predicate) } : query;
 
       const fields = parseList(opts.fields);
