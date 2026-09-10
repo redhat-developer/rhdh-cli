@@ -23,7 +23,7 @@
   like `1.54.0` are treated as RHDH versions — to target a Backstage
   version directly, users must use the `backstage:` prefix (e.g.
   `backstage:1.54.0`).
-- **Offline vs air-gapped.** `RHDH_OFFLINE=true` (or `--offline`) skips
+- **Offline vs air-gapped.** `RHDH_OFFLINE=true` skips
   only the GitHub metadata fetch (Tier 1 of version resolution). The
   Backstage release manifest is still fetched from
   `versions.backstage.io` (Tier 3). For true air-gapped environments,
@@ -50,8 +50,9 @@
   3. **Backstage manifest** — fetches the release manifest from
      `versions.backstage.io` (or a local file) using
      `@backstage/release-manifests` to get the full package version map.
-     Results are cached by a composite key of version + base URL + offline
-     flag, so repeated calls within a session do not re-fetch.
+     Results are cached by a composite key of version + manifestFile +
+     base URL + offline flag, so repeated calls within a session do not
+     re-fetch.
 - **Manifest caching** (`src/lib/backstageVersion.ts`). Caches the
   Backstage release manifest keyed by version + `versionsBaseUrl`.
   Supports `BACKSTAGE_MANIFEST_FILE` for local file override and
