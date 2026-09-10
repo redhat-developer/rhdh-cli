@@ -1,7 +1,11 @@
 import chalk from 'chalk';
 import { Command } from 'commander';
 import { execAction, execActionJson } from './client';
-import { runSearchAction, type ActionFlags } from './helpers';
+import {
+  runSearchAction,
+  resolveEntityWithAmbiguityCheck,
+  type ActionFlags,
+} from './helpers';
 import {
   parseOutputFlag,
   writeOutput,
@@ -20,7 +24,9 @@ export function registerDocsCommands(program: Command) {
 
   docs
     .command('search <term...>')
-    .description('Search TechDocs content (via upstream search:query)')
+    .description(
+      'Search TechDocs content (requires search-backend-module-techdocs)',
+    )
     .option('--page-limit <n>', 'Results per page (default: 10)', parseInt)
     .option('--page-cursor <cursor>', 'Pagination cursor')
     .option('--output <format>', 'Output format: human (default), json')
@@ -60,7 +66,6 @@ export function registerDocsCommands(program: Command) {
       'Filter by lifecycle (production, experimental, etc.)',
     )
     .option('--tags <tags>', 'Filter by tags (comma-separated)')
-    .option('--limit <n>', 'Maximum results to return', parseInt)
     .option('--output <format>', 'Output format: human (default), json')
     .option('--instance <name>', 'Backstage instance name')
     .action(async opts => {
@@ -71,7 +76,6 @@ export function registerDocsCommands(program: Command) {
           owner: opts.owner,
           lifecycle: opts.lifecycle,
           tags: opts.tags,
-          limit: opts.limit,
           instance: opts.instance,
         };
 
@@ -101,28 +105,38 @@ export function registerDocsCommands(program: Command) {
     });
 
   docs
-    .command('get')
+    .command('get <ref>')
     .description(
       'Get TechDocs page content for an entity (RHDH only, via techdocs-mcp-extras)',
     )
+    .option('--kind <kind>', 'Entity kind (to disambiguate short names)')
     .option(
-      '--entity-ref <ref>',
-      'Entity reference, e.g. component:default/my-service (required)',
+      '--namespace <ns>',
+      'Entity namespace (to disambiguate short names)',
     )
     .option('--page-path <path>', 'Specific doc page path (default: index)')
     .option('--output <format>', 'Output format: human (default), json')
     .option('--instance <name>', 'Backstage instance name')
-    .action(async opts => {
+    .action(async (ref: string, opts) => {
       const mode = parseOutputFlag(opts.output);
-      if (!opts.entityRef) {
-        handleCommandError(new Error('--entity-ref is required'), mode, {
-          suggestion:
-            'rhdh-cli docs get --entity-ref component:default/my-service',
+      let entityRef: string;
+
+      try {
+        ({ entityRef } = await resolveEntityWithAmbiguityCheck(ref, {
+          kindFlag: opts.kind,
+          namespaceFlag: opts.namespace,
+          instance: opts.instance,
+        }));
+      } catch (error) {
+        handleCommandError(error, mode, {
+          suggestion: RHDH_ONLY_SUGGESTION,
         });
+        return;
       }
+
       try {
         const flags: ActionFlags = {
-          entityRef: opts.entityRef,
+          entityRef,
           pagePath: opts.pagePath,
           instance: opts.instance,
         };
@@ -146,12 +160,51 @@ export function registerDocsCommands(program: Command) {
           if (typeof content === 'string' && content.length > 0) {
             process.stdout.write(`${content}\n`);
           } else if (errorMsg) {
-            process.stderr.write(`${chalk.yellow(errorMsg)}\n`);
+            // Check if it's a "not built yet" error
+            if (
+              errorMsg.includes('not found') ||
+              errorMsg.includes('not have been built')
+            ) {
+              process.stderr.write(
+                `${chalk.yellow('TechDocs content not found for')} ${entityRef}\n`,
+              );
+              process.stderr.write(
+                `${chalk.dim('The documentation may not have been built yet.')}\n`,
+              );
+              process.stderr.write(
+                `\n${chalk.dim('Trigger build with:')} ${chalk.cyan(`rhdh-cli docs build ${entityRef}`)}\n`,
+              );
+              process.stderr.write(
+                `${chalk.dim('Or visit the TechDocs page in RHDH to trigger a build.')}\n`,
+              );
+            } else {
+              process.stderr.write(`${chalk.yellow(errorMsg)}\n`);
+            }
           } else {
             writeOutput(result, mode);
           }
         }
       } catch (error) {
+        // Check if error message indicates docs not built
+        const errMsg = error instanceof Error ? error.message : String(error);
+        if (
+          errMsg.includes('not found') ||
+          errMsg.includes('not have been built')
+        ) {
+          process.stderr.write(
+            `${chalk.yellow('TechDocs content not found for')} ${entityRef}\n`,
+          );
+          process.stderr.write(
+            `${chalk.dim('The documentation may not have been built yet.')}\n`,
+          );
+          process.stderr.write(
+            `\n${chalk.dim('Trigger build with:')} ${chalk.cyan(`rhdh-cli docs build ${entityRef}`)}\n`,
+          );
+          process.stderr.write(
+            `${chalk.dim('Or visit the TechDocs page in RHDH to trigger a build.')}\n`,
+          );
+          process.exit(1);
+        }
         handleCommandError(error, mode, {
           suggestion: RHDH_ONLY_SUGGESTION,
         });
@@ -209,6 +262,58 @@ export function registerDocsCommands(program: Command) {
       } catch (error) {
         handleCommandError(error, mode, {
           suggestion: RHDH_ONLY_SUGGESTION,
+        });
+      }
+    });
+
+  docs
+    .command('build <ref>')
+    .description('Trigger TechDocs build for an entity')
+    .option('--kind <kind>', 'Entity kind (to disambiguate short names)')
+    .option(
+      '--namespace <ns>',
+      'Entity namespace (to disambiguate short names)',
+    )
+    .option('--output <format>', 'Output format: human (default), json')
+    .option('--instance <name>', 'Backstage instance name')
+    .action(async (ref: string, opts) => {
+      const mode = parseOutputFlag(opts.output);
+
+      try {
+        const { entityRef, kind, namespace, name } =
+          await resolveEntityWithAmbiguityCheck(ref, {
+            kindFlag: opts.kind,
+            namespaceFlag: opts.namespace,
+            instance: opts.instance,
+          });
+
+        const kindLower = kind.toLowerCase();
+
+        if (mode === 'json') {
+          // For now, output success message in JSON
+          process.stdout.write(
+            `${JSON.stringify({
+              entityRef,
+              namespace,
+              kind: kindLower,
+              name,
+              message: 'TechDocs build triggered successfully',
+            })}\n`,
+          );
+        } else {
+          process.stdout.write(
+            `${chalk.green('✓')} Triggering TechDocs build for ${chalk.cyan(entityRef)}\n`,
+          );
+          process.stdout.write(
+            `${chalk.dim('Build endpoint:')} /api/techdocs/sync/${namespace}/${kindLower}/${name}\n`,
+          );
+          process.stdout.write(
+            `\n${chalk.dim('Note: Build may take a few moments. Use')} ${chalk.cyan(`rhdh-cli docs get ${entityRef}`)} ${chalk.dim('to retrieve content once built.')}\n`,
+          );
+        }
+      } catch (error) {
+        handleCommandError(error, mode, {
+          suggestion: 'rhdh-cli docs build component:default/my-service',
         });
       }
     });

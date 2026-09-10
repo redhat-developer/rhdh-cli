@@ -82,3 +82,112 @@ export function resolveJsonInput(
 
   return fromPairs ? JSON.stringify(fromPairs) : undefined;
 }
+
+/**
+ * Parses an entity reference in the format [kind:][namespace/]name
+ * and returns the parsed components.
+ *
+ * Examples:
+ * - "my-service" -> {name: "my-service"}
+ * - "default/my-service" -> {namespace: "default", name: "my-service"}
+ * - "component:default/my-service" -> {kind: "component", namespace: "default", name: "my-service"}
+ */
+export function parseEntityRef(ref: string): {
+  kind?: string;
+  namespace?: string;
+  name: string;
+} {
+  if (!ref || ref.trim() === '') {
+    throw new Error('Entity reference cannot be empty');
+  }
+
+  // Check for full format: kind:namespace/name
+  const colonIndex = ref.indexOf(':');
+  if (colonIndex > 0) {
+    const kind = ref.slice(0, colonIndex);
+    const remainder = ref.slice(colonIndex + 1);
+    const slashIndex = remainder.indexOf('/');
+
+    if (slashIndex > 0) {
+      // kind:namespace/name
+      return {
+        kind,
+        namespace: remainder.slice(0, slashIndex),
+        name: remainder.slice(slashIndex + 1),
+      };
+    }
+
+    // kind:name (no namespace)
+    return {
+      kind,
+      name: remainder,
+    };
+  }
+
+  // Check for namespace/name format
+  const slashIndex = ref.indexOf('/');
+  if (slashIndex > 0) {
+    return {
+      namespace: ref.slice(0, slashIndex),
+      name: ref.slice(slashIndex + 1),
+    };
+  }
+
+  // Just a name
+  return {
+    name: ref,
+  };
+}
+
+/**
+ * Resolves an entity reference from a positional argument,
+ * with optional kind and namespace overrides or defaults.
+ *
+ * @param ref - Required positional entity reference
+ * @param defaultKind - Default kind if not specified in ref (e.g., 'template', 'api')
+ * @param kindFlag - Optional --kind flag to override or disambiguate
+ * @param namespaceFlag - Optional --namespace flag to override or disambiguate
+ * @param requireKind - If true, throws error if kind is not specified
+ */
+export function resolveEntityRef(
+  ref: string,
+  options: {
+    defaultKind?: string;
+    kindFlag?: string;
+    namespaceFlag?: string;
+    requireKind?: boolean;
+  } = {},
+): {
+  kind?: string;
+  namespace: string;
+  name: string;
+  entityRef: string;
+} {
+  const parsed = parseEntityRef(ref);
+
+  // Determine kind: flag > parsed > default
+  const kind = options.kindFlag || parsed.kind || options.defaultKind;
+
+  // Determine namespace: flag > parsed > 'default'
+  const namespace = options.namespaceFlag || parsed.namespace || 'default';
+  const name = parsed.name;
+
+  // Validate kind requirement
+  if (options.requireKind && !kind) {
+    throw new Error(
+      `Entity kind is required. Provide full reference (e.g., component:default/${name}) or use --kind flag.`,
+    );
+  }
+
+  // Build the canonical entity reference
+  const entityRef = kind
+    ? `${kind}:${namespace}/${name}`
+    : `${namespace}/${name}`;
+
+  return {
+    kind,
+    namespace,
+    name,
+    entityRef,
+  };
+}

@@ -1,6 +1,11 @@
 import { readFileSync } from 'node:fs';
 import { Command } from 'commander';
-import { runEntityListAction, runRawAction, type ActionFlags } from './helpers';
+import {
+  runEntityListAction,
+  runRawAction,
+  resolveEntityWithAmbiguityCheck,
+  type ActionFlags,
+} from './helpers';
 import { parseOutputFlag } from './format';
 import { handleCommandError } from './intent-errors';
 import { collect, parseList, resolveJsonInput } from './kv';
@@ -69,32 +74,44 @@ export function registerCatalogCommands(program: Command) {
     });
 
   catalog
-    .command('get')
-    .description('Get a specific catalog entity by name')
-    .option('--name <name>', 'Entity name (required)')
-    .option('--kind <kind>', 'Entity kind')
-    .option('--namespace <ns>', 'Entity namespace (default: default)')
+    .command('get <ref>')
+    .description('Get a specific catalog entity')
+    .option('--kind <kind>', 'Entity kind (to disambiguate short names)')
+    .option(
+      '--namespace <ns>',
+      'Entity namespace (to disambiguate short names)',
+    )
     .option('--output <format>', 'Output format: human (default), json')
     .option('--instance <name>', 'Backstage instance name')
-    .action(async opts => {
+    .action(async (ref: string, opts) => {
       const mode = parseOutputFlag(opts.output);
-      if (!opts.name) {
-        handleCommandError(new Error('--name is required'), mode, {
-          suggestion: 'rhdh-cli catalog get --name my-service --kind Component',
+
+      try {
+        const { name, kind, namespace } = await resolveEntityWithAmbiguityCheck(
+          ref,
+          {
+            kindFlag: opts.kind,
+            namespaceFlag: opts.namespace,
+            instance: opts.instance,
+          },
+        );
+
+        await runRawAction(
+          'catalog:get-catalog-entity',
+          {
+            name,
+            kind,
+            namespace,
+            instance: opts.instance,
+          },
+          mode,
+          'rhdh-cli catalog get my-service',
+        );
+      } catch (error) {
+        handleCommandError(error, mode, {
+          suggestion: 'rhdh-cli catalog get component:default/my-service',
         });
       }
-
-      await runRawAction(
-        'catalog:get-catalog-entity',
-        {
-          name: opts.name,
-          kind: opts.kind,
-          namespace: opts.namespace,
-          instance: opts.instance,
-        },
-        mode,
-        'rhdh-cli catalog list --kind Component',
-      );
     });
 
   catalog

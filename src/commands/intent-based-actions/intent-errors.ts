@@ -72,7 +72,7 @@ function extractReason(error: unknown): string {
     return 'Could not connect to the RHDH instance. Check that the instance is running and reachable.';
   }
   if (fullMessage.includes('No authenticated instances')) {
-    return 'No RHDH instance configured. Run: rhdh-cli auth login --rhdh-url <URL>';
+    return 'No RHDH instance configured. Run: rhdh-cli auth login --backend-url <URL>';
   }
 
   const stderrMessage = extractStderrMessage(error);

@@ -94,7 +94,7 @@ High-level commands for interacting with RHDH instances:
 
 ```bash
 # Authenticate with your RHDH instance
-rhdh-cli auth login --rhdh-url https://rhdh.example.com
+rhdh-cli auth login --backend-url https://rhdh.example.com
 
 # List production components
 rhdh-cli catalog list --kind Component --filter spec.lifecycle=production
@@ -116,13 +116,21 @@ All commands support `--help` for detailed usage and `--output json` for machine
 
 **📚 For complete documentation, setup guides, and examples, see:**
 
-- **[Intent-Based CLI Documentation](src/commands/intent-based-actions/CLI.md)** - Complete guide for RHDH interaction commands
+- **[Intent-Based CLI Documentation](docs/CLI.md)** - Complete guide for RHDH interaction commands
 
 ### Optional TechDocs Features
 
-The `docs list`, `docs get`, and `docs coverage` commands require the optional **TechDocs MCP extras plugin** (`techdocs-mcp-extras`) to be installed on your RHDH instance. See the [CLI documentation](src/commands/intent-based-actions/CLI.md#rhdh-instance-configuration) for setup instructions.
+**TechDocs content retrieval** (`docs list`, `docs get`, `docs coverage`, `docs build`):
 
-Commands `docs search` and all other commands work without this optional plugin.
+- Requires **TechDocs MCP extras plugin** (`techdocs-mcp-extras`)
+- See the [CLI documentation](docs/CLI.md#rhdh-instance-configuration) for setup instructions
+
+**TechDocs search** (`docs search`):
+
+- Requires **TechDocs search backend module** (`search-backend-module-techdocs`)
+- Standard Backstage plugin for indexing TechDocs content
+
+All other commands work without these optional plugins.
 
 ### Bumping Backstage Dependencies
 

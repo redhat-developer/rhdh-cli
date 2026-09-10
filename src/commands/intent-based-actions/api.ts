@@ -1,6 +1,10 @@
 import { Command } from 'commander';
 import { execAction } from './client';
-import { runEntityListAction, type ActionFlags } from './helpers';
+import {
+  runEntityListAction,
+  resolveEntityWithAmbiguityCheck,
+  type ActionFlags,
+} from './helpers';
 import { parseOutputFlag, writeOutput } from './format';
 import { handleCommandError } from './intent-errors';
 import { collect, resolveJsonInput } from './kv';
@@ -56,26 +60,28 @@ export function registerApiCommands(program: Command) {
     });
 
   api
-    .command('get-spec')
+    .command('get-spec <ref>')
     .description(
       'Get the full API specification (OpenAPI, AsyncAPI, GraphQL, gRPC)',
     )
-    .option('--name <name>', 'API entity name (required)')
-    .option('--namespace <ns>', 'Entity namespace (default: default)')
+    .option('--namespace <ns>', 'Entity namespace (to filter/disambiguate)')
     .option('--output <format>', 'Output format: human (default), json')
     .option('--instance <name>', 'Backstage instance name')
-    .action(async opts => {
+    .action(async (ref: string, opts) => {
       const mode = parseOutputFlag(opts.output);
-      if (!opts.name) {
-        handleCommandError(new Error('--name is required'), mode, {
-          suggestion: 'rhdh-cli api get-spec --name my-api',
-        });
-      }
+
       try {
+        // APIs default to kind=api if not specified
+        const { name, namespace } = await resolveEntityWithAmbiguityCheck(ref, {
+          defaultKind: 'api',
+          namespaceFlag: opts.namespace,
+          instance: opts.instance,
+        });
+
         const raw = await execAction('catalog:get-catalog-entity', {
-          name: opts.name,
+          name,
           kind: 'API',
-          namespace: opts.namespace,
+          namespace,
           instance: opts.instance,
         });
 
@@ -85,14 +91,14 @@ export function registerApiCommands(program: Command) {
 
         if (!definition) {
           handleCommandError(
-            new Error(`API "${opts.name}" has no spec.definition`),
+            new Error(`API "${name}" has no spec.definition`),
             mode,
             { suggestion: 'rhdh-cli api list' },
           );
         }
 
         if (mode === 'json') {
-          writeOutput({ name: opts.name, type: spec?.type, definition }, mode);
+          writeOutput({ name, type: spec?.type, definition }, mode);
         } else {
           const defStr =
             typeof definition === 'string'

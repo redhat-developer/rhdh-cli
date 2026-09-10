@@ -25,22 +25,20 @@ export function registerAuthCommands(program: Command) {
     .command('auth')
     .description('Manage authentication to Backstage/RHDH instances');
 
-  // Special handling for 'login' to support both --backend-url and --rhdh-url
+  // Special handling for 'login' to support --backend-url
   auth
     .command('login')
     .description('Log in to a Backstage/RHDH instance')
     .option('--backend-url <url>', 'Backend base URL')
-    .option('--rhdh-url <url>', 'RHDH instance URL (alias for --backend-url)')
     .option('--instance <name>', 'Name for this instance')
     .option('--no-browser', 'Do not open browser automatically')
     .allowUnknownOption()
     .action(function loginAction(this: Command, opts: Record<string, unknown>) {
       const args: string[] = ['auth', 'login'];
 
-      // Translate --rhdh-url to --backend-url if provided
-      const backendUrl = opts.rhdhUrl || opts.backendUrl;
-      if (backendUrl) {
-        args.push('--backend-url', String(backendUrl));
+      // Forward --backend-url if provided
+      if (opts.backendUrl) {
+        args.push('--backend-url', String(opts.backendUrl));
       }
 
       // Forward other known options
@@ -52,7 +50,7 @@ export function registerAuthCommands(program: Command) {
       }
 
       // Forward any unknown options
-      const knownOpts = ['backendUrl', 'rhdhUrl', 'instance', 'browser'];
+      const knownOpts = ['backendUrl', 'instance', 'browser'];
       for (const [key, value] of Object.entries(opts)) {
         if (!knownOpts.includes(key) && value !== undefined) {
           args.push(`--${key}`);

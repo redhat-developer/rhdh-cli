@@ -92,17 +92,24 @@ plugins:
     disabled: false
 ```
 
-**Note:** The `docs search` command works without this plugin. Only `docs list`, `docs get`, and `docs coverage` require it.
+**Note:** Only `docs list`, `docs get`, `docs coverage`, and `docs build` require this plugin.
+
+### 4. Enable TechDocs Search Backend Module (Optional)
+
+To use TechDocs search functionality (`search --types '["techdocs"]'` and `docs search`), install the TechDocs search backend module:
+
+```yaml
+# dynamic-plugins.yaml
+plugins:
+  - package: 'oci://ghcr.io/redhat-developer/rhdh-plugin-export-overlays/backstage-plugin-search-backend-module-techdocs:bs_1.52.0__0.4.15'
+    disabled: false
+```
+
+**Note:** This is a standard Backstage plugin for indexing TechDocs content in the search backend.
 
 ## Authentication
 
 Authenticate with your RHDH instance:
-
-```bash
-rhdh-cli auth login --rhdh-url https://rhdh.example.com
-```
-
-You can also use `--backend-url` as an alias:
 
 ```bash
 rhdh-cli auth login --backend-url https://rhdh.example.com
@@ -126,7 +133,7 @@ rhdh-cli auth list
 rhdh-cli auth select
 
 # Login with instance name
-rhdh-cli auth login --rhdh-url https://rhdh-prod.example.com --instance production
+rhdh-cli auth login --backend-url https://rhdh-prod.example.com --instance production
 
 # Use specific instance for a command
 rhdh-cli catalog list --kind Component --instance production
@@ -161,25 +168,26 @@ rhdh-cli actions sources list
 
 The following table shows how intent-based CLI commands map to underlying Backstage actions:
 
-| Command              | Action ID                                       | Notes                                                                                        |
-| -------------------- | ----------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| `catalog list`       | `catalog:query-catalog-entities`                | Supports `--kind`, `--type`, `--filter` (repeatable), `--limit`, `--fields`                  |
-| `catalog get`        | `catalog:get-catalog-entity`                    | Requires `--name`, optional `--kind`, `--namespace`                                          |
-| `catalog validate`   | `catalog:validate-entity`                       | Accepts `--entity` or `--entity-file`                                                        |
-| `catalog register`   | `catalog:register-entity`                       | Requires `--location-url`                                                                    |
-| `catalog unregister` | `catalog:unregister-entity`                     | Requires `--location-id` or `--location-url`                                                 |
-| `api list`           | `catalog:query-catalog-entities`                | Hardcoded `kind=API`, supports `--type`, `--filter` (repeatable)                             |
-| `api get-spec`       | `catalog:get-catalog-entity`                    | Extracts `spec.definition` from API entity                                                   |
-| `search <term>`      | `search:query`                                  | Supports `--types`, `--page-limit`, `--page-cursor`                                          |
-| `docs search <term>` | `search:query`                                  | Hardcoded `types=["techdocs"]`                                                               |
-| `docs list`          | `techdocs-mcp-extras:fetch-techdocs`            | RHDH only, requires plugin; supports `--kind`, `--owner`, `--lifecycle`, `--tags`, `--limit` |
-| `docs get`           | `techdocs-mcp-extras:retrieve-techdocs-content` | RHDH only, requires plugin                                                                   |
-| `docs coverage`      | `techdocs-mcp-extras:analyze-techdocs-coverage` | RHDH only, requires plugin                                                                   |
-| `template list`      | `catalog:query-catalog-entities`                | Hardcoded `kind=Template`, supports `--filter` (repeatable)                                  |
-| `template execute`   | `scaffolder:execute-template`                   | Requires `--template-ref`; `--value` (repeatable) and `--secret` (repeatable) are optional   |
-| `template dry-run`   | `scaffolder:dry-run-template`                   | Requires `--template-file`; `--value` (repeatable) is optional; reads YAML from disk         |
-| `auth *`             | Pass-through to `backstage-cli auth *`          | Output rebranded as `rhdh-cli`                                                               |
-| `actions *`          | Pass-through to `backstage-cli actions *`       | Output rebranded as `rhdh-cli`                                                               |
+| Command                  | Action ID                                                                          | Notes                                                                                                  |
+| ------------------------ | ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `catalog list`           | `catalog:query-catalog-entities`                                                   | Supports `--kind`, `--type`, `--filter` (repeatable), `--limit`, `--fields`                            |
+| `catalog get <ref>`      | `catalog:query-catalog-entities` + `catalog:get-catalog-entity`                    | Queries catalog for ambiguity check; `--kind`, `--namespace` to filter/disambiguate                    |
+| `catalog validate`       | `catalog:validate-entity`                                                          | Accepts `--entity` or `--entity-file`                                                                  |
+| `catalog register`       | `catalog:register-entity`                                                          | Requires `--location-url`                                                                              |
+| `catalog unregister`     | `catalog:unregister-entity`                                                        | Requires `--location-id` or `--location-url`                                                           |
+| `api list`               | `catalog:query-catalog-entities`                                                   | Hardcoded `kind=API`, supports `--type`, `--filter` (repeatable)                                       |
+| `api get-spec <ref>`     | `catalog:query-catalog-entities` + `catalog:get-catalog-entity`                    | Queries catalog with `kind=api` default for ambiguity check; extracts `spec.definition`                |
+| `search <term>`          | `search:query`                                                                     | Supports `--types`, `--page-limit`, `--page-cursor`                                                    |
+| `docs search <term>`     | `search:query`                                                                     | Hardcoded `types=["techdocs"]`; requires `search-backend-module-techdocs` plugin                       |
+| `docs list`              | `techdocs-mcp-extras:fetch-techdocs`                                               | RHDH only, requires plugin; supports `--kind`, `--owner`, `--lifecycle`, `--tags`                      |
+| `docs get <ref>`         | `catalog:query-catalog-entities` + `techdocs-mcp-extras:retrieve-techdocs-content` | RHDH only; queries catalog for ambiguity check; `--kind`, `--namespace` to filter/disambiguate         |
+| `docs build <ref>`       | `catalog:query-catalog-entities` + TechDocs sync endpoint                          | Queries catalog for ambiguity check; `--kind`, `--namespace` to filter/disambiguate                    |
+| `docs coverage`          | `techdocs-mcp-extras:analyze-techdocs-coverage`                                    | RHDH only, requires plugin                                                                             |
+| `template list`          | `catalog:query-catalog-entities`                                                   | Hardcoded `kind=Template`, supports `--filter` (repeatable)                                            |
+| `template execute <ref>` | `catalog:query-catalog-entities` + `scaffolder:execute-template`                   | Queries catalog with `kind=template` default for ambiguity check; `--namespace` to filter/disambiguate |
+| `template dry-run`       | `scaffolder:dry-run-template`                                                      | Requires `--template-file`; `--value` (repeatable) is optional; reads YAML from disk                   |
+| `auth *`                 | Pass-through to `backstage-cli auth *`                                             | Output rebranded as `rhdh-cli`                                                                         |
+| `actions *`              | Pass-through to `backstage-cli actions *`                                          | Output rebranded as `rhdh-cli`                                                                         |
 
 **Note:** Commands marked "RHDH only" require the `techdocs-mcp-extras` plugin to be installed on your RHDH instance. See [RHDH Instance Configuration](#rhdh-instance-configuration) for setup instructions.
 
@@ -235,26 +243,67 @@ rhdh-cli catalog list --kind Component --output json
 
 #### `catalog get`
 
-Get a specific catalog entity by name.
+Get a specific catalog entity.
 
 ```bash
-# Get entity by name
-rhdh-cli catalog get --name my-service --kind Component
+# Short name (queries catalog, works if unambiguous)
+rhdh-cli catalog get my-service
 
-# Specify namespace (defaults to 'default')
-rhdh-cli catalog get --name my-api --kind API --namespace production
+# Full entity reference
+rhdh-cli catalog get component:default/my-service
+
+# Namespace/name format with --kind to filter
+rhdh-cli catalog get default/my-service --kind component
+
+# With disambiguation flags
+rhdh-cli catalog get my-service --kind component --namespace production
 
 # JSON output
-rhdh-cli catalog get --name my-service --kind Component --output json
+rhdh-cli catalog get component:default/my-service --output json
 ```
+
+**Positional Argument:**
+
+- `<ref>` - **Required.** Entity reference in format `[kind:][namespace/]name`
+  - `my-service` - short name
+  - `default/my-service` - namespace/name
+  - `component:default/my-service` - full reference
 
 **Options:**
 
-- `--name <name>` - Entity name (required)
-- `--kind <kind>` - Entity kind
-- `--namespace <ns>` - Entity namespace (default: `default`)
+- `--kind <kind>` - Entity kind (to filter/disambiguate)
+- `--namespace <ns>` - Entity namespace (to filter/disambiguate)
 - `--output <format>` - Output format
 - `--instance <name>` - RHDH instance name
+
+**Behavior:**
+
+When a short name or partial reference is provided, the CLI queries the catalog to find all matching entities:
+
+- If exactly 1 match: uses that entity
+- If 0 matches: errors "Entity not found"
+- If > 1 matches: errors listing all matching entities
+
+Use `--kind` and/or `--namespace` flags to narrow the search and avoid ambiguity.
+
+**Error Example:**
+
+```bash
+$ rhdh-cli catalog get my-service
+Error: Ambiguous entity reference. Multiple entities named "my-service" found:
+  component:default/my-service
+  component:production/my-service
+  api:default/my-service
+
+Use full reference to disambiguate.
+
+$ rhdh-cli catalog get my-service --kind component
+Error: Ambiguous entity reference. Multiple entities named "my-service" found:
+  component:default/my-service
+  component:production/my-service
+
+Use full reference to disambiguate.
+```
 
 #### `catalog validate`
 
@@ -353,22 +402,46 @@ rhdh-cli api list --output json
 Get the full API specification (OpenAPI, AsyncAPI, GraphQL, gRPC).
 
 ```bash
-# Get OpenAPI specification
-rhdh-cli api get-spec --name my-api
+# Short name (queries catalog with kind=api filter)
+rhdh-cli api get-spec my-api
+
+# Full entity reference
+rhdh-cli api get-spec api:default/my-api
+
+# With custom namespace to disambiguate
+rhdh-cli api get-spec my-api --namespace production
 
 # Save to file
-rhdh-cli api get-spec --name my-api > openapi.yaml
+rhdh-cli api get-spec my-api > openapi.yaml
 
 # JSON output
-rhdh-cli api get-spec --name my-api --output json
+rhdh-cli api get-spec my-api --output json
 ```
+
+**Positional Argument:**
+
+- `<ref>` - **Required.** API entity reference in `[kind:][namespace/]name` format
 
 **Options:**
 
-- `--name <name>` - API entity name (required)
-- `--namespace <ns>` - Entity namespace (default: `default`)
+- `--namespace <ns>` - Entity namespace (to filter/disambiguate)
 - `--output <format>` - Output format
 - `--instance <name>` - RHDH instance name
+
+**Behavior:**
+
+When a short name is provided, queries the catalog filtering by `kind=api`. If multiple API entities with the same name exist in different namespaces, an ambiguity error is shown.
+
+**Error Example:**
+
+```bash
+$ rhdh-cli api get-spec my-api
+Error: Ambiguous entity reference. Multiple entities named "my-api" found:
+  api:default/my-api
+  api:production/my-api
+
+Use full reference to disambiguate.
+```
 
 **Output:**
 
@@ -413,7 +486,7 @@ Search and retrieve TechDocs content.
 
 #### `docs search <term>`
 
-Search TechDocs content (via upstream `search:query`).
+Search TechDocs content (requires TechDocs search backend module).
 
 ```bash
 # Search TechDocs
@@ -434,6 +507,8 @@ rhdh-cli docs search "deployment" --output json
 - `--output <format>` - Output format
 - `--instance <name>` - RHDH instance name
 
+**Note:** Requires the TechDocs search backend module plugin. See [RHDH Instance Configuration](#rhdh-instance-configuration) for setup.
+
 #### `docs list`
 
 List entities with TechDocs (RHDH only, requires `techdocs-mcp-extras` plugin).
@@ -448,9 +523,6 @@ rhdh-cli docs list --kind Component
 # Filter by owner and lifecycle
 rhdh-cli docs list --owner team-platform --lifecycle production
 
-# Limit results
-rhdh-cli docs list --limit 10
-
 # JSON output
 rhdh-cli docs list --output json
 ```
@@ -461,7 +533,6 @@ rhdh-cli docs list --output json
 - `--owner <owner>` - Filter by owner
 - `--lifecycle <lifecycle>` - Filter by lifecycle (production, experimental, etc.)
 - `--tags <tags>` - Filter by tags (comma-separated)
-- `--limit <n>` - Maximum results to return
 - `--output <format>` - Output format
 - `--instance <name>` - RHDH instance name
 
@@ -472,27 +543,58 @@ rhdh-cli docs list --output json
 Get TechDocs page content for an entity (RHDH only, requires `techdocs-mcp-extras` plugin).
 
 ```bash
-# Get index page
-rhdh-cli docs get --entity-ref component:default/my-service
+# Short name (queries catalog, works if unambiguous)
+rhdh-cli docs get my-service
+
+# Full entity reference
+rhdh-cli docs get component:default/my-service
+
+# Short name with --kind to filter/disambiguate
+rhdh-cli docs get my-service --kind component
 
 # Get specific page
-rhdh-cli docs get \
-  --entity-ref component:default/my-service \
-  --page-path architecture/overview
+rhdh-cli docs get component:default/my-service --page-path architecture/overview
+
+# With custom namespace
+rhdh-cli docs get api:production/my-api
 
 # Save to file
-rhdh-cli docs get --entity-ref component:default/my-service > README.md
+rhdh-cli docs get component:default/my-service > README.md
 
 # JSON output
-rhdh-cli docs get --entity-ref component:default/my-service --output json
+rhdh-cli docs get component:default/my-service --output json
 ```
+
+**Positional Argument:**
+
+- `<ref>` - **Required.** Entity reference in `[kind:][namespace/]name` format
 
 **Options:**
 
-- `--entity-ref <ref>` - Entity reference, e.g., `component:default/my-service` (required)
+- `--kind <kind>` - Entity kind (to filter/disambiguate), e.g., component, api, system
+- `--namespace <ns>` - Entity namespace (to filter/disambiguate)
 - `--page-path <path>` - Specific doc page path (default: index)
 - `--output <format>` - Output format
 - `--instance <name>` - RHDH instance name
+
+**Behavior:**
+
+When a short name is provided, the CLI queries the catalog to find all matching entities:
+
+- If exactly 1 match: uses that entity
+- If 0 matches: errors "Entity not found"
+- If > 1 matches: errors listing all matching entities
+
+**Error Example:**
+
+```bash
+$ rhdh-cli docs get my-service
+Error: Ambiguous entity reference. Multiple entities named "my-service" found:
+  component:default/my-service
+  system:default/my-service
+
+Use full reference to disambiguate.
+```
 
 **Output:**
 
@@ -500,6 +602,63 @@ rhdh-cli docs get --entity-ref component:default/my-service --output json
 - JSON mode: `{"entityRef": "...", "content": "...", "pageTitle": "...", "metadata": {...}}`
 
 **Note:** Requires `techdocs-mcp-extras` plugin on RHDH instance.
+
+#### `docs build`
+
+Trigger TechDocs build for an entity.
+
+```bash
+# Short name (queries catalog, works if unambiguous)
+rhdh-cli docs build my-service
+
+# Full entity reference
+rhdh-cli docs build component:default/my-service
+
+# Short name with --kind to filter/disambiguate
+rhdh-cli docs build my-service --kind component
+
+# With custom namespace
+rhdh-cli docs build api:production/my-api
+
+# JSON output
+rhdh-cli docs build component:default/my-service --output json
+```
+
+**Positional Argument:**
+
+- `<ref>` - **Required.** Entity reference in `[kind:][namespace/]name` format
+
+**Options:**
+
+- `--kind <kind>` - Entity kind (to filter/disambiguate), e.g., component, api, system
+- `--namespace <ns>` - Entity namespace (to filter/disambiguate)
+- `--output <format>` - Output format
+- `--instance <name>` - RHDH instance name
+
+**Behavior:**
+
+Like `docs get`, queries the catalog for ambiguity detection. See `docs get` for details.
+
+**Output:**
+
+```
+✓ Triggering TechDocs build for component:default/my-service
+Build endpoint: /api/techdocs/sync/default/component/my-service
+
+Note: Build may take a few moments. Use rhdh-cli docs get component:default/my-service to retrieve content once built.
+```
+
+**Use Case:**
+When you try to get documentation that hasn't been built yet, you'll see:
+
+```bash
+$ rhdh-cli docs get system:default/rhdh-local
+TechDocs content not found for system:default/rhdh-local
+The documentation may not have been built yet.
+
+Trigger build with: rhdh-cli docs build system:default/rhdh-local
+Or visit the TechDocs page in RHDH to trigger a build.
+```
 
 #### `docs coverage`
 
@@ -567,39 +726,62 @@ rhdh-cli template list --output json
 Execute a software template.
 
 ```bash
+# Short name (queries catalog with kind=template filter)
+rhdh-cli template execute nodejs-service
+
+# Full template reference
+rhdh-cli template execute template:default/nodejs-service
+
 # Execute with key-value pairs
-rhdh-cli template execute \
-  --template-ref template:default/nodejs-service \
+rhdh-cli template execute nodejs-service \
   --value name=my-app \
   --value owner=team-a
 
-# Execute with multiple values
-rhdh-cli template execute \
-  --template-ref template:default/react-app \
+# With custom namespace to disambiguate
+rhdh-cli template execute react-app \
+  --namespace production \
   --value name=my-app \
-  --value owner=team-frontend \
-  --value port=3001
+  --value owner=team-frontend
 
 # With secrets (use with caution - visible in process list)
-rhdh-cli template execute \
-  --template-ref template:default/my-template \
+rhdh-cli template execute my-template \
   --value name=my-app \
   --secret token=abc123
 
 # JSON output
-rhdh-cli template execute \
-  --template-ref template:default/my-template \
+rhdh-cli template execute my-template \
   --value name=my-app \
   --output json
 ```
 
+**Positional Argument:**
+
+- `<ref>` - **Required.** Template reference in `[kind:][namespace/]name` format
+
 **Options:**
 
-- `--template-ref <ref>` - Template entity ref, e.g., `template:default/my-template` (required)
-- `--value <key=value>` - Template input value (repeatable)
-- `--secret <key=value>` - Template secret (repeatable)
+- `--namespace <ns>` - Template namespace (to filter/disambiguate)
+- `--value <key=value>` - Template input value (repeatable, optional)
+- `--secret <key=value>` - Template secret (repeatable, optional)
 - `--output <format>` - Output format
 - `--instance <name>` - RHDH instance name
+
+**Behavior:**
+
+When a short name is provided, queries the catalog filtering by `kind=template`. If multiple templates with the same name exist in different namespaces, an ambiguity error is shown.
+
+**Error Example:**
+
+```bash
+$ rhdh-cli template execute my-template
+Error: Ambiguous entity reference. Multiple entities named "my-template" found:
+  template:default/my-template
+  template:production/my-template
+
+Use full reference to disambiguate.
+```
+
+**Note:** Values and secrets are optional — some templates accept no parameters.
 
 **Security Warning:** `--secret` flags are visible in process lists on shared systems. Use with caution.
 
@@ -634,13 +816,10 @@ Manage authenticated RHDH instances.
 
 ```bash
 # Login to RHDH instance
-rhdh-cli auth login --rhdh-url https://rhdh.example.com
-
-# Alternative: use --backend-url
 rhdh-cli auth login --backend-url https://rhdh.example.com
 
 # Login with instance name
-rhdh-cli auth login --rhdh-url https://rhdh.example.com --instance production
+rhdh-cli auth login --backend-url https://rhdh.example.com --instance production
 
 # List authenticated instances
 rhdh-cli auth list
@@ -657,8 +836,6 @@ rhdh-cli auth print-token
 # Logout
 rhdh-cli auth logout
 ```
-
-**Note:** Both `--rhdh-url` and `--backend-url` flags are supported for `login`.
 
 ### Actions Commands
 
@@ -802,7 +979,7 @@ The `--help` output is the complete protocol contract — agents can operate fro
 
 ```bash
 # 1. Authenticate
-rhdh-cli auth login --rhdh-url https://rhdh.example.com
+rhdh-cli auth login --backend-url https://rhdh.example.com
 
 # 2. Register action sources
 rhdh-cli actions sources add catalog
@@ -835,7 +1012,7 @@ rhdh-cli template execute \
 rhdh-cli auth show
 
 # Re-authenticate
-rhdh-cli auth login --rhdh-url https://rhdh.example.com
+rhdh-cli auth login --backend-url https://rhdh.example.com
 
 # If using wrong RHDH instance, select the right one
 rhdh-cli auth select

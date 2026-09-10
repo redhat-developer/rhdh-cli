@@ -1,4 +1,10 @@
-import { collect, parseKeyValuePairs, parseList, resolveJsonInput } from './kv';
+import {
+  collect,
+  parseKeyValuePairs,
+  parseList,
+  resolveJsonInput,
+  parseEntityRef,
+} from './kv';
 
 describe('collect', () => {
   it('accumulates values across calls without mutating the previous array', () => {
@@ -128,5 +134,59 @@ describe('resolveJsonInput', () => {
     expect(() => resolveJsonInput(undefined, '[1,2,3]')).toThrow(
       /JSON input must be an object/,
     );
+  });
+});
+
+describe('parseEntityRef', () => {
+  it('parses a short name', () => {
+    expect(parseEntityRef('my-service')).toEqual({
+      name: 'my-service',
+    });
+  });
+
+  it('parses namespace/name format', () => {
+    expect(parseEntityRef('default/my-service')).toEqual({
+      namespace: 'default',
+      name: 'my-service',
+    });
+  });
+
+  it('parses full kind:namespace/name format', () => {
+    expect(parseEntityRef('component:default/my-service')).toEqual({
+      kind: 'component',
+      namespace: 'default',
+      name: 'my-service',
+    });
+  });
+
+  it('parses kind:name format without namespace', () => {
+    expect(parseEntityRef('component:my-service')).toEqual({
+      kind: 'component',
+      name: 'my-service',
+    });
+  });
+
+  it('handles production namespace', () => {
+    expect(parseEntityRef('component:production/my-service')).toEqual({
+      kind: 'component',
+      namespace: 'production',
+      name: 'my-service',
+    });
+  });
+
+  it('handles names with hyphens and underscores', () => {
+    expect(parseEntityRef('api:default/my-api_v2')).toEqual({
+      kind: 'api',
+      namespace: 'default',
+      name: 'my-api_v2',
+    });
+  });
+
+  it('throws for empty string', () => {
+    expect(() => parseEntityRef('')).toThrow(/cannot be empty/);
+  });
+
+  it('throws for whitespace-only string', () => {
+    expect(() => parseEntityRef('   ')).toThrow(/cannot be empty/);
   });
 });

@@ -1,6 +1,11 @@
 import { execAction, execActionJson } from './client';
 import { handleCommandError } from './intent-errors';
-import { runEntityListAction, runRawAction, runSearchAction } from './helpers';
+import {
+  runEntityListAction,
+  runRawAction,
+  runSearchAction,
+  resolveEntityWithAmbiguityCheck,
+} from './helpers';
 
 jest.mock('./client');
 jest.mock('./intent-errors');
@@ -237,6 +242,243 @@ describe('runSearchAction', () => {
 
     expect(mockHandleCommandError).toHaveBeenCalledWith(error, 'human', {
       suggestion: 'rhdh-cli search "term"',
+    });
+  });
+});
+
+describe('resolveEntityWithAmbiguityCheck', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('returns directly when full reference is provided (kind and namespace)', async () => {
+    const result = await resolveEntityWithAmbiguityCheck(
+      'component:default/my-service',
+    );
+
+    expect(result).toEqual({
+      kind: 'component',
+      namespace: 'default',
+      name: 'my-service',
+      entityRef: 'component:default/my-service',
+    });
+
+    // Should not query the catalog
+    expect(mockExecActionJson).not.toHaveBeenCalled();
+  });
+
+  it('returns directly when kind flag and namespace flag are provided', async () => {
+    const result = await resolveEntityWithAmbiguityCheck('my-service', {
+      kindFlag: 'component',
+      namespaceFlag: 'production',
+    });
+
+    expect(result).toEqual({
+      kind: 'component',
+      namespace: 'production',
+      name: 'my-service',
+      entityRef: 'component:production/my-service',
+    });
+
+    // Should not query the catalog
+    expect(mockExecActionJson).not.toHaveBeenCalled();
+  });
+
+  it('queries catalog when short name is provided and resolves single match', async () => {
+    mockExecActionJson.mockReturnValue({
+      items: [
+        {
+          kind: 'Component',
+          metadata: { name: 'my-service', namespace: 'default' },
+        },
+      ],
+    });
+
+    const result = await resolveEntityWithAmbiguityCheck('my-service');
+
+    expect(mockExecActionJson).toHaveBeenCalledWith(
+      'catalog:query-catalog-entities',
+      {
+        query: JSON.stringify({ 'metadata.name': 'my-service' }),
+        instance: undefined,
+      },
+    );
+
+    expect(result).toEqual({
+      kind: 'Component',
+      namespace: 'default',
+      name: 'my-service',
+      entityRef: 'Component:default/my-service',
+    });
+  });
+
+  it('queries catalog with kind filter when defaultKind is provided', async () => {
+    mockExecActionJson.mockReturnValue({
+      items: [
+        {
+          kind: 'Template',
+          metadata: { name: 'my-template', namespace: 'default' },
+        },
+      ],
+    });
+
+    const result = await resolveEntityWithAmbiguityCheck('my-template', {
+      defaultKind: 'template',
+    });
+
+    expect(mockExecActionJson).toHaveBeenCalledWith(
+      'catalog:query-catalog-entities',
+      {
+        query: JSON.stringify({
+          'metadata.name': 'my-template',
+          kind: 'template',
+        }),
+        instance: undefined,
+      },
+    );
+
+    expect(result).toEqual({
+      kind: 'Template',
+      namespace: 'default',
+      name: 'my-template',
+      entityRef: 'Template:default/my-template',
+    });
+  });
+
+  it('returns directly when both kind and namespace flags are provided (full reference)', async () => {
+    const result = await resolveEntityWithAmbiguityCheck('my-service', {
+      kindFlag: 'component',
+      namespaceFlag: 'production',
+    });
+
+    // Should NOT query catalog when we have full reference
+    expect(mockExecActionJson).not.toHaveBeenCalled();
+
+    expect(result).toEqual({
+      kind: 'component',
+      namespace: 'production',
+      name: 'my-service',
+      entityRef: 'component:production/my-service',
+    });
+  });
+
+  it('throws error when no entities found', async () => {
+    mockExecActionJson.mockReturnValue({ items: [] });
+
+    await expect(
+      resolveEntityWithAmbiguityCheck('nonexistent-service'),
+    ).rejects.toThrow('Entity not found: nonexistent-service');
+  });
+
+  it('throws error when no entities found with kind filter', async () => {
+    mockExecActionJson.mockReturnValue({ items: [] });
+
+    await expect(
+      resolveEntityWithAmbiguityCheck('nonexistent', {
+        kindFlag: 'component',
+      }),
+    ).rejects.toThrow('Entity not found: component:*/nonexistent');
+  });
+
+  it('throws ambiguity error when multiple entities found', async () => {
+    mockExecActionJson.mockReturnValue({
+      items: [
+        {
+          kind: 'Component',
+          metadata: { name: 'my-service', namespace: 'default' },
+        },
+        {
+          kind: 'Component',
+          metadata: { name: 'my-service', namespace: 'production' },
+        },
+        {
+          kind: 'API',
+          metadata: { name: 'my-service', namespace: 'default' },
+        },
+      ],
+    });
+
+    await expect(resolveEntityWithAmbiguityCheck('my-service')).rejects.toThrow(
+      /Ambiguous entity reference.*Multiple entities named "my-service" found/,
+    );
+  });
+
+  it('includes all matching entities in ambiguity error message', async () => {
+    mockExecActionJson.mockReturnValue({
+      items: [
+        {
+          kind: 'Component',
+          metadata: { name: 'my-service', namespace: 'default' },
+        },
+        {
+          kind: 'Component',
+          metadata: { name: 'my-service', namespace: 'production' },
+        },
+      ],
+    });
+
+    await expect(resolveEntityWithAmbiguityCheck('my-service')).rejects.toThrow(
+      /Component:default\/my-service[\s\S]*Component:production\/my-service[\s\S]*Use full reference to disambiguate/,
+    );
+  });
+
+  it('returns directly when namespace/name format with kind flag (full reference)', async () => {
+    const result = await resolveEntityWithAmbiguityCheck(
+      'production/my-service',
+      {
+        kindFlag: 'component',
+      },
+    );
+
+    // Should NOT query catalog when we have full reference (kind from flag + namespace from ref)
+    expect(mockExecActionJson).not.toHaveBeenCalled();
+
+    expect(result).toEqual({
+      kind: 'component',
+      namespace: 'production',
+      name: 'my-service',
+      entityRef: 'component:production/my-service',
+    });
+  });
+
+  it('passes instance option through to catalog query', async () => {
+    mockExecActionJson.mockReturnValue({
+      items: [
+        {
+          kind: 'Component',
+          metadata: { name: 'my-service', namespace: 'default' },
+        },
+      ],
+    });
+
+    await resolveEntityWithAmbiguityCheck('my-service', {
+      instance: 'my-instance',
+    });
+
+    expect(mockExecActionJson).toHaveBeenCalledWith(
+      'catalog:query-catalog-entities',
+      {
+        query: JSON.stringify({ 'metadata.name': 'my-service' }),
+        instance: 'my-instance',
+      },
+    );
+  });
+
+  it('handles entities array directly (backward compatibility)', async () => {
+    mockExecActionJson.mockReturnValue([
+      {
+        kind: 'Component',
+        metadata: { name: 'my-service', namespace: 'default' },
+      },
+    ]);
+
+    const result = await resolveEntityWithAmbiguityCheck('my-service');
+
+    expect(result).toEqual({
+      kind: 'Component',
+      namespace: 'default',
+      name: 'my-service',
+      entityRef: 'Component:default/my-service',
     });
   });
 });

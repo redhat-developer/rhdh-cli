@@ -1,9 +1,11 @@
 import { Command } from 'commander';
 import { execActionJson } from './client';
 import { registerDocsCommands } from './docs';
+import { resolveEntityWithAmbiguityCheck } from './helpers';
 import { handleCommandError } from './intent-errors';
 
 jest.mock('./client');
+jest.mock('./helpers');
 jest.mock('./intent-errors');
 
 const mockExecActionJson = execActionJson as jest.MockedFunction<
@@ -12,10 +14,52 @@ const mockExecActionJson = execActionJson as jest.MockedFunction<
 const mockHandleCommandError = handleCommandError as jest.MockedFunction<
   typeof handleCommandError
 >;
+const mockResolveEntityWithAmbiguityCheck =
+  resolveEntityWithAmbiguityCheck as jest.MockedFunction<
+    typeof resolveEntityWithAmbiguityCheck
+  >;
 
 function captureStdout() {
   return jest.spyOn(process.stdout, 'write').mockImplementation(() => true);
 }
+
+describe('docs get', () => {
+  it('reports an unresolved entity as a catalog error', async () => {
+    const error = new Error('Entity not found');
+    mockResolveEntityWithAmbiguityCheck.mockRejectedValue(error);
+    const stderrSpy = jest
+      .spyOn(process.stderr, 'write')
+      .mockImplementation(() => true);
+    const exitSpy = jest
+      .spyOn(process, 'exit')
+      .mockImplementation((() => undefined) as never);
+    const program = new Command();
+    registerDocsCommands(program);
+
+    await program.parseAsync(['node', 'test', 'docs', 'get', 'missing']);
+
+    expect(stderrSpy).not.toHaveBeenCalled();
+    expect(mockHandleCommandError).toHaveBeenCalledWith(error, 'human', {
+      suggestion: 'Use an RHDH instance with techdocs-mcp-extras enabled.',
+    });
+
+    stderrSpy.mockRestore();
+    exitSpy.mockRestore();
+  });
+});
+
+describe('docs list', () => {
+  it('rejects the unsupported --limit option', async () => {
+    const program = new Command();
+    program.exitOverride();
+    program.configureOutput({ writeErr: () => undefined });
+    registerDocsCommands(program);
+
+    await expect(
+      program.parseAsync(['node', 'test', 'docs', 'list', '--limit', '5']),
+    ).rejects.toMatchObject({ code: 'commander.unknownOption' });
+  });
+});
 
 describe('docs coverage', () => {
   let writeSpy: jest.SpyInstance;

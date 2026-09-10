@@ -1,6 +1,11 @@
 import { readFileSync } from 'node:fs';
 import { Command } from 'commander';
-import { runEntityListAction, runRawAction, type ActionFlags } from './helpers';
+import {
+  runEntityListAction,
+  runRawAction,
+  resolveEntityWithAmbiguityCheck,
+  type ActionFlags,
+} from './helpers';
 import { parseOutputFlag } from './format';
 import { handleCommandError } from './intent-errors';
 import { collect, resolveJsonInput } from './kv';
@@ -48,12 +53,9 @@ export function registerTemplateCommands(program: Command) {
     });
 
   template
-    .command('execute')
+    .command('execute <ref>')
     .description('Execute a software template')
-    .option(
-      '--template-ref <ref>',
-      'Template entity ref, e.g. template:default/my-template (required)',
-    )
+    .option('--namespace <ns>', 'Template namespace (to filter/disambiguate)')
     .option(
       '--value <key=value>',
       'Template input value, e.g. --value name=my-app (repeatable)',
@@ -68,48 +70,57 @@ export function registerTemplateCommands(program: Command) {
     )
     .option('--output <format>', 'Output format: human (default), json')
     .option('--instance <name>', 'Backstage instance name')
-    .action(async opts => {
+    .action(async (ref: string, opts) => {
       const mode = parseOutputFlag(opts.output);
 
-      if (!opts.templateRef) {
-        handleCommandError(new Error('--template-ref is required'), mode, {
-          suggestion:
-            'rhdh-cli template execute --template-ref template:default/my-template --value name=my-app',
-        });
-      }
-
-      // Values are optional - some templates accept no parameters
-      let values: string | undefined;
       try {
-        values = resolveJsonInput(opts.value);
-      } catch (error) {
-        handleCommandError(error, mode, {
-          suggestion:
-            'rhdh-cli template execute --template-ref <ref> --value key=value --value otherKey=otherValue',
-        });
-      }
-
-      let secrets: string | undefined;
-      try {
-        secrets = resolveJsonInput(opts.secret);
-      } catch (error) {
-        handleCommandError(error, mode, {
-          suggestion:
-            'rhdh-cli template execute --template-ref <ref> --secret token=abc',
-        });
-      }
-
-      await runRawAction(
-        'scaffolder:execute-template',
-        {
-          templateRef: opts.templateRef,
-          values,
-          secrets,
+        // Templates default to kind=template if not specified
+        const { namespace, name } = await resolveEntityWithAmbiguityCheck(ref, {
+          defaultKind: 'template',
+          namespaceFlag: opts.namespace,
           instance: opts.instance,
-        },
-        mode,
-        'rhdh-cli template list',
-      );
+        });
+
+        // Build the canonical template reference
+        const templateRef = `template:${namespace}/${name}`;
+
+        // Values are optional - some templates accept no parameters
+        let values: string | undefined;
+        try {
+          values = resolveJsonInput(opts.value);
+        } catch (error) {
+          handleCommandError(error, mode, {
+            suggestion:
+              'rhdh-cli template execute my-template --value key=value --value otherKey=otherValue',
+          });
+        }
+
+        let secrets: string | undefined;
+        try {
+          secrets = resolveJsonInput(opts.secret);
+        } catch (error) {
+          handleCommandError(error, mode, {
+            suggestion:
+              'rhdh-cli template execute my-template --secret token=abc',
+          });
+        }
+
+        await runRawAction(
+          'scaffolder:execute-template',
+          {
+            templateRef,
+            values,
+            secrets,
+            instance: opts.instance,
+          },
+          mode,
+          'rhdh-cli template list',
+        );
+      } catch (error) {
+        handleCommandError(error, mode, {
+          suggestion: 'rhdh-cli template execute my-template',
+        });
+      }
     });
 
   template
