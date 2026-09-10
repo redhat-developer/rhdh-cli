@@ -212,8 +212,50 @@ describe('upgrade command', () => {
       });
 
       expect(result.updatedFiles).toEqual([]);
+      expect(result.wouldUpdateFiles).toEqual(['package.json']);
       const pkg = await fs.readJson(path.join(tmpDir, 'package.json'));
       expect(pkg.dependencies['@backstage/core-plugin-api']).toBe('^1.9.0');
+    });
+
+    it('reports backstage.json as a dry-run change', async () => {
+      await setupFixture(
+        {
+          dependencies: {
+            '@backstage/core-plugin-api': '^1.12.0',
+          },
+        },
+        undefined,
+        '1.45.3',
+      );
+
+      const result = await upgradePluginDependencies({
+        targetDir: tmpDir,
+        dryRun: true,
+      });
+
+      expect(result.updatedFiles).toEqual([]);
+      expect(result.wouldUpdateFiles).toEqual(['backstage.json']);
+    });
+
+    it('propagates backstage.json write failures', async () => {
+      await setupFixture(
+        {
+          dependencies: {
+            '@backstage/core-plugin-api': '^1.12.0',
+          },
+        },
+        undefined,
+        '1.45.3',
+      );
+      const writeJsonSpy = jest
+        .spyOn(fs, 'writeJson')
+        .mockRejectedValue(new Error('disk full'));
+
+      await expect(
+        upgradePluginDependencies({ targetDir: tmpDir, skipInstall: true }),
+      ).rejects.toThrow('disk full');
+
+      writeJsonSpy.mockRestore();
     });
 
     it('deduplicates unmanifested @backstage packages', async () => {
@@ -313,6 +355,7 @@ describe('upgrade command', () => {
 
       const res = await runCommandWithOutput('2.0.0', { dryRun: true });
       expect(res.stderr).toContain('Dry run completed');
+      expect(res.stderr).toContain('Would update package.json');
     });
 
     it('warns when all Backstage dependencies are unmanifested', async () => {

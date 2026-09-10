@@ -49,6 +49,7 @@ export interface UpgradePluginResult {
   changes: PackageUpgradeChange[];
   unmanifested: string[];
   updatedFiles: string[];
+  wouldUpdateFiles: string[];
   installed: boolean;
 }
 
@@ -162,22 +163,29 @@ function applyDependencyUpgrades(
 async function syncBackstageJson(
   targetDir: string,
   targetBackstageVersion: string,
+  dryRun: boolean,
 ): Promise<string | undefined> {
   const backstageJsonPath = path.join(targetDir, BACKSTAGE_JSON);
   if (!(await fs.pathExists(backstageJsonPath))) {
     return undefined;
   }
 
+  let backstageJson: { version?: string };
   try {
-    const backstageJson = await fs.readJson(backstageJsonPath);
-    if (backstageJson.version !== targetBackstageVersion) {
-      backstageJson.version = targetBackstageVersion;
-      await fs.writeJson(backstageJsonPath, backstageJson, { spaces: 2 });
-      return BACKSTAGE_JSON;
-    }
+    backstageJson = await fs.readJson(backstageJsonPath);
   } catch {
     // Ignore JSON read errors
+    return undefined;
   }
+
+  if (backstageJson.version !== targetBackstageVersion) {
+    if (!dryRun) {
+      backstageJson.version = targetBackstageVersion;
+      await fs.writeJson(backstageJsonPath, backstageJson, { spaces: 2 });
+    }
+    return BACKSTAGE_JSON;
+  }
+
   return undefined;
 }
 
@@ -220,25 +228,33 @@ export async function upgradePluginDependencies(
   );
 
   const updatedFiles: string[] = [];
+  const wouldUpdateFiles: string[] = [];
   let installed = false;
 
-  if (!options.dryRun) {
-    if (modified) {
+  if (modified) {
+    if (options.dryRun) {
+      wouldUpdateFiles.push('package.json');
+    } else {
       await fs.writeJson(packageJsonPath, packageJson, { spaces: 2 });
       updatedFiles.push('package.json');
     }
+  }
 
-    const updatedBsJson = await syncBackstageJson(
-      targetDir,
-      resolved.backstageVersion,
-    );
-    if (updatedBsJson) {
+  const updatedBsJson = await syncBackstageJson(
+    targetDir,
+    resolved.backstageVersion,
+    Boolean(options.dryRun),
+  );
+  if (updatedBsJson) {
+    if (options.dryRun) {
+      wouldUpdateFiles.push(updatedBsJson);
+    } else {
       updatedFiles.push(updatedBsJson);
     }
+  }
 
-    if (!options.skipInstall && modified) {
-      installed = await runInstallDependencies(targetDir);
-    }
+  if (!options.dryRun && !options.skipInstall && modified) {
+    installed = await runInstallDependencies(targetDir);
   }
 
   return {
@@ -248,6 +264,7 @@ export async function upgradePluginDependencies(
     changes,
     unmanifested,
     updatedFiles,
+    wouldUpdateFiles,
     installed,
   };
 }
@@ -344,8 +361,11 @@ export async function command(
   process.stderr.write(`${chalk.bold('Summary:')} ${summary}\n`);
 
   if (dryRun) {
+    const filesStr = result.wouldUpdateFiles.length
+      ? ` Would update ${chalk.cyan(result.wouldUpdateFiles.join(', '))}.`
+      : '';
     process.stderr.write(
-      `\n${chalk.cyan('Dry run completed:')} No files were modified on disk.\n\n`,
+      `\n${chalk.cyan('Dry run completed:')} No files were modified on disk.${filesStr}\n\n`,
     );
   } else if (installFailed) {
     Task.error(
