@@ -121,7 +121,7 @@ describe('upgrade command', () => {
   });
 
   describe('computeTargetVersion', () => {
-    it('preserves carat prefix', () => {
+    it('preserves caret prefix', () => {
       expect(computeTargetVersion('^1.10.0', '1.12.0')).toBe('^1.12.0');
     });
 
@@ -133,6 +133,9 @@ describe('upgrade command', () => {
       expect(computeTargetVersion('>=1.10.0', '1.12.0')).toBe('>=1.12.0');
       expect(computeTargetVersion('workspace:^1.10.0', '1.12.0')).toBe(
         'workspace:^1.12.0',
+      );
+      expect(computeTargetVersion('workspace:1.10.0', '1.12.0')).toBe(
+        'workspace:1.12.0',
       );
     });
 

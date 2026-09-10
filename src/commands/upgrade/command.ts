@@ -65,9 +65,18 @@ export function computeTargetVersion(
     return 'backstage:^';
   }
 
-  const rangePrefix = /^(?:workspace:)?(?:\^|~|>=|<=|>|<|=)/.exec(
-    currentDeclared,
-  )?.[0];
+  if (currentDeclared.startsWith('workspace:')) {
+    const workspaceVersion = currentDeclared.slice('workspace:'.length);
+    const targetVersion = computeTargetVersion(
+      workspaceVersion,
+      manifestExpected,
+    );
+    return targetVersion === workspaceVersion
+      ? currentDeclared
+      : `workspace:${targetVersion}`;
+  }
+
+  const rangePrefix = /^(?:\^|~|>=|<=|>|<|=)/.exec(currentDeclared)?.[0];
   if (rangePrefix) {
     return `${rangePrefix}${manifestExpected}`;
   }
