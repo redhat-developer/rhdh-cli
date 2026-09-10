@@ -19,9 +19,9 @@ import chalk from 'chalk';
 import { OptionValues } from 'commander';
 import fs from 'fs-extra';
 import path from 'node:path';
+
 import { paths } from '../../lib/paths';
 import { resolveRhdhVersion } from '../../lib/rhdhVersion';
-import { runPlain } from '../../lib/run';
 import { Task } from '../../lib/tasks';
 
 export type DependencySection =
@@ -49,7 +49,7 @@ export interface UpgradePluginOptions {
 export interface UpgradePluginResult {
   rhdhVersion: string;
   backstageVersion: string;
-  source: 'remote' | 'matrix';
+  source: 'remote' | 'matrix' | 'explicit';
   changes: PackageUpgradeChange[];
   unmanifested: string[];
   updatedFiles: string[];
@@ -191,9 +191,7 @@ async function syncBackstageJson(
 async function runInstallDependencies(targetDir: string): Promise<boolean> {
   const pm = await detectPackageManager(targetDir);
   try {
-    await Task.forItem('installing', 'dependencies', async () => {
-      await runPlain(pm, 'install');
-    });
+    await Task.forCommand(`${pm} install`, { cwd: targetDir });
     return true;
   } catch {
     return false;
@@ -348,6 +346,11 @@ export async function command(
     process.stderr.write(
       `\n${chalk.cyan('Dry run completed:')} No files were modified on disk.\n\n`,
     );
+  } else if (!skipInstall && changedCount > 0 && !result.installed) {
+    Task.error(
+      'Dependencies were updated, but installation failed. Resolve the installation error and retry.',
+    );
+    process.exitCode = 1;
   } else if (result.updatedFiles.length > 0) {
     const filesStr = chalk.cyan(result.updatedFiles.join(', '));
     process.stderr.write(

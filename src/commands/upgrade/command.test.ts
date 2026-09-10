@@ -17,8 +17,9 @@
 import fs from 'fs-extra';
 import os from 'os';
 import path from 'node:path';
+
 import { resolveRhdhVersion } from '../../lib/rhdhVersion';
-import * as runMod from '../../lib/run';
+import { Task } from '../../lib/tasks';
 import {
   command,
   computeTargetVersion,
@@ -31,20 +32,13 @@ jest.mock('../../lib/rhdhVersion', () => ({
   resolveRhdhVersion: jest.fn(),
 }));
 
-jest.mock('../../lib/run', () => ({
-  ...jest.requireActual('../../lib/run'),
-  runPlain: jest.fn(),
-}));
-
 describe('upgrade command', () => {
   let tmpDir: string;
   let originalCwd: string;
   const mockResolveRhdhVersion = resolveRhdhVersion as jest.MockedFunction<
     typeof resolveRhdhVersion
   >;
-  const mockRunPlain = runMod.runPlain as jest.MockedFunction<
-    typeof runMod.runPlain
-  >;
+  let mockTaskForCommand: jest.SpiedFunction<typeof Task.forCommand>;
 
   async function setupFixture(
     pkg: {
@@ -110,12 +104,16 @@ describe('upgrade command', () => {
     process.chdir(tmpDir);
     process.exitCode = undefined;
     jest.clearAllMocks();
+    mockTaskForCommand = jest
+      .spyOn(Task, 'forCommand')
+      .mockResolvedValue(undefined);
   });
 
   afterEach(async () => {
     process.chdir(originalCwd);
     await fs.remove(tmpDir);
     process.exitCode = undefined;
+    mockTaskForCommand.mockRestore();
   });
 
   describe('computeTargetVersion', () => {
@@ -239,18 +237,30 @@ describe('upgrade command', () => {
         },
       });
 
-      mockRunPlain.mockResolvedValue('');
-
       const result = await upgradePluginDependencies({
         targetDir: tmpDir,
         skipInstall: false,
       });
 
       expect(result.installed).toBe(true);
-      expect(mockRunPlain).toHaveBeenCalledWith(
-        expect.stringMatching(/yarn|npm/),
-        'install',
-      );
+      expect(mockTaskForCommand).toHaveBeenCalledWith('npm install', {
+        cwd: tmpDir,
+      });
+    });
+
+    it('reports a failed install to human users', async () => {
+      await setupFixture({
+        dependencies: {
+          '@backstage/core-plugin-api': '^1.9.0',
+        },
+      });
+      mockTaskForCommand.mockRejectedValue(new Error('install failed'));
+
+      const res = await runCommandWithOutput('2.0.0');
+
+      expect(res.stderr).toContain('installation failed');
+      expect(res.stderr).not.toContain('Successfully upgraded');
+      expect(process.exitCode).toBe(1);
     });
   });
 
