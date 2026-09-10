@@ -13,6 +13,14 @@ function mockExecFileSyncReturning(output: string) {
   mockExecFileSync.mockReturnValue(output as never);
 }
 
+function mockExecFileSyncThrowing(stderr: string) {
+  mockExecFileSync.mockImplementation(() => {
+    const error = new Error('Command failed') as Error & { stderr: Buffer };
+    error.stderr = Buffer.from(stderr);
+    throw error;
+  });
+}
+
 describe('execAction', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -102,13 +110,7 @@ describe('execAction', () => {
   });
 
   it('throws with the "Error:" line from stderr when the command fails', () => {
-    mockExecFileSync.mockImplementation(() => {
-      const error = new Error('Command failed') as Error & { stderr: Buffer };
-      error.stderr = Buffer.from(
-        'some noise\nError: Entity not found\nmore noise',
-      );
-      throw error;
-    });
+    mockExecFileSyncThrowing('some noise\nError: Entity not found\nmore noise');
 
     expect(() =>
       execAction('catalog:get-catalog-entity', { name: 'missing' }),
@@ -116,11 +118,7 @@ describe('execAction', () => {
   });
 
   it('falls back to the last stderr line when no "Error:" line is present', () => {
-    mockExecFileSync.mockImplementation(() => {
-      const error = new Error('Command failed') as Error & { stderr: Buffer };
-      error.stderr = Buffer.from('first line\nlast line');
-      throw error;
-    });
+    mockExecFileSyncThrowing('first line\nlast line');
 
     expect(() =>
       execAction('catalog:get-catalog-entity', { name: 'missing' }),
@@ -128,11 +126,7 @@ describe('execAction', () => {
   });
 
   it('rebrands "backstage-cli" as "rhdh-cli" in the thrown error message', () => {
-    mockExecFileSync.mockImplementation(() => {
-      const error = new Error('Command failed') as Error & { stderr: Buffer };
-      error.stderr = Buffer.from('Error: run backstage-cli auth login first');
-      throw error;
-    });
+    mockExecFileSyncThrowing('Error: run backstage-cli auth login first');
 
     expect(() =>
       execAction('catalog:get-catalog-entity', { name: 'missing' }),

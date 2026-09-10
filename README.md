@@ -115,6 +115,7 @@ rhdh-cli template execute \
 All commands support `--help` for detailed usage and `--output json` for machine-readable output.
 
 **📚 For complete documentation, setup guides, and examples, see:**
+
 - **[Intent-Based CLI Documentation](src/commands/intent-based-actions/CLI.md)** - Complete guide for RHDH interaction commands
 
 ### Optional TechDocs Features

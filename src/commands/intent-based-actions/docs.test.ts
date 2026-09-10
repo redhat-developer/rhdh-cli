@@ -13,14 +13,16 @@ const mockHandleCommandError = handleCommandError as jest.MockedFunction<
   typeof handleCommandError
 >;
 
+function captureStdout() {
+  return jest.spyOn(process.stdout, 'write').mockImplementation(() => true);
+}
+
 describe('docs coverage', () => {
   let writeSpy: jest.SpyInstance;
 
   beforeEach(() => {
-    writeSpy = jest
-      .spyOn(process.stdout, 'write')
-      .mockImplementation(() => true);
     jest.clearAllMocks();
+    writeSpy = captureStdout();
   });
 
   afterEach(() => {

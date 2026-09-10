@@ -145,7 +145,7 @@ describe('handleCommandError', () => {
 
   it('maps a "No authenticated instances" error to a configuration reason', () => {
     handleCommandError(new Error('No authenticated instances'), 'json');
-    expect(writtenError().reason).toMatch(/No Backstage instance configured/);
+    expect(writtenError().reason).toMatch(/No RHDH instance configured/);
   });
 
   it('checks the message of the full error cause chain, not just the top-level message', () => {

@@ -60,7 +60,7 @@ function coerceValue(raw: string): unknown {
  */
 export function resolveJsonInput(
   pairs: string[] | undefined,
-  json: string | undefined,
+  json?: string,
 ): string | undefined {
   const fromPairs = parseKeyValuePairs(pairs);
 

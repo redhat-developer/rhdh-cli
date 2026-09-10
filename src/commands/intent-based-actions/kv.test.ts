@@ -98,7 +98,7 @@ describe('resolveJsonInput', () => {
   });
 
   it('builds a JSON object from key=value pairs alone', () => {
-    expect(resolveJsonInput(['kind=Component'], undefined)).toBe(
+    expect(resolveJsonInput(['kind=Component'])).toBe(
       JSON.stringify({ kind: 'Component' }),
     );
   });

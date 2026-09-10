@@ -28,6 +28,7 @@ Complete guide for using `rhdh-cli` to interact with Red Hat Developer Hub insta
 `rhdh-cli` provides intent-based commands for querying and managing RHDH catalog entities, API specifications, TechDocs content, and software templates. All commands support both human-readable output (default) and structured JSON output (`--output json`) for automation and AI agents.
 
 **Key Features:**
+
 - **No local project context required** - Works standalone after authentication
 - **Self-documenting** - `--help` provides complete command documentation
 - **Agent-friendly** - JSON output mode with structured error messages
@@ -57,7 +58,7 @@ Install it as a dynamic plugin from `rhdh-plugin-export-overlays`:
 ```yaml
 # dynamic-plugins.yaml
 plugins:
-  - package: "oci://ghcr.io/redhat-developer/rhdh-plugin-export-overlays/backstage-plugin-auth:bs_1.49.4__0.1.6"
+  - package: 'oci://ghcr.io/redhat-developer/rhdh-plugin-export-overlays/backstage-plugin-auth:bs_1.49.4__0.1.6'
     disabled: false
     pluginConfig:
       dynamicPlugins:
@@ -92,7 +93,6 @@ plugins:
 ```
 
 **Note:** The `docs search` command works without this plugin. Only `docs list`, `docs get`, and `docs coverage` require it.
-
 
 ## Authentication
 
@@ -152,6 +152,7 @@ rhdh-cli actions sources list
 ```
 
 **Important Notes:**
+
 - Source registration is per-instance. Switching instances with `auth select` requires re-adding sources.
 - Only add sources for plugins that have the actions backend endpoint.
 - Adding a source for a plugin without it causes `actions list` to fail entirely.
@@ -160,31 +161,32 @@ rhdh-cli actions sources list
 
 The following table shows how intent-based CLI commands map to underlying Backstage actions:
 
-| Command | Action ID | Notes |
-|---------|-----------|-------|
-| `catalog list` | `catalog:query-catalog-entities` | Supports `--kind`, `--type`, `--filter` (repeatable), `--limit`, `--fields` |
-| `catalog get` | `catalog:get-catalog-entity` | Requires `--name`, optional `--kind`, `--namespace` |
-| `catalog validate` | `catalog:validate-entity` | Accepts `--entity` or `--entity-file` |
-| `catalog register` | `catalog:register-entity` | Requires `--location-url` |
-| `catalog unregister` | `catalog:unregister-entity` | Requires `--location-id` or `--location-url` |
-| `api list` | `catalog:query-catalog-entities` | Hardcoded `kind=API`, supports `--type`, `--filter` (repeatable) |
-| `api get-spec` | `catalog:get-catalog-entity` | Extracts `spec.definition` from API entity |
-| `search <term>` | `search:query` | Supports `--types`, `--page-limit`, `--page-cursor` |
-| `docs search <term>` | `search:query` | Hardcoded `types=["techdocs"]` |
-| `docs list` | `techdocs-mcp-extras:fetch-techdocs` | RHDH only, requires plugin; supports `--kind`, `--owner`, `--lifecycle`, `--tags`, `--limit` |
-| `docs get` | `techdocs-mcp-extras:retrieve-techdocs-content` | RHDH only, requires plugin |
-| `docs coverage` | `techdocs-mcp-extras:analyze-techdocs-coverage` | RHDH only, requires plugin |
-| `template list` | `catalog:query-catalog-entities` | Hardcoded `kind=Template`, supports `--filter` (repeatable) |
-| `template execute` | `scaffolder:execute-template` | Requires `--template-ref`; `--value` (repeatable) and `--secret` (repeatable) are optional |
-| `template dry-run` | `scaffolder:dry-run-template` | Requires `--template-file`; `--value` (repeatable) is optional; reads YAML from disk |
-| `auth *` | Pass-through to `backstage-cli auth *` | Output rebranded as `rhdh-cli` |
-| `actions *` | Pass-through to `backstage-cli actions *` | Output rebranded as `rhdh-cli` |
+| Command              | Action ID                                       | Notes                                                                                        |
+| -------------------- | ----------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `catalog list`       | `catalog:query-catalog-entities`                | Supports `--kind`, `--type`, `--filter` (repeatable), `--limit`, `--fields`                  |
+| `catalog get`        | `catalog:get-catalog-entity`                    | Requires `--name`, optional `--kind`, `--namespace`                                          |
+| `catalog validate`   | `catalog:validate-entity`                       | Accepts `--entity` or `--entity-file`                                                        |
+| `catalog register`   | `catalog:register-entity`                       | Requires `--location-url`                                                                    |
+| `catalog unregister` | `catalog:unregister-entity`                     | Requires `--location-id` or `--location-url`                                                 |
+| `api list`           | `catalog:query-catalog-entities`                | Hardcoded `kind=API`, supports `--type`, `--filter` (repeatable)                             |
+| `api get-spec`       | `catalog:get-catalog-entity`                    | Extracts `spec.definition` from API entity                                                   |
+| `search <term>`      | `search:query`                                  | Supports `--types`, `--page-limit`, `--page-cursor`                                          |
+| `docs search <term>` | `search:query`                                  | Hardcoded `types=["techdocs"]`                                                               |
+| `docs list`          | `techdocs-mcp-extras:fetch-techdocs`            | RHDH only, requires plugin; supports `--kind`, `--owner`, `--lifecycle`, `--tags`, `--limit` |
+| `docs get`           | `techdocs-mcp-extras:retrieve-techdocs-content` | RHDH only, requires plugin                                                                   |
+| `docs coverage`      | `techdocs-mcp-extras:analyze-techdocs-coverage` | RHDH only, requires plugin                                                                   |
+| `template list`      | `catalog:query-catalog-entities`                | Hardcoded `kind=Template`, supports `--filter` (repeatable)                                  |
+| `template execute`   | `scaffolder:execute-template`                   | Requires `--template-ref`; `--value` (repeatable) and `--secret` (repeatable) are optional   |
+| `template dry-run`   | `scaffolder:dry-run-template`                   | Requires `--template-file`; `--value` (repeatable) is optional; reads YAML from disk         |
+| `auth *`             | Pass-through to `backstage-cli auth *`          | Output rebranded as `rhdh-cli`                                                               |
+| `actions *`          | Pass-through to `backstage-cli actions *`       | Output rebranded as `rhdh-cli`                                                               |
 
 **Note:** Commands marked "RHDH only" require the `techdocs-mcp-extras` plugin to be installed on your RHDH instance. See [RHDH Instance Configuration](#rhdh-instance-configuration) for setup instructions.
 
 ## Commands Reference
 
 All commands support:
+
 - `--help` for detailed usage information
 - `--output json` for machine-readable structured output
 - `--instance <name>` to target a specific authenticated RHDH instance
@@ -222,6 +224,7 @@ rhdh-cli catalog list --kind Component --output json
 ```
 
 **Options:**
+
 - `--kind <kind>` - Entity kind (Component, API, System, User, Group, etc.)
 - `--type <type>` - Entity type (service, website, library, etc.)
 - `--filter <key=value>` - Query predicate (repeatable), e.g., `--filter spec.lifecycle=production`
@@ -246,6 +249,7 @@ rhdh-cli catalog get --name my-service --kind Component --output json
 ```
 
 **Options:**
+
 - `--name <name>` - Entity name (required)
 - `--kind <kind>` - Entity kind
 - `--namespace <ns>` - Entity namespace (default: `default`)
@@ -268,6 +272,7 @@ rhdh-cli catalog validate --entity-file ./catalog-info.yaml --location https://g
 ```
 
 **Options:**
+
 - `--entity <yaml>` - Entity YAML content
 - `--entity-file <path>` - Path to entity YAML file
 - `--location <url>` - Location to validate
@@ -285,6 +290,7 @@ rhdh-cli catalog register \
 ```
 
 **Options:**
+
 - `--location-url <url>` - Location URL to register (required)
 - `--output <format>` - Output format
 - `--instance <name>` - RHDH instance name
@@ -302,6 +308,7 @@ rhdh-cli catalog unregister --location-url https://github.com/org/repo/blob/main
 ```
 
 **Options:**
+
 - `--location-id <id>` - Location ID to unregister
 - `--location-url <url>` - Location URL to unregister
 - `--output <format>` - Output format
@@ -334,6 +341,7 @@ rhdh-cli api list --output json
 ```
 
 **Options:**
+
 - `--type <type>` - API type (`openapi`, `asyncapi`, `graphql`, `grpc`)
 - `--filter <key=value>` - Query predicate (repeatable)
 - `--limit <n>` - Maximum results to return
@@ -356,12 +364,14 @@ rhdh-cli api get-spec --name my-api --output json
 ```
 
 **Options:**
+
 - `--name <name>` - API entity name (required)
 - `--namespace <ns>` - Entity namespace (default: `default`)
 - `--output <format>` - Output format
 - `--instance <name>` - RHDH instance name
 
 **Output:**
+
 - Human mode: Raw specification (YAML or schema)
 - JSON mode: `{"name": "...", "type": "openapi", "definition": "..."}`
 
@@ -389,6 +399,7 @@ rhdh-cli search "deployment" --output json
 ```
 
 **Options:**
+
 - `<term>` - Search term (required)
 - `--types <json>` - Content types to search (JSON array)
 - `--page-limit <n>` - Results per page (default: 10)
@@ -416,6 +427,7 @@ rhdh-cli docs search "deployment" --output json
 ```
 
 **Options:**
+
 - `<term>` - Search term (required)
 - `--page-limit <n>` - Results per page (default: 10)
 - `--page-cursor <cursor>` - Pagination cursor
@@ -444,6 +456,7 @@ rhdh-cli docs list --output json
 ```
 
 **Options:**
+
 - `--kind <kind>` - Filter by entity kind (Component, API, etc.)
 - `--owner <owner>` - Filter by owner
 - `--lifecycle <lifecycle>` - Filter by lifecycle (production, experimental, etc.)
@@ -475,12 +488,14 @@ rhdh-cli docs get --entity-ref component:default/my-service --output json
 ```
 
 **Options:**
+
 - `--entity-ref <ref>` - Entity reference, e.g., `component:default/my-service` (required)
 - `--page-path <path>` - Specific doc page path (default: index)
 - `--output <format>` - Output format
 - `--instance <name>` - RHDH instance name
 
 **Output:**
+
 - Human mode: Plain text content (HTML stripped)
 - JSON mode: `{"entityRef": "...", "content": "...", "pageTitle": "...", "metadata": {...}}`
 
@@ -499,10 +514,12 @@ rhdh-cli docs coverage --output json
 ```
 
 **Options:**
+
 - `--output <format>` - Output format
 - `--instance <name>` - RHDH instance name
 
 **Output:**
+
 ```
 TechDocs Coverage Report
 
@@ -539,6 +556,7 @@ rhdh-cli template list --output json
 ```
 
 **Options:**
+
 - `--filter <key=value>` - Query predicate (repeatable)
 - `--limit <n>` - Maximum results to return
 - `--output <format>` - Output format
@@ -576,6 +594,7 @@ rhdh-cli template execute \
 ```
 
 **Options:**
+
 - `--template-ref <ref>` - Template entity ref, e.g., `template:default/my-template` (required)
 - `--value <key=value>` - Template input value (repeatable)
 - `--secret <key=value>` - Template secret (repeatable)
@@ -603,6 +622,7 @@ rhdh-cli template dry-run \
 ```
 
 **Options:**
+
 - `--template-file <path>` - Path to template YAML file (required)
 - `--value <key=value>` - Template input value (repeatable)
 - `--output <format>` - Output format
@@ -739,6 +759,7 @@ rhdh-cli catalog list --kind Component --output json
 ```
 
 **JSON Error Format:**
+
 ```json
 {
   "error": "Error message",
@@ -748,6 +769,7 @@ rhdh-cli catalog list --kind Component --output json
 ```
 
 **Exit Codes:**
+
 - `0` - Success
 - Non-zero - Error occurred (check stderr and JSON error object)
 
@@ -822,6 +844,7 @@ rhdh-cli auth select
 ### Action Not Found
 
 If a command reports an action is not available:
+
 - Ensure your RHDH instance version is 1.10 or newer
 - Verify required plugins are installed on the RHDH instance (e.g., `techdocs-mcp-extras` for `docs list/get/coverage`)
 - Check that action sources are registered: `rhdh-cli actions sources list`
@@ -830,6 +853,7 @@ If a command reports an action is not available:
 ### TechDocs Commands Failing
 
 If `docs list`, `docs get`, or `docs coverage` fail:
+
 - These commands require the `techdocs-mcp-extras` plugin on your RHDH instance
 - Verify the plugin is installed and enabled on the RHDH instance
 - Check server-side configuration in `app-config.local.yaml`
@@ -839,6 +863,7 @@ If `docs list`, `docs get`, or `docs coverage` fail:
 ### Output Parsing Issues
 
 If JSON output is malformed:
+
 - Check for errors on stderr
 - Verify exit code (0 = success)
 - Ensure you included `--output json` flag

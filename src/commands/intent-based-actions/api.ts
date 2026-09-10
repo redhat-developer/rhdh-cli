@@ -34,7 +34,8 @@ export function registerApiCommands(program: Command) {
         predicate = resolveJsonInput(opts.filter);
       } catch (error) {
         handleCommandError(error, mode, {
-          suggestion: 'rhdh-cli api list --type openapi --filter spec.owner=team-a',
+          suggestion:
+            'rhdh-cli api list --type openapi --filter spec.owner=team-a',
         });
       }
       // --filter flags merge on top of the --type shortcut.
