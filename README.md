@@ -70,32 +70,58 @@ npx @red-hat-developer-hub/cli
 
 ## Commands
 
-The CLI exposes the bundled Backstage authentication and action commands, as
-well as higher-level intent-based commands:
+The CLI provides two categories of commands:
 
-- `auth`: log in to, select, inspect, and manage authenticated Backstage instances.
-- `actions`: list and execute actions, and manage action-discovery sources.
-- `catalog`: list, get, validate, register, and unregister catalog entities.
-- `api`: list API entities and retrieve their specifications.
-- `search`: search catalog, TechDocs, and template content.
-- `docs`: search TechDocs and, on RHDH instances, list entities, retrieve pages,
-  and view coverage.
-- `template`: list, execute, and dry-run software templates.
+### Plugin Development Commands
 
-Examples:
+- `plugin export`: Export a Backstage plugin as a dynamic plugin
+- `plugin package`: Package dynamic plugins for distribution
+- `plugin check-versions`: Verify plugin compatibility with RHDH versions
+
+### Intent-Based RHDH Interaction Commands
+
+High-level commands for interacting with RHDH instances:
+
+- `auth`: Log in to, select, inspect, and manage authenticated RHDH instances
+- `actions`: List and execute actions, and manage action-discovery sources
+- `catalog`: List, get, validate, register, and unregister catalog entities
+- `api`: List API entities and retrieve their OpenAPI/AsyncAPI/GraphQL specifications
+- `search`: Search catalog, TechDocs, and template content
+- `docs`: Search TechDocs and, on RHDH instances with optional plugins, list entities, retrieve pages, and view coverage
+- `template`: List, execute, and dry-run software templates
+
+**Quick Examples:**
 
 ```bash
-rhdh-cli auth login --backend-url https://backstage.example.com
-rhdh-cli catalog list --kind Component
-rhdh-cli search "deployment guide" --types techdocs
+# Authenticate with your RHDH instance
+rhdh-cli auth login --rhdh-url https://rhdh.example.com
+
+# List production components
+rhdh-cli catalog list --kind Component --filter spec.lifecycle=production
+
+# Search documentation
+rhdh-cli search "deployment guide" --types '["techdocs"]'
+
+# Get API specification
+rhdh-cli api get-spec --name my-api
+
+# Execute a template
 rhdh-cli template execute \
-  --template-ref template:default/my-template \
-  --value name=my-app
+  --template-ref template:default/nodejs-service \
+  --value name=my-app \
+  --value owner=team-platform
 ```
 
-The `--secret` and `--secrets` template options are forwarded to
-`backstage-cli actions execute` as action input flags. Avoid using them on
-shared machines where other users can inspect process arguments.
+All commands support `--help` for detailed usage and `--output json` for machine-readable output.
+
+**📚 For complete documentation, setup guides, and examples, see:**
+- **[Intent-Based CLI Documentation](src/commands/intent-based-actions/CLI.md)** - Complete guide for RHDH interaction commands
+
+### Optional TechDocs Features
+
+The `docs list`, `docs get`, and `docs coverage` commands require the optional **TechDocs MCP extras plugin** (`techdocs-mcp-extras`) to be installed on your RHDH instance. See the [CLI documentation](src/commands/intent-based-actions/CLI.md#rhdh-instance-configuration) for setup instructions.
+
+Commands `docs search` and all other commands work without this optional plugin.
 
 ### Bumping Backstage Dependencies
 
