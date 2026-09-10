@@ -269,35 +269,12 @@ export async function upgradePluginDependencies(
   };
 }
 
-/**
- * CLI command entry point for `rhdh-cli plugin upgrade`
- */
-export async function command(
-  rhdhVersionArg?: string,
-  opts: OptionValues = {},
-): Promise<void> {
-  const rhdhVersion = rhdhVersionArg || opts.rhdhVersion;
-  const { dryRun, skipInstall, manifestFile, json } = opts;
-
-  const result = await upgradePluginDependencies({
-    rhdhVersion,
-    dryRun,
-    skipInstall,
-    manifestFile,
-  });
-
-  const changedCount = result.changes.filter(c => c.changed).length;
-  const installFailed =
-    !dryRun && !skipInstall && changedCount > 0 && !result.installed;
-
-  if (json) {
-    process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
-    if (installFailed) {
-      throw new ExitCodeError(1);
-    }
-    return;
-  }
-
+function printUpgradeResult(
+  result: UpgradePluginResult,
+  dryRun: boolean,
+  installFailed: boolean,
+  changedCount: number,
+): void {
   const modeLabel = dryRun ? ' (dry run)' : '';
   Task.log(
     `Upgrading plugin dependencies to RHDH v${result.rhdhVersion} (Backstage v${result.backstageVersion}) [${result.source}]${modeLabel}...`,
@@ -382,4 +359,36 @@ export async function command(
       `\n${chalk.green('✔ All dependencies are already up to date.')}\n\n`,
     );
   }
+}
+
+/**
+ * CLI command entry point for `rhdh-cli plugin upgrade`
+ */
+export async function command(
+  rhdhVersionArg?: string,
+  opts: OptionValues = {},
+): Promise<void> {
+  const rhdhVersion = rhdhVersionArg || opts.rhdhVersion;
+  const { dryRun, skipInstall, manifestFile, json } = opts;
+
+  const result = await upgradePluginDependencies({
+    rhdhVersion,
+    dryRun,
+    skipInstall,
+    manifestFile,
+  });
+
+  const changedCount = result.changes.filter(c => c.changed).length;
+  const installFailed =
+    !dryRun && !skipInstall && changedCount > 0 && !result.installed;
+
+  if (json) {
+    process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+    if (installFailed) {
+      throw new ExitCodeError(1);
+    }
+    return;
+  }
+
+  printUpgradeResult(result, Boolean(dryRun), installFailed, changedCount);
 }
