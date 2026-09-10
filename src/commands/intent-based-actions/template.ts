@@ -61,18 +61,10 @@ export function registerTemplateCommands(program: Command) {
       [] as string[],
     )
     .option(
-      '--values <json>',
-      'Template input values as a JSON string (alternative to --value)',
-    )
-    .option(
       '--secret <key=value>',
       'Template secret, e.g. --secret token=abc (repeatable)',
       collect,
       [] as string[],
-    )
-    .option(
-      '--secrets <json>',
-      'Template secrets as a JSON string (alternative to --secret)',
     )
     .option('--output <format>', 'Output format: human (default), json')
     .option('--instance <name>', 'Backstage instance name')
@@ -86,9 +78,10 @@ export function registerTemplateCommands(program: Command) {
         });
       }
 
+      // Values are optional - some templates accept no parameters
       let values: string | undefined;
       try {
-        values = resolveJsonInput(opts.value, opts.values);
+        values = resolveJsonInput(opts.value);
       } catch (error) {
         handleCommandError(error, mode, {
           suggestion:
@@ -96,20 +89,9 @@ export function registerTemplateCommands(program: Command) {
         });
       }
 
-      if (!values) {
-        handleCommandError(
-          new Error('--value (or --values) is required'),
-          mode,
-          {
-            suggestion:
-              'rhdh-cli template execute --template-ref <ref> --value key=value',
-          },
-        );
-      }
-
       let secrets: string | undefined;
       try {
-        secrets = resolveJsonInput(opts.secret, opts.secrets);
+        secrets = resolveJsonInput(opts.secret);
       } catch (error) {
         handleCommandError(error, mode, {
           suggestion:
@@ -140,10 +122,6 @@ export function registerTemplateCommands(program: Command) {
       collect,
       [] as string[],
     )
-    .option(
-      '--values <json>',
-      'Template input values as a JSON string (alternative to --value)',
-    )
     .option('--output <format>', 'Output format: human (default), json')
     .option('--instance <name>', 'Backstage instance name')
     .action(async opts => {
@@ -156,9 +134,10 @@ export function registerTemplateCommands(program: Command) {
         });
       }
 
+      // Values are optional - some templates accept no parameters
       let values: string | undefined;
       try {
-        values = resolveJsonInput(opts.value, opts.values);
+        values = resolveJsonInput(opts.value);
       } catch (error) {
         handleCommandError(error, mode, {
           suggestion:
