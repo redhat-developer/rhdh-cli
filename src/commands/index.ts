@@ -18,7 +18,7 @@ import { assertError } from '@backstage/errors';
 
 import { Command } from 'commander';
 
-import { exitWithError } from '../lib/errors';
+import { ExitCodeError, exitWithError } from '../lib/errors';
 import { registerIntentCommands } from './intent-based-actions';
 
 export function registerPluginCommand(program: Command) {
@@ -146,7 +146,24 @@ export function registerPluginCommand(program: Command) {
     .action(
       lazy(() => import('./package-dynamic-plugins').then(m => m.command)),
     );
+
+  command
+    .command('check-versions')
+    .description(
+      'Check dynamic plugin dependencies in package.json against target RHDH release Backstage manifest',
+    )
+    .option(
+      '--rhdh-version <version>',
+      'Target RHDH version to check compatibility against (e.g. 2.0.0, 1.9, latest, backstage:1.54.0)',
+    )
+    .option(
+      '--manifest-file <path>',
+      'Path to a local Backstage release manifest JSON file (required for air-gapped use)',
+    )
+    .option('--json', 'Output results as JSON')
+    .action(lazy(() => import('./check-versions').then(m => m.command)));
 }
+
 export function registerCommands(program: Command) {
   registerPluginCommand(program);
   registerIntentCommands(program);
@@ -164,6 +181,9 @@ function lazy(
       process.exit(0);
     } catch (error) {
       assertError(error);
+      if (error instanceof ExitCodeError) {
+        process.exit(error.code);
+      }
       exitWithError(error);
     }
   };

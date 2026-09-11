@@ -29,6 +29,20 @@ On Windows, use Git Bash or WSL so these tools are available.
 
 When you build an OCI image with `--tag` (instead of exporting to a directory with `--export-to`), a container build tool must also be on `PATH`. **podman** is the default; you can select **docker** or **buildah** with `--container-tool` (for example `--container-tool docker`). Directory-only exports with `--export-to` do not need a container tool.
 
+## Checking Plugin Versions
+
+Use `plugin check-versions` to compare a plugin's `@backstage/*` dependencies with the Backstage release used by an RHDH version:
+
+```bash
+rhdh-cli plugin check-versions --rhdh-version 2.0.0
+```
+
+Use `--json` for machine-readable output. To target a Backstage version directly, prefix it with `backstage:`, for example `--rhdh-version backstage:1.54.0`.
+
+For air-gapped environments, provide a local release manifest with `--manifest-file`. `--manifest-file` avoids the Backstage manifest download; also set `RHDH_OFFLINE=true` to skip the RHDH GitHub metadata lookup.
+
+When adding support for a new RHDH release, update `RHDH_COMPATIBILITY_MATRIX` in `src/lib/rhdhVersion.ts` with its Backstage version before releasing the corresponding CLI version. This matrix is maintained manually until its release metadata can be automated.
+
 ## Development
 
 ### Contributing
