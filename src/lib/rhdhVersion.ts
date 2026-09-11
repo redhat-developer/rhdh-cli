@@ -26,7 +26,7 @@ import {
  * Used for offline operations and as a fallback when remote metadata lookup is unavailable.
  */
 export const RHDH_COMPATIBILITY_MATRIX: Record<string, string> = {
-  '2.1.0': '1.54.0',
+  '2.1.0': '1.54.6',
   '2.0.4': '1.52.0',
   '2.0.0': '1.52.0',
   '1.10.0': '1.49.4',
@@ -34,8 +34,8 @@ export const RHDH_COMPATIBILITY_MATRIX: Record<string, string> = {
   '1.8.0': '1.42.5',
   '1.7.0': '1.39.1',
   '1.6.0': '1.36.1',
-  main: '1.54.0',
-  next: '1.54.0',
+  main: '1.54.6',
+  next: '1.54.6',
 };
 
 /**
@@ -157,7 +157,11 @@ export async function fetchRemoteRhdhMetadata(
         const validBsVersion = semver.clean(bsVersion);
         if (validBsVersion) {
           return {
-            rhdhVersion: resolvedRhdhVersion,
+            rhdhVersion:
+              typeof resolvedRhdhVersion === 'string' &&
+              /^[a-z0-9._-]+$/i.test(resolvedRhdhVersion)
+                ? resolvedRhdhVersion
+                : rhdhVersion,
             backstageVersion: validBsVersion,
           };
         }

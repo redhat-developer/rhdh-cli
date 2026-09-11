@@ -151,7 +151,7 @@ describe('rhdhVersion', () => {
       expect(findStaticMatrixBackstageVersion('2.0.0')).toBe('1.52.0');
       expect(findStaticMatrixBackstageVersion('1.9.0')).toBe('1.45.3');
       expect(findStaticMatrixBackstageVersion('1.8.0')).toBe('1.42.5');
-      expect(findStaticMatrixBackstageVersion('main')).toBe('1.54.0');
+      expect(findStaticMatrixBackstageVersion('main')).toBe('1.54.6');
     });
 
     it('resolves minor versions without patch to matrix entry', () => {
