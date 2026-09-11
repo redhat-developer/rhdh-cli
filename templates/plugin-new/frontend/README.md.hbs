@@ -1,0 +1,22 @@
+# {{pluginId}}
+
+An RHDH dynamic frontend plugin using the New Frontend System.
+
+## Development
+
+```bash
+yarn install
+yarn build
+yarn test
+```
+
+## Exporting
+
+Export or package this plugin without adding the RHDH CLI to this project:
+
+```bash
+npx @red-hat-developer-hub/cli plugin export
+npx @red-hat-developer-hub/cli plugin package --export-to ./plugin-registry
+```
+
+RHDH Dynamic Plugin Factory is the preferred workflow for repeatable build and packaging automation.

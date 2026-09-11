@@ -1,0 +1,19 @@
+import { createRouteRef } from '@backstage/core-plugin-api';
+import { createFrontendPlugin, PageBlueprint } from '@backstage/frontend-plugin-api';
+import React from 'react';
+
+const rootRouteRef = createRouteRef({ id: '{{pluginId}}' });
+const page = PageBlueprint.make({
+  params: {
+    title: '{{pluginId}}',
+    path: '/{{pluginId}}',
+    routeRef: rootRouteRef,
+    loader: () => import('./PluginPage').then(m => React.createElement(m.PluginPage)),
+  },
+});
+
+export default createFrontendPlugin({
+  pluginId: '{{pluginId}}',
+  extensions: [page],
+  routes: { root: rootRouteRef },
+});

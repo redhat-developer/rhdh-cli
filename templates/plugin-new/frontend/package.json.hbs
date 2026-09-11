@@ -1,0 +1,34 @@
+{
+  "name": "{{packageName}}",
+  "version": "0.1.0",
+  "packageManager": "yarn@4.17.1",
+  "private": true,
+  "license": "Apache-2.0",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "backstage": { "role": "frontend-plugin", "pluginId": "{{pluginId}}" },
+  "scripts": {
+    "build": "yarn tsc && backstage-cli package build",
+    "tsc": "tsc --declaration",
+    "test": "backstage-cli package test --passWithNoTests"
+  },
+  "dependencies": {
+    "@backstage/core-plugin-api": "{{versionQuery '@backstage/core-plugin-api'}}",
+    "@backstage/frontend-plugin-api": "{{versionQuery '@backstage/frontend-plugin-api'}}"
+  },
+  "devDependencies": {
+    "@backstage/cli": "{{versionQuery '@backstage/cli'}}",
+    "@types/jest": "^29.5.14",
+    "@types/react": "^18.0.0",
+    "react": "^18.0.0",
+    "react-dom": "^18.0.0",
+    "react-router-dom": "^6.30.2",
+    "jest": "^29.7.0",
+    "typescript": "^5.4.5"
+  },
+  "peerDependencies": {
+    "react": "^18.0.0",
+    "react-dom": "^18.0.0",
+    "react-router-dom": "^6.30.2"
+  }
+}

@@ -43,6 +43,16 @@ For air-gapped environments, provide a local release manifest with `--manifest-f
 
 When adding support for a new RHDH release, update `RHDH_COMPATIBILITY_MATRIX` in `src/lib/rhdhVersion.ts` with its Backstage version before releasing the corresponding CLI version. This matrix is maintained manually until its release metadata can be automated.
 
+## Creating a Plugin
+
+Use `plugin new` to create a standalone, version-pinned dynamic plugin project:
+
+```bash
+rhdh-cli plugin new my-plugin --type frontend --rhdh-version 2.1.0
+```
+
+Supported types are `frontend` (an NFS page), `backend` (a minimal new-backend-system plugin), and `backend-module` (a catalog processor module). Use `--output <directory>` to select a destination. The generated project uses the target RHDH release's Backstage manifest for every `@backstage/*` dependency. Export and package generated plugins with `npx @red-hat-developer-hub/cli`, or through RHDH Dynamic Plugin Factory, rather than adding the CLI as a project dependency.
+
 ## Development
 
 ### Contributing
