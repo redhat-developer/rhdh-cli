@@ -139,6 +139,12 @@ describe('upgrade command', () => {
       );
     });
 
+    it('leaves compound ranges unchanged', () => {
+      expect(computeTargetVersion('>=1.10.0 <2.0.0', '1.12.0')).toBe(
+        '>=1.10.0 <2.0.0',
+      );
+    });
+
     it('leaves unsupported ranges unchanged', () => {
       expect(computeTargetVersion('*', '1.12.0')).toBe('*');
       expect(computeTargetVersion('workspace:*', '1.12.0')).toBe('workspace:*');
@@ -271,6 +277,23 @@ describe('upgrade command', () => {
       ).rejects.toThrow('disk full');
 
       writeJsonSpy.mockRestore();
+    });
+
+    it('warns when backstage.json cannot be parsed', async () => {
+      await setupFixture(
+        {
+          dependencies: {
+            '@backstage/core-plugin-api': '^1.12.0',
+          },
+        },
+        undefined,
+      );
+      await fs.writeFile(path.join(tmpDir, 'backstage.json'), '{ invalid json');
+
+      const res = await runCommandWithOutput('2.0.0', { skipInstall: true });
+
+      expect(res.stderr).toContain('Could not parse backstage.json');
+      expect(res.stderr).toContain('skipping its version update');
     });
 
     it('deduplicates unmanifested @backstage packages', async () => {

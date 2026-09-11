@@ -35,7 +35,7 @@ export interface PackageUpgradeChange {
   changed: boolean;
 }
 
-export interface UpgradePluginOptions {
+export interface UpgradeOptions {
   rhdhVersion?: string;
   dryRun?: boolean;
   skipInstall?: boolean;
@@ -43,7 +43,7 @@ export interface UpgradePluginOptions {
   targetDir?: string;
 }
 
-export interface UpgradePluginResult {
+export interface UpgradeResult {
   rhdhVersion: string;
   backstageVersion: string;
   source: 'remote' | 'matrix' | 'explicit';
@@ -78,7 +78,10 @@ export function computeTargetVersion(
 
   const rangePrefix = /^(?:\^|~|>=|<=|>|<|=)/.exec(currentDeclared)?.[0];
   if (rangePrefix) {
-    return `${rangePrefix}${manifestExpected}`;
+    const declaredVersion = currentDeclared.slice(rangePrefix.length);
+    if (semver.valid(declaredVersion)) {
+      return `${rangePrefix}${manifestExpected}`;
+    }
   }
 
   if (semver.valid(currentDeclared)) {
@@ -187,7 +190,9 @@ async function syncBackstageJson(
   try {
     backstageJson = await fs.readJson(backstageJsonPath);
   } catch {
-    // Ignore JSON read errors
+    process.stderr.write(
+      `${chalk.yellow('Warning:')} Could not parse ${BACKSTAGE_JSON}; skipping its version update.\n`,
+    );
     return undefined;
   }
 
@@ -219,8 +224,8 @@ async function runInstallDependencies(targetDir: string): Promise<boolean> {
  * Upgrades @backstage/* dependencies in a package.json to match target RHDH release manifest
  */
 export async function upgradePluginDependencies(
-  options: UpgradePluginOptions = {},
-): Promise<UpgradePluginResult> {
+  options: UpgradeOptions = {},
+): Promise<UpgradeResult> {
   const targetDir = options.targetDir || paths.targetDir;
   const packageJsonPath = path.join(targetDir, 'package.json');
 
@@ -286,11 +291,11 @@ export async function upgradePluginDependencies(
  * Renders human-readable results for a plugin dependency upgrade.
  */
 function printUpgradeResult(
-  result: UpgradePluginResult,
+  result: UpgradeResult,
   dryRun: boolean,
   installFailed: boolean,
   changedCount: number,
-): void {
+): boolean {
   const modeLabel = dryRun ? ' (dry run)' : '';
   Task.log(
     `Upgrading plugin dependencies to RHDH v${result.rhdhVersion} (Backstage v${result.backstageVersion}) [${result.source}]${modeLabel}...`,
@@ -307,7 +312,7 @@ function printUpgradeResult(
 
   if (result.changes.length === 0) {
     Task.log('No manifest-matched @backstage dependencies found to upgrade.');
-    return;
+    return false;
   }
 
   process.stderr.write('\n');
@@ -362,7 +367,7 @@ function printUpgradeResult(
     Task.error(
       'Dependencies were updated, but installation failed. Resolve the installation error and retry.',
     );
-    throw new ExitCodeError(1);
+    return true;
   } else if (result.updatedFiles.length > 0) {
     const filesStr = chalk.cyan(result.updatedFiles.join(', '));
     process.stderr.write(
@@ -373,6 +378,8 @@ function printUpgradeResult(
       `\n${chalk.green('✔ All dependencies are already up to date.')}\n\n`,
     );
   }
+
+  return false;
 }
 
 /**
@@ -404,5 +411,9 @@ export async function command(
     return;
   }
 
-  printUpgradeResult(result, Boolean(dryRun), installFailed, changedCount);
+  if (
+    printUpgradeResult(result, Boolean(dryRun), installFailed, changedCount)
+  ) {
+    throw new ExitCodeError(1);
+  }
 }
