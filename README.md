@@ -116,14 +116,14 @@ All commands support `--help` for detailed usage and `--output json` for machine
 
 **📚 For complete documentation, setup guides, and examples, see:**
 
-- **[Intent-Based CLI Documentation](docs/CLI.md)** - Complete guide for RHDH interaction commands
+- **[Intent-Based CLI Documentation](docs/Intent-Based-CLI.md)** - Complete guide for RHDH interaction commands
 
 ### Optional TechDocs Features
 
 **TechDocs content retrieval** (`docs list`, `docs get`, `docs coverage`, `docs build`):
 
 - Requires **TechDocs MCP extras plugin** (`techdocs-mcp-extras`)
-- See the [CLI documentation](docs/CLI.md#rhdh-instance-configuration) for setup instructions
+- See the [CLI documentation](docs/Intent-Based-CLI.md#rhdh-instance-configuration) for setup instructions
 
 **TechDocs search** (`docs search`):
 
