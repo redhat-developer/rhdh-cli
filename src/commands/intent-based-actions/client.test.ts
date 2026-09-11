@@ -276,6 +276,26 @@ describe('execPassthrough', () => {
     stderrSpy.mockRestore();
   });
 
+  it.each([
+    {
+      description: 'an unsupported command',
+      args: ['unsupported'],
+      expectedMessage: 'Unsupported pass-through command: unsupported',
+    },
+    {
+      description: 'a missing command',
+      args: [],
+      expectedMessage: 'Unsupported pass-through command: undefined',
+    },
+  ])(
+    'rejects $description without spawning a child process',
+    ({ args, expectedMessage }) => {
+      expect(() => execPassthrough(args)).toThrow(new Error(expectedMessage));
+      expect(mockSpawn).not.toHaveBeenCalled();
+      expect(exitSpy).not.toHaveBeenCalled();
+    },
+  );
+
   it('spawns the resolved binary with the given passthrough args', () => {
     const child = createFakeChild();
     mockSpawn.mockReturnValue(child as unknown as ReturnType<typeof spawn>);
@@ -285,6 +305,7 @@ describe('execPassthrough', () => {
     expect(mockSpawn).toHaveBeenCalledTimes(1);
     const [command, args] = mockSpawn.mock.calls[0];
     expect(command).toBe(process.execPath);
+    expect(args[0]).toContain('@backstage/cli-module-auth');
     expect(args).toEqual(
       expect.arrayContaining([
         'auth',
@@ -293,6 +314,18 @@ describe('execPassthrough', () => {
         'https://example.com',
       ]),
     );
+  });
+
+  it('uses the dedicated actions CLI module to avoid project module discovery', () => {
+    const child = createFakeChild();
+    mockSpawn.mockReturnValue(child as unknown as ReturnType<typeof spawn>);
+
+    execPassthrough(['actions', 'sources', 'list']);
+
+    const [command, args] = mockSpawn.mock.calls[0];
+    expect(command).toBe(process.execPath);
+    expect(args[0]).toContain('@backstage/cli-module-actions');
+    expect(args.slice(1)).toEqual(['actions', 'sources', 'list']);
   });
 
   it('rebrands "backstage-cli" as "rhdh-cli" in streamed stdout and exits with the child code', () => {
@@ -310,6 +343,20 @@ describe('execPassthrough', () => {
     expect(written).toContain('Run rhdh-cli auth login to continue');
     expect(written).not.toContain('backstage-cli');
     expect(exitSpy).toHaveBeenCalledWith(0);
+  });
+
+  it('rebrands a CLI module name split across output chunks', () => {
+    const child = createFakeChild();
+    mockSpawn.mockReturnValue(child as unknown as ReturnType<typeof spawn>);
+
+    execPassthrough(['actions', 'sources', 'list']);
+    child.stdout.emit('data', Buffer.from('@backstage/cli-module-'));
+    child.stdout.emit('data', Buffer.from('actions v0.1.3\n'));
+    child.emit('close', 0);
+
+    const written = stdoutSpy.mock.calls.map(call => call[0]).join('');
+    expect(written).toContain('rhdh-cli v0.1.3');
+    expect(written).not.toContain('@backstage/cli-module-actions');
   });
 
   it('exits with code 1 when the child process closes with no exit code', () => {
@@ -330,7 +377,7 @@ describe('execPassthrough', () => {
     child.emit('error', new Error('ENOENT'));
 
     expect(stderrSpy).toHaveBeenCalledWith(
-      expect.stringContaining('Failed to launch backstage-cli: ENOENT'),
+      expect.stringContaining('Failed to launch CLI module: ENOENT'),
     );
     expect(exitSpy).toHaveBeenCalledWith(1);
   });
