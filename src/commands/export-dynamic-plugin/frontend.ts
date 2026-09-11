@@ -148,10 +148,12 @@ export async function frontend(
     rootResolutions,
     after: detectedFeatures
       ? pkg => {
-          pkg.backstage = pkg.backstage ?? {};
-          pkg.backstage.features = {
-            ...(pkg.backstage.features ?? {}),
-            ...detectedFeatures,
+          pkg.backstage = {
+            ...pkg.backstage,
+            features: {
+              ...pkg.backstage?.features,
+              ...detectedFeatures,
+            },
           };
         }
       : undefined,
