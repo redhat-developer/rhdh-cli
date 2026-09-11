@@ -157,7 +157,11 @@ export async function fetchRemoteRhdhMetadata(
         const validBsVersion = semver.clean(bsVersion);
         if (validBsVersion) {
           return {
-            rhdhVersion: resolvedRhdhVersion,
+            rhdhVersion:
+              typeof resolvedRhdhVersion === 'string' &&
+              /^[a-z0-9._-]+$/i.test(resolvedRhdhVersion)
+                ? resolvedRhdhVersion
+                : rhdhVersion,
             backstageVersion: validBsVersion,
           };
         }

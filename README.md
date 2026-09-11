@@ -51,7 +51,7 @@ Use `plugin new` to create a standalone, version-pinned dynamic plugin project:
 rhdh-cli plugin new my-plugin --type frontend --rhdh-version 2.1.0
 ```
 
-Supported types are `frontend` (an NFS page), `backend` (a minimal new-backend-system plugin), and `backend-module` (a catalog processor module). Use `--output <directory>` to select a destination. The generated project uses the target RHDH release's Backstage manifest for every `@backstage/*` dependency. Export and package generated plugins with `npx @red-hat-developer-hub/cli`, or through RHDH Dynamic Plugin Factory, rather than adding the CLI as a project dependency.
+Supported types are `frontend` (a New Frontend System, or NFS, page), `backend` (a minimal new-backend-system plugin), and `backend-module` (a catalog processor module). Use `--name <plugin-name>` as an alternative to the positional name, and `--output <directory>` to select a destination. The generated project uses the target RHDH release's Backstage manifest for every `@backstage/*` dependency. For air-gapped environments, provide `--manifest-file` and set `RHDH_OFFLINE=true`. Export and package generated plugins with `npx @red-hat-developer-hub/cli`, or through RHDH Dynamic Plugin Factory, rather than adding the CLI as a project dependency.
 
 ## Development
 
