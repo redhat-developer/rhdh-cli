@@ -5,3 +5,4 @@ coverage
 .vscode
 .eslintrc.js
 .yarn
+templates/plugin-new
