@@ -1,13 +1,23 @@
 import { EventEmitter } from 'node:events';
 import { execFileSync, spawn } from 'node:child_process';
-import { execAction, execActionJson, execPassthrough } from './client';
+import { CliAuth } from '@backstage/cli-node';
+import {
+  execAction,
+  execActionJson,
+  execPassthrough,
+  triggerTechDocsBuild,
+} from './client';
 
 jest.mock('node:child_process');
+jest.mock('@backstage/cli-node');
 
 const mockExecFileSync = execFileSync as jest.MockedFunction<
   typeof execFileSync
 >;
 const mockSpawn = spawn as jest.MockedFunction<typeof spawn>;
+const mockCliAuthCreate = CliAuth.create as jest.MockedFunction<
+  typeof CliAuth.create
+>;
 
 function mockExecFileSyncReturning(output: string) {
   mockExecFileSync.mockReturnValue(output as never);
@@ -167,6 +177,68 @@ describe('execActionJson', () => {
     });
 
     expect(result).toBe('not json');
+  });
+});
+
+describe('triggerTechDocsBuild', () => {
+  const fetchMock = jest.fn();
+  const originalFetch = global.fetch;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    global.fetch = fetchMock;
+    mockCliAuthCreate.mockResolvedValue({
+      getAccessToken: jest.fn().mockResolvedValue('test-token'),
+      getBaseUrl: jest.fn().mockReturnValue('https://rhdh.example.com'),
+    } as unknown as CliAuth);
+  });
+
+  afterAll(() => {
+    global.fetch = originalFetch;
+  });
+
+  it('waits for a successful authenticated TechDocs sync response', async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      text: jest.fn().mockResolvedValue('build logs'),
+    });
+
+    const result = await triggerTechDocsBuild(
+      {
+        namespace: 'default',
+        kind: 'component',
+        name: 'my service',
+      },
+      'local',
+    );
+
+    expect(mockCliAuthCreate).toHaveBeenCalledWith({ instanceName: 'local' });
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://rhdh.example.com/api/techdocs/sync/default/component/my%20service',
+      {
+        headers: { Authorization: 'Bearer test-token' },
+      },
+    );
+    expect(result).toBe('build logs');
+  });
+
+  it('throws when the TechDocs sync endpoint returns a non-success status', async () => {
+    fetchMock.mockResolvedValue({
+      ok: false,
+      status: 500,
+      statusText: 'Internal Server Error',
+      text: jest.fn().mockResolvedValue('build failed'),
+    });
+
+    await expect(
+      triggerTechDocsBuild({
+        namespace: 'default',
+        kind: 'component',
+        name: 'my-service',
+      }),
+    ).rejects.toThrow(
+      'TechDocs build failed with 500 Internal Server Error: build failed',
+    );
   });
 });
 

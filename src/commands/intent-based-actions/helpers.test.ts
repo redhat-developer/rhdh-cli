@@ -267,6 +267,28 @@ describe('resolveEntityWithAmbiguityCheck', () => {
     expect(mockExecActionJson).not.toHaveBeenCalled();
   });
 
+  it('rejects a full reference that is absent when existence verification is requested', async () => {
+    mockExecActionJson.mockReturnValue({ items: [] });
+
+    await expect(
+      resolveEntityWithAmbiguityCheck('system:default/missing', {
+        verifyExists: true,
+      }),
+    ).rejects.toThrow('Entity not found: system:default/missing');
+
+    expect(mockExecActionJson).toHaveBeenCalledWith(
+      'catalog:query-catalog-entities',
+      {
+        query: JSON.stringify({
+          'metadata.name': 'missing',
+          kind: 'system',
+          'metadata.namespace': 'default',
+        }),
+        instance: undefined,
+      },
+    );
+  });
+
   it('returns directly when kind flag and namespace flag are provided', async () => {
     const result = await resolveEntityWithAmbiguityCheck('my-service', {
       kindFlag: 'component',

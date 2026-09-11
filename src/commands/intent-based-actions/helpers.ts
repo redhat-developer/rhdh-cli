@@ -119,6 +119,7 @@ export async function resolveEntityWithAmbiguityCheck(
     namespaceFlag?: string;
     defaultKind?: string;
     instance?: string;
+    verifyExists?: boolean;
   } = {},
 ): Promise<{
   kind: string;
@@ -134,7 +135,7 @@ export async function resolveEntityWithAmbiguityCheck(
   const name = parsed.name;
 
   // If we have full reference (kind and namespace specified), return directly
-  if (kind && namespace) {
+  if (kind && namespace && !options.verifyExists) {
     return {
       kind,
       namespace,

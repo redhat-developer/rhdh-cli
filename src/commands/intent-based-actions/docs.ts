@@ -1,6 +1,6 @@
 import chalk from 'chalk';
 import { Command } from 'commander';
-import { execAction, execActionJson } from './client';
+import { execAction, execActionJson, triggerTechDocsBuild } from './client';
 import {
   runSearchAction,
   resolveEntityWithAmbiguityCheck,
@@ -11,11 +11,38 @@ import {
   writeOutput,
   formatEntityTable,
   extractEntities,
+  type OutputMode,
 } from './format';
 import { handleCommandError } from './intent-errors';
 
 const RHDH_ONLY_SUGGESTION =
   'Use an RHDH instance with techdocs-mcp-extras enabled.';
+const TECHDOCS_SEARCH_SUGGESTION =
+  'Enable search-backend-module-techdocs on the RHDH instance.';
+
+function reportMissingTechDocs(entityRef: string, mode: OutputMode): never {
+  if (mode === 'json') {
+    return handleCommandError(
+      new Error(`TechDocs content not found for ${entityRef}`),
+      mode,
+      { suggestion: `rhdh-cli docs build ${entityRef}` },
+    );
+  }
+
+  process.stderr.write(
+    `${chalk.yellow('TechDocs content not found for')} ${entityRef}\n`,
+  );
+  process.stderr.write(
+    `${chalk.dim('The documentation may not have been built yet.')}\n`,
+  );
+  process.stderr.write(
+    `\n${chalk.dim('Trigger build with:')} ${chalk.cyan(`rhdh-cli docs build ${entityRef}`)}\n`,
+  );
+  process.stderr.write(
+    `${chalk.dim('Or visit the TechDocs page in RHDH to trigger a build.')}\n`,
+  );
+  return process.exit(1);
+}
 
 export function registerDocsCommands(program: Command) {
   const docs = program
@@ -50,7 +77,7 @@ export function registerDocsCommands(program: Command) {
           instance: opts.instance,
         },
         mode,
-        'rhdh-cli docs search "getting started"',
+        TECHDOCS_SEARCH_SUGGESTION,
       );
     });
 
@@ -126,11 +153,10 @@ export function registerDocsCommands(program: Command) {
           kindFlag: opts.kind,
           namespaceFlag: opts.namespace,
           instance: opts.instance,
+          verifyExists: true,
         }));
       } catch (error) {
-        handleCommandError(error, mode, {
-          suggestion: RHDH_ONLY_SUGGESTION,
-        });
+        handleCommandError(error, mode);
         return;
       }
 
@@ -142,12 +168,31 @@ export function registerDocsCommands(program: Command) {
         };
 
         if (mode === 'json') {
-          process.stdout.write(
-            await execAction(
-              'techdocs-mcp-extras:retrieve-techdocs-content',
-              flags,
-            ),
+          const raw = await execAction(
+            'techdocs-mcp-extras:retrieve-techdocs-content',
+            flags,
           );
+          let result: unknown;
+          try {
+            result = JSON.parse(raw);
+          } catch {
+            process.stdout.write(raw);
+            result = undefined;
+          }
+          if (result !== undefined) {
+            const errorMsg = (result as Record<string, unknown> | undefined)
+              ?.error;
+            if (typeof errorMsg === 'string') {
+              if (
+                errorMsg.includes('not found') ||
+                errorMsg.includes('not have been built')
+              ) {
+                reportMissingTechDocs(entityRef, mode);
+              }
+              handleCommandError(new Error(errorMsg), mode);
+            }
+            process.stdout.write(raw);
+          }
         } else {
           const result = await execActionJson(
             'techdocs-mcp-extras:retrieve-techdocs-content',
@@ -165,21 +210,9 @@ export function registerDocsCommands(program: Command) {
               errorMsg.includes('not found') ||
               errorMsg.includes('not have been built')
             ) {
-              process.stderr.write(
-                `${chalk.yellow('TechDocs content not found for')} ${entityRef}\n`,
-              );
-              process.stderr.write(
-                `${chalk.dim('The documentation may not have been built yet.')}\n`,
-              );
-              process.stderr.write(
-                `\n${chalk.dim('Trigger build with:')} ${chalk.cyan(`rhdh-cli docs build ${entityRef}`)}\n`,
-              );
-              process.stderr.write(
-                `${chalk.dim('Or visit the TechDocs page in RHDH to trigger a build.')}\n`,
-              );
-            } else {
-              process.stderr.write(`${chalk.yellow(errorMsg)}\n`);
+              reportMissingTechDocs(entityRef, mode);
             }
+            handleCommandError(new Error(errorMsg), mode);
           } else {
             writeOutput(result, mode);
           }
@@ -191,19 +224,7 @@ export function registerDocsCommands(program: Command) {
           errMsg.includes('not found') ||
           errMsg.includes('not have been built')
         ) {
-          process.stderr.write(
-            `${chalk.yellow('TechDocs content not found for')} ${entityRef}\n`,
-          );
-          process.stderr.write(
-            `${chalk.dim('The documentation may not have been built yet.')}\n`,
-          );
-          process.stderr.write(
-            `\n${chalk.dim('Trigger build with:')} ${chalk.cyan(`rhdh-cli docs build ${entityRef}`)}\n`,
-          );
-          process.stderr.write(
-            `${chalk.dim('Or visit the TechDocs page in RHDH to trigger a build.')}\n`,
-          );
-          process.exit(1);
+          reportMissingTechDocs(entityRef, mode);
         }
         handleCommandError(error, mode, {
           suggestion: RHDH_ONLY_SUGGESTION,
@@ -285,30 +306,29 @@ export function registerDocsCommands(program: Command) {
             kindFlag: opts.kind,
             namespaceFlag: opts.namespace,
             instance: opts.instance,
+            verifyExists: true,
           });
 
         const kindLower = kind.toLowerCase();
 
+        await triggerTechDocsBuild(
+          { namespace, kind: kindLower, name },
+          opts.instance,
+        );
+
         if (mode === 'json') {
-          // For now, output success message in JSON
           process.stdout.write(
             `${JSON.stringify({
               entityRef,
               namespace,
               kind: kindLower,
               name,
-              message: 'TechDocs build triggered successfully',
+              message: 'TechDocs build completed successfully',
             })}\n`,
           );
         } else {
           process.stdout.write(
-            `${chalk.green('✓')} Triggering TechDocs build for ${chalk.cyan(entityRef)}\n`,
-          );
-          process.stdout.write(
-            `${chalk.dim('Build endpoint:')} /api/techdocs/sync/${namespace}/${kindLower}/${name}\n`,
-          );
-          process.stdout.write(
-            `\n${chalk.dim('Note: Build may take a few moments. Use')} ${chalk.cyan(`rhdh-cli docs get ${entityRef}`)} ${chalk.dim('to retrieve content once built.')}\n`,
+            `${chalk.green('✓')} TechDocs build completed for ${chalk.cyan(entityRef)}\n`,
           );
         }
       } catch (error) {

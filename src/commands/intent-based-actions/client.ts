@@ -1,6 +1,7 @@
 import { spawn, execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
+import { CliAuth } from '@backstage/cli-node';
 
 let resolvedCliBinary: string | undefined;
 
@@ -141,4 +142,32 @@ export function execActionJson(
   } catch {
     return raw;
   }
+}
+
+export async function triggerTechDocsBuild(
+  entity: { namespace: string; kind: string; name: string },
+  instance?: string,
+): Promise<string> {
+  const auth = await CliAuth.create({ instanceName: instance });
+  const accessToken = await auth.getAccessToken();
+  const path = [entity.namespace, entity.kind, entity.name]
+    .map(encodeURIComponent)
+    .join('/');
+  const url = new URL(
+    `/api/techdocs/sync/${path}`,
+    auth.getBaseUrl(),
+  ).toString();
+  const response = await fetch(url, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  const body = await response.text();
+
+  if (!response.ok) {
+    const status = `${response.status} ${response.statusText}`.trim();
+    throw new Error(
+      `TechDocs build failed with ${status}${body ? `: ${body}` : ''}`,
+    );
+  }
+
+  return body;
 }
