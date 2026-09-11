@@ -26,6 +26,8 @@ import {
 
 import chalk from 'chalk';
 
+import { resolve as resolvePath } from 'node:path';
+
 import { Task } from '../../lib/tasks';
 
 /**
@@ -60,7 +62,7 @@ export async function detectBackstageFeatures(
     }
 
     try {
-      const featureType = getEntryPointDefaultFeatureType(
+      const featureType = getDefaultFeatureType(
         role,
         packageDir,
         project,
@@ -83,4 +85,74 @@ export async function detectBackstageFeatures(
   }
 
   return Object.keys(features).length > 0 ? features : undefined;
+}
+
+/**
+ * Resolves a default feature type through re-exported default exports.
+ *
+ * The upstream helper resolves the type in the entry point itself, but does
+ * not follow an ExportSpecifier's module declaration. This is common for NFS
+ * entry points, which often re-export their plugin from an index module.
+ */
+export function getDefaultFeatureType(
+  role: Parameters<typeof getEntryPointDefaultFeatureType>[0],
+  packageDir: string,
+  project: Parameters<typeof getEntryPointDefaultFeatureType>[2],
+  entryPoint: string,
+  visited = new Set<string>(),
+): BackstagePackageFeatureType | null {
+  const sourceFilePath = resolvePath(packageDir, entryPoint);
+
+  if (visited.has(sourceFilePath)) {
+    return null;
+  }
+  visited.add(sourceFilePath);
+
+  const featureType = getEntryPointDefaultFeatureType(
+    role,
+    packageDir,
+    project,
+    sourceFilePath,
+  );
+
+  if (featureType) {
+    return featureType;
+  }
+
+  const sourceFile = project.getSourceFile(sourceFilePath);
+  if (!sourceFile) {
+    return null;
+  }
+
+  for (const exportSymbol of sourceFile.getExportSymbols()) {
+    const declaration = exportSymbol.getDeclarations()[0];
+    if (
+      !declaration ||
+      declaration.getSymbol()?.getName() !== 'default' ||
+      declaration.getKindName() !== 'ExportSpecifier'
+    ) {
+      continue;
+    }
+
+    const reExportedSourceFile = declaration
+      .getExportDeclaration()
+      ?.getModuleSpecifierSourceFile();
+    if (!reExportedSourceFile) {
+      continue;
+    }
+
+    const reExportedFeatureType: BackstagePackageFeatureType | null =
+      getDefaultFeatureType(
+        role,
+        packageDir,
+        project,
+        reExportedSourceFile.getFilePath(),
+        visited,
+      );
+    if (reExportedFeatureType) {
+      return reExportedFeatureType;
+    }
+  }
+
+  return null;
 }
