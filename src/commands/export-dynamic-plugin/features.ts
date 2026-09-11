@@ -25,6 +25,7 @@ import {
 } from '@backstage/cli-module-build/dist/lib/typeDistProject.cjs.js';
 
 import chalk from 'chalk';
+
 import { resolve as resolvePath } from 'node:path';
 
 import { Task } from '../../lib/tasks';

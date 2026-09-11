@@ -153,6 +153,36 @@ describe('getDefaultFeatureType', () => {
 });
 
 describe('detectBackstageFeatures', () => {
+  it('follows re-exports while detecting entry point features', async () => {
+    const { readEntryPoints } = jest.requireMock(
+      '@backstage/cli-module-build/dist/lib/entryPoints.cjs.js',
+    ) as { readEntryPoints: jest.Mock };
+    const { createTypeDistProject } = jest.requireMock(
+      '@backstage/cli-module-build/dist/lib/typeDistProject.cjs.js',
+    ) as { createTypeDistProject: jest.Mock };
+    const plugin = {
+      getFilePath: () => '/package/plugin.ts',
+      getExportSymbols: () => [],
+    };
+    const alpha = reExport(plugin, '/package/alpha.ts');
+
+    readEntryPoints.mockReturnValue([{ mount: './alpha', path: './alpha.ts' }]);
+    createTypeDistProject.mockResolvedValue(projectWith(alpha, plugin));
+    mockedGetEntryPointDefaultFeatureType.mockImplementation(
+      (_role, _packageDir, _project, entryPoint) =>
+        entryPoint.endsWith('/plugin.ts') ? '@backstage/FrontendPlugin' : null,
+    );
+
+    await expect(
+      detectBackstageFeatures(
+        { backstage: { role: 'frontend-plugin' } } as any,
+        '/package',
+      ),
+    ).resolves.toEqual({
+      './alpha': '@backstage/FrontendPlugin',
+    });
+  });
+
   it('detects features for multiple entry points', async () => {
     const { readEntryPoints } = jest.requireMock(
       '@backstage/cli-module-build/dist/lib/entryPoints.cjs.js',
