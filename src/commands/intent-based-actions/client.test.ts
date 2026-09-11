@@ -1,10 +1,246 @@
 import { EventEmitter } from 'node:events';
-import { spawn } from 'node:child_process';
-import { execPassthrough } from './client';
+import { execFileSync, spawn } from 'node:child_process';
+import { CliAuth } from '@backstage/cli-node';
+import {
+  execAction,
+  execActionJson,
+  execPassthrough,
+  triggerTechDocsBuild,
+} from './client';
 
 jest.mock('node:child_process');
+jest.mock('@backstage/cli-node');
 
+const mockExecFileSync = execFileSync as jest.MockedFunction<
+  typeof execFileSync
+>;
 const mockSpawn = spawn as jest.MockedFunction<typeof spawn>;
+const mockCliAuthCreate = CliAuth.create as jest.MockedFunction<
+  typeof CliAuth.create
+>;
+
+function mockExecFileSyncReturning(output: string) {
+  mockExecFileSync.mockReturnValue(output as never);
+}
+
+function mockExecFileSyncThrowing(stderr: string) {
+  mockExecFileSync.mockImplementation(() => {
+    const error = new Error('Command failed') as Error & { stderr: Buffer };
+    error.stderr = Buffer.from(stderr);
+    throw error;
+  });
+}
+
+describe('execAction', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('returns the Backstage CLI stdout', async () => {
+    mockExecFileSyncReturning('{"ok":true}');
+
+    const result = await execAction('catalog:query-catalog-entities', {
+      instance: 'default',
+    });
+
+    expect(result).toBe('{"ok":true}');
+  });
+
+  it('builds the command with the action id and unescaped simple flags', async () => {
+    mockExecFileSyncReturning('{}');
+
+    await execAction('catalog:query-catalog-entities', {
+      instance: 'default',
+      limit: 5,
+    });
+
+    const [command, args] = mockExecFileSync.mock.calls[0];
+    expect(command).toBe(process.execPath);
+    expect(args).toEqual(
+      expect.arrayContaining([
+        'actions',
+        'execute',
+        'catalog:query-catalog-entities',
+        '--instance',
+        'default',
+        '--limit',
+        '5',
+      ]),
+    );
+  });
+
+  it('passes flag values containing special characters as literal arguments', async () => {
+    mockExecFileSyncReturning('{}');
+
+    await execAction('catalog:query-catalog-entities', {
+      query: '{"kind":"Component"}',
+    });
+
+    const [, args] = mockExecFileSync.mock.calls[0];
+    expect(args).toEqual(
+      expect.arrayContaining(['--query', '{"kind":"Component"}']),
+    );
+  });
+
+  it('passes action ids and flag names as literal arguments', async () => {
+    mockExecFileSyncReturning('{}');
+
+    await execAction('actions:foo;echo pwned', {
+      'bad;echo pwned': "it's a test",
+    });
+
+    const [, args] = mockExecFileSync.mock.calls[0];
+    expect(args).toEqual(
+      expect.arrayContaining([
+        'actions:foo;echo pwned',
+        '--bad;echo pwned',
+        "it's a test",
+      ]),
+    );
+  });
+
+  it('adds boolean-true flags with no value', async () => {
+    mockExecFileSyncReturning('{}');
+
+    await execAction('actions:list', { verbose: true });
+
+    const [, args] = mockExecFileSync.mock.calls[0];
+    expect(args).toEqual(expect.arrayContaining(['--verbose']));
+    expect(args).not.toEqual(expect.arrayContaining(['--verbose', 'true']));
+  });
+
+  it('omits flags that are false or undefined', async () => {
+    mockExecFileSyncReturning('{}');
+
+    await execAction('actions:list', { verbose: false, instance: undefined });
+
+    const [, args] = mockExecFileSync.mock.calls[0];
+    expect(args).not.toEqual(expect.arrayContaining(['--verbose']));
+    expect(args).not.toEqual(expect.arrayContaining(['--instance']));
+  });
+
+  it('throws with the "Error:" line from stderr when the command fails', () => {
+    mockExecFileSyncThrowing('some noise\nError: Entity not found\nmore noise');
+
+    expect(() =>
+      execAction('catalog:get-catalog-entity', { name: 'missing' }),
+    ).toThrow('Entity not found');
+  });
+
+  it('falls back to the last stderr line when no "Error:" line is present', () => {
+    mockExecFileSyncThrowing('first line\nlast line');
+
+    expect(() =>
+      execAction('catalog:get-catalog-entity', { name: 'missing' }),
+    ).toThrow('last line');
+  });
+
+  it('rebrands "backstage-cli" as "rhdh-cli" in the thrown error message', () => {
+    mockExecFileSyncThrowing('Error: run backstage-cli auth login first');
+
+    expect(() =>
+      execAction('catalog:get-catalog-entity', { name: 'missing' }),
+    ).toThrow('run rhdh-cli auth login first');
+  });
+
+  it('throws a generic message when the command fails without stderr content', () => {
+    mockExecFileSync.mockImplementation(() => {
+      throw new Error('Command failed');
+    });
+
+    expect(() =>
+      execAction('catalog:get-catalog-entity', { name: 'missing' }),
+    ).toThrow('rhdh-cli command failed');
+  });
+});
+
+describe('execActionJson', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('parses valid JSON output', async () => {
+    mockExecFileSyncReturning('{"kind":"Component"}');
+
+    const result = await execActionJson('catalog:get-catalog-entity', {
+      name: 'x',
+    });
+
+    expect(result).toEqual({ kind: 'Component' });
+  });
+
+  it('returns the raw string when the output is not valid JSON', async () => {
+    mockExecFileSyncReturning('not json');
+
+    const result = await execActionJson('catalog:get-catalog-entity', {
+      name: 'x',
+    });
+
+    expect(result).toBe('not json');
+  });
+});
+
+describe('triggerTechDocsBuild', () => {
+  const fetchMock = jest.fn();
+  const originalFetch = global.fetch;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    global.fetch = fetchMock;
+    mockCliAuthCreate.mockResolvedValue({
+      getAccessToken: jest.fn().mockResolvedValue('test-token'),
+      getBaseUrl: jest.fn().mockReturnValue('https://rhdh.example.com'),
+    } as unknown as CliAuth);
+  });
+
+  afterAll(() => {
+    global.fetch = originalFetch;
+  });
+
+  it('waits for a successful authenticated TechDocs sync response', async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      text: jest.fn().mockResolvedValue('build logs'),
+    });
+
+    const result = await triggerTechDocsBuild(
+      {
+        namespace: 'default',
+        kind: 'component',
+        name: 'my service',
+      },
+      'local',
+    );
+
+    expect(mockCliAuthCreate).toHaveBeenCalledWith({ instanceName: 'local' });
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://rhdh.example.com/api/techdocs/sync/default/component/my%20service',
+      {
+        headers: { Authorization: 'Bearer test-token' },
+      },
+    );
+    expect(result).toBe('build logs');
+  });
+
+  it('throws when the TechDocs sync endpoint returns a non-success status', async () => {
+    fetchMock.mockResolvedValue({
+      ok: false,
+      status: 500,
+      statusText: 'Internal Server Error',
+      text: jest.fn().mockResolvedValue('build failed'),
+    });
+
+    await expect(
+      triggerTechDocsBuild({
+        namespace: 'default',
+        kind: 'component',
+        name: 'my-service',
+      }),
+    ).rejects.toThrow(
+      'TechDocs build failed with 500 Internal Server Error: build failed',
+    );
+  });
+});
 
 describe('execPassthrough', () => {
   let exitSpy: jest.SpyInstance;

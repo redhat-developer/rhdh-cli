@@ -1,6 +1,7 @@
-import { spawn } from 'node:child_process';
+import { spawn, execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
+import { CliAuth } from '@backstage/cli-node';
 
 const resolvedCliBinaries = new Map<string, string>();
 
@@ -127,4 +128,89 @@ export function execPassthrough(args: string[]): void {
     stderr.end();
     process.exit(code ?? 1);
   });
+}
+
+export function execAction(
+  actionId: string,
+  flags: Record<string, string | boolean | number | undefined>,
+): string {
+  const bin = resolveCliModuleBinary('actions');
+  const args = ['actions', 'execute', actionId];
+
+  for (const [key, value] of Object.entries(flags)) {
+    if (value === undefined || value === false) continue;
+    args.push(`--${key}`);
+    if (value !== true) {
+      args.push(String(value));
+    }
+  }
+
+  try {
+    return execFileSync(process.execPath, [bin, ...args], {
+      encoding: 'utf-8',
+      timeout: 60_000,
+      maxBuffer: 50 * 1024 * 1024,
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+  } catch (error) {
+    let errorMsg = 'backstage-cli command failed';
+    const stderrValue =
+      typeof error === 'object' && error !== null && 'stderr' in error
+        ? (error as { stderr?: string | Buffer }).stderr
+        : undefined;
+    let stderr = '';
+    if (Buffer.isBuffer(stderrValue)) {
+      stderr = stderrValue.toString('utf-8').trim();
+    } else if (typeof stderrValue === 'string') {
+      stderr = stderrValue.trim();
+    }
+    if (stderr) {
+      const lines = stderr.split('\n').filter(l => l.trim());
+      const errorLine = lines.find(l => /^Error:/i.test(l.trim()));
+      errorMsg = errorLine
+        ? errorLine.replace(/^\s*Error:\s*/i, '').trim()
+        : lines[lines.length - 1].trim();
+    }
+    throw new Error(rebrand(errorMsg));
+  }
+}
+
+export function execActionJson(
+  actionId: string,
+  flags: Record<string, string | boolean | number | undefined>,
+): unknown {
+  const raw = execAction(actionId, flags);
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return raw;
+  }
+}
+
+export async function triggerTechDocsBuild(
+  entity: { namespace: string; kind: string; name: string },
+  instance?: string,
+): Promise<string> {
+  const auth = await CliAuth.create({ instanceName: instance });
+  const accessToken = await auth.getAccessToken();
+  const path = [entity.namespace, entity.kind, entity.name]
+    .map(encodeURIComponent)
+    .join('/');
+  const url = new URL(
+    `/api/techdocs/sync/${path}`,
+    auth.getBaseUrl(),
+  ).toString();
+  const response = await fetch(url, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  const body = await response.text();
+
+  if (!response.ok) {
+    const status = `${response.status} ${response.statusText}`.trim();
+    throw new Error(
+      `TechDocs build failed with ${status}${body ? `: ${body}` : ''}`,
+    );
+  }
+
+  return body;
 }

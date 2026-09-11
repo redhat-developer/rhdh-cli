@@ -68,6 +68,70 @@ or when executing from the project root you can also use:
 npx @red-hat-developer-hub/cli
 ```
 
+## Commands
+
+The CLI provides two categories of commands:
+
+### Plugin Development Commands
+
+- `plugin export`: Export a Backstage plugin as a dynamic plugin
+- `plugin package`: Package dynamic plugins for distribution
+- `plugin check-versions`: Verify plugin compatibility with RHDH versions
+
+### Intent-Based RHDH Interaction Commands
+
+High-level commands for interacting with RHDH instances:
+
+- `auth`: Log in to, select, inspect, and manage authenticated RHDH instances
+- `actions`: List and execute actions, and manage action-discovery sources
+- `catalog`: List, get, validate, register, and unregister catalog entities
+- `api`: List API entities and retrieve their OpenAPI/AsyncAPI/GraphQL specifications
+- `search`: Search catalog, TechDocs, and template content
+- `docs`: Search TechDocs and, on RHDH instances with optional plugins, list entities, retrieve pages, and view coverage
+- `template`: List, execute, and dry-run software templates
+
+**Quick Examples:**
+
+```bash
+# Authenticate with your RHDH instance
+rhdh-cli auth login --backend-url https://rhdh.example.com
+
+# List production components
+rhdh-cli catalog list --kind Component --filter spec.lifecycle=production
+
+# Search documentation
+rhdh-cli search "deployment guide" --types '["techdocs"]'
+
+# Get API specification
+rhdh-cli api get-spec --name my-api
+
+# Execute a template
+rhdh-cli template execute \
+  --template-ref template:default/nodejs-service \
+  --value name=my-app \
+  --value owner=team-platform
+```
+
+All commands support `--help` for detailed usage and `--output json` for machine-readable output.
+
+**📚 For complete documentation, setup guides, and examples, see:**
+
+- **[Intent-Based CLI Documentation](docs/Intent-Based-CLI.md)** - Complete guide for RHDH interaction commands
+
+### Optional TechDocs Features
+
+**TechDocs content retrieval** (`docs list`, `docs get`, `docs coverage`, `docs build`):
+
+- Requires **TechDocs MCP extras plugin** (`techdocs-mcp-extras`)
+- See the [CLI documentation](docs/Intent-Based-CLI.md#rhdh-instance-configuration) for setup instructions
+
+**TechDocs search** (`docs search`):
+
+- Requires **TechDocs search backend module** (`search-backend-module-techdocs`)
+- Standard Backstage plugin for indexing TechDocs content
+
+All other commands work without these optional plugins.
+
 ### Bumping Backstage Dependencies
 
 To update the `@backstage/*` dependencies to a new Backstage release:

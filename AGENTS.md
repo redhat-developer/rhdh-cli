@@ -13,21 +13,31 @@
 
 ## Key Conventions
 
-<!-- Add 2-3 conventions an agent couldn't discover by reading the code —
-     e.g. co-location rules, naming patterns, file organisation decisions. -->
+- CLI command groups are co-located under `src/commands/intent-based-actions/`;
+  register new groups in that directory's `index.ts`.
+- Keep human/JSON rendering in `format.ts`, Backstage action invocation in
+  `client.ts`, and command-level error presentation in `intent-errors.ts`.
+- Add or update the co-located `*.test.ts` file when changing command behavior.
 
 ## Architecture
 
-<!-- Add non-obvious architectural decisions or places where things live
-     unexpectedly — e.g. why a module lives where it does, key abstractions,
-     anything that would surprise a reader unfamiliar with the project. -->
+- Intent-based commands invoke the bundled `@backstage/cli` through
+  `backstage-cli actions execute`; they do not call Backstage HTTP APIs
+  directly.
+- `backstage-passthrough.ts` owns the lower-level `auth`, `actions`, and
+  `sources` commands, while the other files wrap action execution with
+  purpose-specific flags and output formatting.
+- `docs list`, `docs get`, and `docs coverage` use the RHDH-only
+  `techdocs-mcp-extras` actions. `docs search` uses the standard
+  `search:query` action.
 
 ## Pattern References
 
-<!-- Point agents to 3-5 real examples for the most common change types.
-     Example:
-     - New CLI command: follow the pattern in `src/commands/config/show.ts`
-     - New lib utility: see `src/lib/parallel.ts` as reference -->
+- New command group: `src/commands/intent-based-actions/catalog.ts`
+- Shared list/search command behavior: `src/commands/intent-based-actions/helpers.ts`
+- Human/JSON output formatting: `src/commands/intent-based-actions/format.ts`
+- Structured CLI errors: `src/commands/intent-based-actions/intent-errors.ts`
+- Repeatable `key=value` and JSON input parsing: `src/commands/intent-based-actions/kv.ts`
 
 ## PR Conventions
 
