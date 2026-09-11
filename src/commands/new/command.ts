@@ -21,7 +21,7 @@ import { createInterface } from 'node:readline/promises';
 
 import { paths } from '../../lib/paths';
 import { resolveRhdhVersion } from '../../lib/rhdhVersion';
-import { templatingTask } from '../../lib/tasks';
+import { Task, templatingTask } from '../../lib/tasks';
 
 export const pluginTypes = ['frontend', 'backend', 'backend-module'] as const;
 export type PluginType = (typeof pluginTypes)[number];
@@ -34,10 +34,16 @@ export interface CreatePluginOptions {
   manifestFile?: string;
 }
 
+export interface PluginProjectResult {
+  outputDir: string;
+  rhdhVersion: string;
+  backstageVersion: string;
+}
+
 type Prompt = (question: string) => Promise<string>;
 
 function assertPluginName(name: string): void {
-  if (!/^[a-z][a-z0-9-]*$/.test(name)) {
+  if (!/^[a-z][a-z0-9]*(-[a-z0-9]+)*$/.test(name)) {
     throw new Error(
       'Plugin name must start with a lowercase letter and contain only lowercase letters, numbers, and hyphens.',
     );
@@ -56,15 +62,14 @@ export async function completeInteractiveOptions(
   options: CreatePluginOptions,
   prompt: Prompt,
 ): Promise<CreatePluginOptions> {
-  return {
-    ...options,
-    name: options.name || (await prompt('Plugin name: ')).trim(),
-    type:
-      options.type ||
-      (
-        await prompt('Plugin type (frontend, backend, backend-module): ')
-      ).trim(),
-  };
+  const name = options.name || (await prompt('Plugin name: ')).trim();
+  const type =
+    options.type ||
+    (await prompt('Plugin type (frontend, backend, backend-module): ')).trim();
+  if (!name || !type) {
+    throw new Error('Plugin name and type cannot be empty.');
+  }
+  return { ...options, name, type };
 }
 
 async function promptForMissingOptions(
@@ -74,8 +79,12 @@ async function promptForMissingOptions(
     return options;
   }
   if (!process.stdin.isTTY) {
+    const missing = [
+      !options.name && 'plugin name',
+      !options.type && '--type',
+    ].filter(Boolean);
     throw new Error(
-      'Plugin name and --type are required when running without an interactive terminal.',
+      `${missing.join(' and ')} ${missing.length === 1 ? 'is' : 'are'} required when running without an interactive terminal.`,
     );
   }
 
@@ -95,11 +104,7 @@ async function promptForMissingOptions(
 /** Creates a standalone plugin project from a version-pinned template. */
 export async function createPluginProject(
   options: CreatePluginOptions,
-): Promise<{
-  outputDir: string;
-  rhdhVersion: string;
-  backstageVersion: string;
-}> {
+): Promise<PluginProjectResult> {
   if (!options.name) {
     throw new Error(
       'Plugin name is required. Pass it as an argument or with --name.',
@@ -109,7 +114,8 @@ export async function createPluginProject(
   assertPluginType(options.type);
 
   const outputDir = path.resolve(options.output || options.name);
-  if (await fs.pathExists(outputDir)) {
+  const outputExisted = await fs.pathExists(outputDir);
+  if (outputExisted) {
     const contents = await fs.readdir(outputDir);
     if (contents.length > 0) {
       throw new Error(`Output directory "${outputDir}" is not empty.`);
@@ -131,18 +137,25 @@ export async function createPluginProject(
   const templateDir = paths.resolveOwn(`templates/plugin-new/${options.type}`);
 
   await fs.ensureDir(outputDir);
-  await templatingTask(
-    templateDir,
-    outputDir,
-    {
-      pluginId: options.name,
-      packageName: `@internal/backstage-plugin-${options.name}`,
-      rhdhVersion: resolved.rhdhVersion,
-      backstageVersion: resolved.backstageVersion,
-    },
-    versionProvider,
-    false,
-  );
+  try {
+    await templatingTask(
+      templateDir,
+      outputDir,
+      {
+        pluginId: options.name,
+        packageName: `@internal/backstage-plugin-${options.name}`,
+        rhdhVersion: resolved.rhdhVersion,
+        backstageVersion: resolved.backstageVersion,
+      },
+      versionProvider,
+      false,
+    );
+  } catch (error) {
+    if (!outputExisted) {
+      await fs.remove(outputDir);
+    }
+    throw error;
+  }
 
   return {
     outputDir,
@@ -171,7 +184,7 @@ export async function command(
   });
   const result = await createPluginProject(options);
 
-  process.stdout.write(
+  Task.log(
     `Created plugin in ${result.outputDir} for RHDH ${result.rhdhVersion} (Backstage ${result.backstageVersion}).\n`,
   );
 }

@@ -8,7 +8,7 @@ const processor: CatalogProcessor = {
   getProcessorName: () => '{{pluginId}}Processor',
 };
 
-const module = createBackendModule({
+const catalogBackendModule = createBackendModule({
   pluginId: 'catalog',
   moduleId: '{{pluginId}}',
   register(reg) {
@@ -21,4 +21,4 @@ const module = createBackendModule({
   },
 });
 
-export default module;
+export default catalogBackendModule;
