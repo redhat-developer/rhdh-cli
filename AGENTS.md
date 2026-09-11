@@ -19,7 +19,9 @@
   (branch `release-X.Y`). When that fails (network error, missing
   branch), a static compatibility matrix in `src/lib/rhdhVersion.ts`
   (`RHDH_COMPATIBILITY_MATRIX`) provides the fallback. The matrix must
-  be updated manually each RHDH release cycle. Bare numeric versions
+  be updated manually each RHDH release cycle; RHIDP-16902 will add CI
+  validation that checks supported entries against authoritative RHDH
+  metadata and reports divergences. Bare numeric versions
   like `1.54.0` are treated as RHDH versions — to target a Backstage
   version directly, users must use the `backstage:` prefix (e.g.
   `backstage:1.54.0`).
@@ -38,27 +40,18 @@
 
 ## Architecture
 
-- **Version resolution engine** (`src/lib/rhdhVersion.ts`). Core
-  abstraction that resolves an RHDH version alias (e.g. `2.1.0`,
-  `latest`, `next`) to its underlying Backstage release version and
-  package manifest. Uses a 3-tier strategy:
-  1. **Remote metadata** — fetches `build-metadata.json` from the RHDH
-     GitHub repo for the matching release branch.
-  2. **Static matrix** — `RHDH_COMPATIBILITY_MATRIX`, an embedded
-     `Record<string, string>` mapping RHDH versions to Backstage
-     versions. Used when remote lookup fails or offline mode is active.
-  3. **Backstage manifest** — fetches the release manifest from
-     `versions.backstage.io` (or a local file) using
-     `@backstage/release-manifests` to get the full package version map.
-     Results are cached by a composite key of version + manifestFile +
-     base URL + offline flag, so repeated calls within a session do not
-     re-fetch.
-- **Manifest caching** (`src/lib/backstageVersion.ts`). Caches the
-  Backstage release manifest keyed by version + `versionsBaseUrl`.
-  Supports `BACKSTAGE_MANIFEST_FILE` for local file override and
+- **Version resolution engine** (`src/lib/rhdhVersion.ts`). Resolves
+  an RHDH version alias (e.g. `2.1.0`, `latest`, `next`) to its
+  underlying Backstage release version and package manifest via a
+  3-tier strategy: remote metadata → static matrix → Backstage
+  manifest. See the source and `src/lib/rhdhVersion.test.ts` for
+  caching semantics and fallback order.
+- **Manifest caching** (`src/lib/backstageVersion.ts`). Fetches and
+  caches the Backstage release manifest. Supports
+  `BACKSTAGE_MANIFEST_FILE` for local file override and
   `BACKSTAGE_VERSIONS_BASE_URL` for custom manifest servers —
   compatible with the upstream Backstage yarn plugin environment
-  variables.
+  variables. See the source for cache-key composition.
 - **Command structure** (`src/commands/`). Each CLI command is a
   directory containing:
 
