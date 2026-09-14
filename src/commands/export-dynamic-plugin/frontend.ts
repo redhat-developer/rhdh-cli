@@ -39,28 +39,6 @@ function isTruthyCiEnv(value: string | undefined): boolean {
   return normalized === 'true' || normalized === '1' || normalized === 'yes';
 }
 
-function isScalprumFilesEntry(file: string): boolean {
-  const normalized = file.replaceAll('\\', '/');
-  const normalizedPath = normalized.startsWith('!')
-    ? normalized.slice(1)
-    : normalized;
-  if (normalizedPath === 'dist-scalprum') {
-    return true;
-  }
-
-  if (!normalizedPath.startsWith('dist-scalprum')) {
-    return false;
-  }
-
-  const suffix = normalizedPath.slice('dist-scalprum'.length);
-  return (
-    suffix.startsWith('/') ||
-    suffix.startsWith('*') ||
-    suffix.startsWith('?') ||
-    suffix.startsWith('[')
-  );
-}
-
 export async function frontend(
   _: PackageRoleInfo,
   opts: OptionValues,
@@ -155,7 +133,7 @@ export async function frontend(
       // which are related to the packaging of the original static package.
       scripts: {},
       files: Array.isArray(files)
-        ? files.filter((file: string) => !isScalprumFilesEntry(file))
+        ? files.filter((file: string) => !file.includes('dist-scalprum'))
         : files,
     },
     rootResolutions,
