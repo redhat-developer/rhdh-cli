@@ -21,7 +21,6 @@ import { getPackages } from '@manypkg/get-packages';
 import chalk from 'chalk';
 import { OptionValues } from 'commander';
 import fs from 'fs-extra';
-import recursive from 'recursive-readdir';
 
 import path from 'path';
 
@@ -45,6 +44,27 @@ export async function frontend(
 ): Promise<string> {
   const originalPkg = await fs.readJson(paths.resolveTarget('package.json'));
   const { name, files } = originalPkg;
+
+  if ('scalprum' in originalPkg) {
+    throw new Error(
+      'Frontend plugin export no longer supports the `scalprum` package field; remove it before exporting',
+    );
+  }
+
+  const legacyScalprumFile = Array.isArray(files)
+    ? files.find((file: string) => file.includes('dist-scalprum'))
+    : undefined;
+  if (legacyScalprumFile) {
+    throw new Error(
+      `Frontend plugin export no longer supports Scalprum files; remove \`${legacyScalprumFile}\` before exporting`,
+    );
+  }
+
+  if (await fs.pathExists(path.join(paths.targetDir, 'dist-scalprum'))) {
+    throw new Error(
+      'Frontend plugin export no longer supports the `dist-scalprum` directory; remove it before exporting',
+    );
+  }
 
   if (opts.clean) {
     await fs.remove(path.join(paths.targetDir, 'dist'));
@@ -102,10 +122,6 @@ export async function frontend(
     targetDir: target,
   });
 
-  // Remove stale Scalprum output that may have been included by npm-packlist
-  // before the derived package manifest is customized below.
-  await fs.remove(path.join(target, 'dist-scalprum'));
-
   Task.log(
     `Customizing main package in ${chalk.cyan(
       path.join(distDynamicRelativePath, 'package.json'),
@@ -132,28 +148,16 @@ export async function frontend(
       // and obviously this should not trigger the backstage pre-pack or post-pack actions
       // which are related to the packaging of the original static package.
       scripts: {},
-      files: Array.isArray(files)
-        ? files.filter((file: string) => !file.includes('dist-scalprum'))
-        : files,
+      files,
     },
     rootResolutions,
     after: pkg => {
-      delete (pkg as unknown as Record<string, unknown>).scalprum;
       if (detectedFeatures) {
         pkg.backstage = pkg.backstage ?? {};
         pkg.backstage.features = detectedFeatures;
       }
     },
   })(path.resolve(target, 'package.json'));
-
-  const legacyScalprumFiles = (await recursive(target)).filter(file =>
-    path.relative(target, file).split(path.sep).includes('dist-scalprum'),
-  );
-  if (legacyScalprumFiles.length > 0) {
-    throw new Error(
-      `The exported package contains legacy Scalprum files: ${legacyScalprumFiles.join(', ')}`,
-    );
-  }
 
   return target;
 }
