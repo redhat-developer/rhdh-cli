@@ -17,6 +17,17 @@ This new CLI aims to offer more flexibility and ease of use compared to the prev
 > | `npx @janus-idp/cli package package-dynamic-plugins` | `npx @red-hat-developer-hub/cli plugin package` |
 <!-- prettier-ignore-end -->
 
+## Migrating to 3.0.0
+
+Version 3.0.0 is a breaking release for frontend plugin export. Scalprum support has been removed and frontend exports now use Backstage standard module federation and NFS metadata only.
+
+Update frontend plugin scripts and CI jobs as follows:
+
+- Remove `--scalprum-config`, `--generate-scalprum-assets`, `--no-generate-scalprum-assets`, `--generate-module-federation-assets`, and `--no-generate-module-federation-assets` from `rhdh-cli plugin export` invocations. Standard module-federation assets are now generated automatically.
+- Replace consumers of `dist-scalprum/plugin-manifest.json` with the generated assets under `dist/`, including `dist/remoteEntry.js`, and use `backstage.features` for NFS feature metadata.
+- Remove `dist-scalprum` and related glob entries from frontend plugin `files` fields. Delete any checked-in or stale `dist-scalprum` output before exporting.
+- The legacy `plugin build` and `plugin start` commands are no longer available.
+
 ## `plugin package` requirements
 
 The `plugin package` command stages each `dist-dynamic` plugin with `npm pack` and `tar` (via a short bash script). The following must be available on your `PATH`:

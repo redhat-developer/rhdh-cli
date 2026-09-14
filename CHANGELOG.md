@@ -4,6 +4,21 @@ All notable changes to `@red-hat-developer-hub/cli` are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 3.0.0 - 2026-09-14
+
+### Changed
+
+- **Frontend plugin export:** Frontend plugins now use Backstage standard module federation exclusively. The generated remote assets are written to `dist/`, including `dist/remoteEntry.js`.
+- Removed the frontend export options `--scalprum-config`, `--generate-scalprum-assets`, `--no-generate-scalprum-assets`, `--generate-module-federation-assets`, and `--no-generate-module-federation-assets`. Frontend module-federation assets are now always generated during `plugin export`.
+- Removed the legacy Scalprum frontend bundler and the `plugin build` and `plugin start` commands.
+- Frontend dynamic packages no longer contain `dist-scalprum/`, `plugin-manifest.json`, or a `scalprum` package manifest field.
+
+### Migration
+
+- Remove the deleted frontend export options from scripts and CI jobs.
+- Update integrations that read `dist-scalprum/plugin-manifest.json` to use the standard module-federation output under `dist/` and NFS metadata in `backstage.features`.
+- Remove `dist-scalprum` and related glob entries from frontend plugin `files` fields and clean any checked-in legacy output before exporting with rhdh-cli 3.0.0.
+
 ## 2.0.6 - 2026-09-11
 
 ### Added
