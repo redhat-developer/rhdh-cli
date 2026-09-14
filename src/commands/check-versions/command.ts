@@ -22,6 +22,7 @@ import semver from 'semver';
 
 import { ExitCodeError } from '../../lib/errors';
 import { paths } from '../../lib/paths';
+import { DependencySection } from '../../lib/pluginDependencies';
 import { resolveRhdhVersion } from '../../lib/rhdhVersion';
 import { Task } from '../../lib/tasks';
 
@@ -30,10 +31,6 @@ export type DependencyStatus =
   | 'mismatch'
   | 'unmanifested'
   | 'unverifiable';
-export type DependencySection =
-  | 'dependencies'
-  | 'devDependencies'
-  | 'peerDependencies';
 
 export interface PackageCheckResult {
   name: string;
