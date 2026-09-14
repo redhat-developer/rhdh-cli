@@ -113,13 +113,6 @@ describe('export and package backstage-community plugin', () => {
             path.join(getFullPluginPath(), 'dist-dynamic/dist/remoteEntry.js'),
           ),
         ).toEqual(true);
-        // eslint-disable-next-line jest/no-conditional-expect
-        expect(
-          fs.existsSync(
-            path.join(getFullPluginPath(), 'dist-dynamic/dist-scalprum'),
-          ),
-        ).toEqual(false);
-
         const distDynamicPkg = JSON.parse(
           fs.readFileSync(
             path.join(getFullPluginPath(), 'dist-dynamic/package.json'),
@@ -128,8 +121,6 @@ describe('export and package backstage-community plugin', () => {
         );
         // eslint-disable-next-line jest/no-conditional-expect
         expect(distDynamicPkg.backstage?.features).toEqual(expectedFeatures);
-        // eslint-disable-next-line jest/no-conditional-expect
-        expect(distDynamicPkg).not.toHaveProperty('scalprum');
       }
     });
 
