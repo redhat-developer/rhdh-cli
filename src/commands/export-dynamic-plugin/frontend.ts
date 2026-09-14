@@ -21,9 +21,9 @@ import { getPackages } from '@manypkg/get-packages';
 import chalk from 'chalk';
 import { OptionValues } from 'commander';
 import fs from 'fs-extra';
+import recursive from 'recursive-readdir';
 
 import path from 'path';
-import recursive from 'recursive-readdir';
 
 import { productionPack } from '../../lib/packager/productionPack';
 import { paths } from '../../lib/paths';
