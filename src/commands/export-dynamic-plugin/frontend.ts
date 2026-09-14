@@ -44,10 +44,16 @@ function isScalprumFilesEntry(file: string): boolean {
   const normalizedPath = normalized.startsWith('!')
     ? normalized.slice(1)
     : normalized;
-  const suffix = normalizedPath.slice('dist-scalprum'.length);
+  if (normalizedPath === 'dist-scalprum') {
+    return true;
+  }
 
+  if (!normalizedPath.startsWith('dist-scalprum')) {
+    return false;
+  }
+
+  const suffix = normalizedPath.slice('dist-scalprum'.length);
   return (
-    normalizedPath === 'dist-scalprum' ||
     suffix.startsWith('/') ||
     suffix.startsWith('*') ||
     suffix.startsWith('?') ||
