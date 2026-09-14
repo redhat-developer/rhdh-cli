@@ -4,7 +4,11 @@ All notable changes to `@red-hat-developer-hub/cli` are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## Unreleased
+## 2.0.7 - 2026-09-14
+
+### Added
+
+- **`plugin new`:** Add `rhdh-cli plugin new <name>` to create standalone, version-pinned frontend, backend, and catalog backend-module dynamic plugin projects ([RHIDP-16671](https://redhat.atlassian.net/browse/RHIDP-16671), [RHIDP-16668](https://redhat.atlassian.net/browse/RHIDP-16668), [#202](https://github.com/redhat-developer/rhdh-cli/pull/202)). Generated projects use the selected RHDH release's Backstage manifest and Yarn 4 configuration.
 
 ### Fixed
 
