@@ -124,6 +124,27 @@ describe('createPluginProject', () => {
     expect(mockResolveRhdhVersion).not.toHaveBeenCalled();
   });
 
+  it('cleans an existing empty output directory after template rendering fails', async () => {
+    const output = path.join(tmpDir, 'existing-empty');
+    await fs.ensureDir(output);
+    mockResolveRhdhVersion.mockResolvedValueOnce({
+      rhdhVersion: '2.1.0',
+      backstageVersion: '1.54.0',
+      source: 'matrix',
+      packages: new Map(),
+    });
+
+    await expect(
+      createPluginProject({
+        name: 'example',
+        type: 'frontend',
+        output,
+      }),
+    ).rejects.toThrow('does not contain');
+
+    await expect(fs.readdir(output)).resolves.toEqual([]);
+  });
+
   it('prompts only for missing name and plugin type', async () => {
     const prompt = jest
       .fn<Promise<string>, [string]>()

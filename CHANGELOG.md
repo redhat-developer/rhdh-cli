@@ -13,6 +13,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Fixed
 
 - Update the RHDH 2.1.0, `main`, and `next` compatibility mappings to Backstage 1.54.6.
+- Fall back to the requested RHDH version when remote metadata returns an invalid version value.
 
 ## 2.0.6 - 2026-09-11
 

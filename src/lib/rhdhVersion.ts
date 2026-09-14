@@ -112,7 +112,8 @@ export function getRhdhGitRef(version: string): string | undefined {
 }
 
 /**
- * Fetches build-metadata.json from the target RHDH repository branch.
+ * Fetches build-metadata.json from the target RHDH repository branch. Invalid
+ * RHDH version values from remote metadata fall back to the requested version.
  */
 export async function fetchRemoteRhdhMetadata(
   rhdhVersion: string,

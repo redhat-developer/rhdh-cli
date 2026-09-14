@@ -153,6 +153,8 @@ export async function createPluginProject(
   } catch (error) {
     if (!outputExisted) {
       await fs.remove(outputDir);
+    } else {
+      await fs.emptyDir(outputDir);
     }
     throw error;
   }
