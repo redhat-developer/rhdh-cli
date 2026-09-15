@@ -4,6 +4,12 @@ All notable changes to `@red-hat-developer-hub/cli` are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 2.0.8 - 2026-09-15
+
+### Fixed
+
+- **`plugin new`:** Add the missing `jest-environment-jsdom` development dependency to generated projects so `yarn test` runs successfully.
+
 ## 2.0.7 - 2026-09-14
 
 ### Added

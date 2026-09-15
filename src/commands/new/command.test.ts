@@ -88,6 +88,9 @@ describe('createPluginProject', () => {
 
       const packageJson = await fs.readJson(path.join(output, 'package.json'));
       expect(packageJson.devDependencies['@backstage/cli']).toBe('0.36.5');
+      expect(packageJson.devDependencies['jest-environment-jsdom']).toBe(
+        '^29.7.0',
+      );
       expect(packageJson.devDependencies).not.toHaveProperty(
         '@red-hat-developer-hub/cli',
       );
