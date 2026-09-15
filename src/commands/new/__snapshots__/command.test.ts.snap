@@ -318,8 +318,17 @@ RHDH Dynamic Plugin Factory is the preferred workflow for repeatable build and p
   "private": true,
   "license": "Apache-2.0",
   "files": ["dist"],
-  "main": "src/index.tsx",
-  "types": "src/index.tsx",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./package.json": "./package.json"
+  },
+  "typesVersions": {
+    "*": {
+      "package.json": ["package.json"]
+    }
+  },
   "backstage": { "role": "frontend-plugin", "pluginId": "example-plugin" },
   "scripts": {
     "start": "backstage-cli package start",
@@ -352,25 +361,8 @@ RHDH Dynamic Plugin Factory is the preferred workflow for repeatable build and p
 ",
   ],
   [
-    "src/index.tsx",
-    "import { createRouteRef } from '@backstage/core-plugin-api';
-import { createFrontendPlugin, PageBlueprint } from '@backstage/frontend-plugin-api';
-
-const rootRouteRef = createRouteRef({ id: 'example-plugin' });
-const page = PageBlueprint.make({
-  params: {
-    title: 'example-plugin',
-    path: '/example-plugin',
-    routeRef: rootRouteRef,
-    loader: () => import('./PluginPage').then(m => <m.PluginPage />),
-  },
-});
-
-export default createFrontendPlugin({
-  pluginId: 'example-plugin',
-  extensions: [page],
-  routes: { root: rootRouteRef },
-});
+    "src/index.ts",
+    "export { plugin as default } from './plugin';
 ",
   ],
   [
@@ -387,11 +379,30 @@ export default createFrontendPlugin({
 ",
   ],
   [
-    "src/PluginPage.tsx",
-    "import React from 'react';
+    "src/plugin.tsx",
+    "import { createRouteRef } from '@backstage/core-plugin-api';
+import { createFrontendPlugin, PageBlueprint } from '@backstage/frontend-plugin-api';
 
-export function PluginPage() {
-  return React.createElement('h1', undefined, 'example-plugin');
+const rootRouteRef = createRouteRef({ id: 'example-plugin' });
+const page = PageBlueprint.make({
+  params: {
+    title: 'example-plugin',
+    path: '/example-plugin',
+    routeRef: rootRouteRef,
+    loader: () => import('./PluginPage').then(m => <m.PluginPage />),
+  },
+});
+export const plugin = createFrontendPlugin({
+  pluginId: 'example-plugin',
+  extensions: [page],
+  routes: { root: rootRouteRef },
+});
+",
+  ],
+  [
+    "src/PluginPage.tsx",
+    "export function PluginPage() {
+  return <h1>example-plugin</h1>;
 }
 ",
   ],

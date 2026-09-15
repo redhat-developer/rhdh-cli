@@ -10,8 +10,7 @@ const page = PageBlueprint.make({
     loader: () => import('./PluginPage').then(m => <m.PluginPage />),
   },
 });
-
-export default createFrontendPlugin({
+export const plugin = createFrontendPlugin({
   pluginId: '{{pluginId}}',
   extensions: [page],
   routes: { root: rootRouteRef },

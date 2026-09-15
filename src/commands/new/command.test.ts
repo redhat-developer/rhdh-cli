@@ -57,7 +57,7 @@ describe('createPluginProject', () => {
   });
 
   it.each([
-    ['frontend', 'src/index.tsx', 'PageBlueprint'],
+    ['frontend', 'src/index.ts', 'export { plugin as default }'],
     ['backend', 'src/index.ts', 'createBackendPlugin'],
     [
       'catalog-processor-module',
@@ -126,7 +126,7 @@ describe('createPluginProject', () => {
             entryPoint,
             'tsconfig.json',
             ...(type === 'frontend'
-              ? ['src/PluginPage.tsx', 'dev/index.tsx']
+              ? ['src/plugin.tsx', 'src/PluginPage.tsx', 'dev/index.tsx']
               : []),
             ...(type === 'backend' ? ['dev/index.ts'] : []),
           ].map(async file => [
