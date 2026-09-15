@@ -44,7 +44,8 @@ RHDH Dynamic Plugin Factory is the preferred workflow for repeatable build and p
   ],
   [
     "backstage.json",
-    "{ "version": "1.54.0" }",
+    "{ "version": "1.54.0" }
+",
   ],
   [
     "package.json",
@@ -291,7 +292,8 @@ RHDH Dynamic Plugin Factory is the preferred workflow for repeatable build and p
   ],
   [
     "backstage.json",
-    "{ "version": "1.54.0" }",
+    "{ "version": "1.54.0" }
+",
   ],
   [
     "package.json",

@@ -187,6 +187,7 @@ export function registerPluginCommand(program: Command) {
     )
     .option('--json', 'Output upgrade results as JSON')
     .action(lazy(() => import('./upgrade').then(m => m.command)));
+
   command
     .command('new [name]')
     .description('Create a standalone RHDH dynamic plugin project')

@@ -62,6 +62,7 @@ function assertPluginType(
   }
 }
 
+/** Prompts for any plugin creation options omitted by the caller. */
 export async function completeInteractiveOptions(
   options: CreatePluginOptions,
   prompt: Prompt,
@@ -159,11 +160,9 @@ export async function createPluginProject(
       false,
     );
   } catch (error) {
-    if (!outputExisted) {
-      await fs.remove(outputDir);
-    } else {
-      await fs.emptyDir(outputDir);
-    }
+    await (outputExisted ? fs.emptyDir(outputDir) : fs.remove(outputDir)).catch(
+      () => undefined,
+    );
     throw error;
   }
 

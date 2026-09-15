@@ -224,6 +224,22 @@ describe('rhdhVersion', () => {
 
       await expect(fetchRemoteRhdhMetadata('2.0.0')).resolves.toBeUndefined();
     });
+
+    it('falls back to the requested RHDH version when metadata is invalid', async () => {
+      setupFetchMock({
+        metadata: {
+          card: {
+            'RHDH Version': '2.0.0::warning',
+            'Backstage Version': '1.52.0',
+          },
+        },
+      });
+
+      await expect(fetchRemoteRhdhMetadata('2.0.0')).resolves.toEqual({
+        rhdhVersion: '2.0.0',
+        backstageVersion: '1.52.0',
+      });
+    });
   });
 
   describe('resolveRhdhVersion', () => {

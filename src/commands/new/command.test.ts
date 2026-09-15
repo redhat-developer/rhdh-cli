@@ -167,6 +167,26 @@ describe('createPluginProject', () => {
     await expect(fs.readdir(output)).resolves.toEqual([]);
   });
 
+  it('removes a newly created output directory after template rendering fails', async () => {
+    const output = path.join(tmpDir, 'new-output');
+    mockResolveRhdhVersion.mockResolvedValueOnce({
+      rhdhVersion: '2.1.0',
+      backstageVersion: '1.54.0',
+      source: 'matrix',
+      packages: new Map(),
+    });
+
+    await expect(
+      createPluginProject({
+        name: 'example',
+        type: 'frontend',
+        output,
+      }),
+    ).rejects.toThrow('does not contain');
+
+    await expect(fs.pathExists(output)).resolves.toBe(false);
+  });
+
   it('prompts only for missing name and plugin type', async () => {
     const prompt = jest
       .fn<Promise<string>, [string]>()
