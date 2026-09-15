@@ -8,7 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
-- **`plugin new`:** Add `rhdh-cli plugin new <name>` to create standalone, version-pinned frontend, backend, and catalog backend-module dynamic plugin projects ([RHIDP-16671](https://redhat.atlassian.net/browse/RHIDP-16671), [RHIDP-16668](https://redhat.atlassian.net/browse/RHIDP-16668), [#202](https://github.com/redhat-developer/rhdh-cli/pull/202)). Generated projects use the selected RHDH release's Backstage manifest and Yarn 4 configuration.
+- **`plugin new`:** Add `rhdh-cli plugin new <name>` to create standalone, version-pinned frontend, backend, and catalog processor module dynamic plugin projects ([RHIDP-16671](https://redhat.atlassian.net/browse/RHIDP-16671), [RHIDP-16668](https://redhat.atlassian.net/browse/RHIDP-16668), [#202](https://github.com/redhat-developer/rhdh-cli/pull/202)). Generated projects use the selected RHDH release's Backstage manifest and Yarn 4 configuration.
 
 ### Fixed
 

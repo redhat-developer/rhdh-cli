@@ -57,7 +57,11 @@ describe('createPluginProject', () => {
   it.each([
     ['frontend', 'src/index.ts', 'PageBlueprint'],
     ['backend', 'src/index.ts', 'createBackendPlugin'],
-    ['backend-module', 'src/index.ts', 'catalogProcessingExtensionPoint'],
+    [
+      'catalog-processor-module',
+      'src/index.ts',
+      'catalogProcessingExtensionPoint',
+    ],
   ])(
     'creates a %s plugin project',
     async (type, entryPoint, expectedSource) => {
@@ -97,6 +101,23 @@ describe('createPluginProject', () => {
       await expect(
         fs.readJson(path.join(output, 'backstage.json')),
       ).resolves.toEqual({ version: '1.54.0' });
+
+      await expect(
+        Promise.all(
+          [
+            '.gitignore',
+            '.yarnrc.yml',
+            'README.md',
+            'backstage.json',
+            'package.json',
+            'src/index.ts',
+            'tsconfig.json',
+          ].map(async file => [
+            file,
+            await fs.readFile(path.join(output, file), 'utf8'),
+          ]),
+        ),
+      ).resolves.toMatchSnapshot();
     },
   );
 

@@ -23,7 +23,11 @@ import { paths } from '../../lib/paths';
 import { resolveRhdhVersion } from '../../lib/rhdhVersion';
 import { Task, templatingTask } from '../../lib/tasks';
 
-export const pluginTypes = ['frontend', 'backend', 'backend-module'] as const;
+export const pluginTypes = [
+  'frontend',
+  'backend',
+  'catalog-processor-module',
+] as const;
 export type PluginType = (typeof pluginTypes)[number];
 
 export interface CreatePluginOptions {
@@ -65,7 +69,11 @@ export async function completeInteractiveOptions(
   const name = options.name || (await prompt('Plugin name: ')).trim();
   const type =
     options.type ||
-    (await prompt('Plugin type (frontend, backend, backend-module): ')).trim();
+    (
+      await prompt(
+        'Plugin type (frontend, backend, catalog-processor-module): ',
+      )
+    ).trim();
   if (!name || !type) {
     throw new Error('Plugin name and type cannot be empty.');
   }

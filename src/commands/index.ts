@@ -191,7 +191,10 @@ export function registerPluginCommand(program: Command) {
     .command('new [name]')
     .description('Create a standalone RHDH dynamic plugin project')
     .option('--name <plugin-name>', 'Plugin name (alternative to the argument)')
-    .option('--type <frontend|backend|backend-module>', 'Plugin type to create')
+    .option(
+      '--type <frontend|backend|catalog-processor-module>',
+      'Plugin type to create',
+    )
     .option('--rhdh-version <version>', 'Target RHDH version')
     .option(
       '--output <directory>',
