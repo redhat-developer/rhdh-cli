@@ -19,6 +19,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Update integrations that read `dist-scalprum/plugin-manifest.json` to use the standard module-federation output under `dist/` and NFS metadata in `backstage.features`.
 - Remove `dist-scalprum` and related glob entries from frontend plugin `files` fields and clean any checked-in legacy output before exporting with rhdh-cli 3.0.0.
 
+## 2.0.8 - 2026-09-15
+
+### Fixed
+
+- **`plugin new`:** Add the missing `jest-environment-jsdom` development dependency to generated projects so `yarn test` runs successfully.
+
+## 2.0.7 - 2026-09-14
+
+### Added
+
+- **`plugin new`:** Add `rhdh-cli plugin new <name>` to create standalone, version-pinned frontend, backend, and catalog processor module dynamic plugin projects ([RHIDP-16671](https://redhat.atlassian.net/browse/RHIDP-16671), [RHIDP-16668](https://redhat.atlassian.net/browse/RHIDP-16668), [#202](https://github.com/redhat-developer/rhdh-cli/pull/202)). Generated projects use the selected RHDH release's Backstage manifest and Yarn 4 configuration.
+
+### Fixed
+
+- Update the RHDH 2.1.0, `main`, and `next` compatibility mappings to Backstage 1.54.6.
+- Fall back to the requested RHDH version when remote metadata returns an invalid version value.
+
 ## 2.0.6 - 2026-09-11
 
 ### Added
