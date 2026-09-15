@@ -97,6 +97,9 @@ describe('createPluginProject', () => {
         '@red-hat-developer-hub/cli',
       );
       expect(packageJson.packageManager).toBe('yarn@4.17.1');
+      expect(packageJson.files).toEqual(
+        type === 'frontend' ? ['dist'] : undefined,
+      );
       expect(packageJson.scripts.start).toBe(
         type === 'catalog-processor-module'
           ? undefined
