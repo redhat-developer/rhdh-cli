@@ -320,6 +320,11 @@ RHDH Dynamic Plugin Factory is the preferred workflow for repeatable build and p
   "files": ["dist"],
   "main": "src/index.ts",
   "types": "src/index.ts",
+  "publishConfig": {
+    "access": "public",
+    "main": "dist/index.esm.js",
+    "types": "dist/index.d.ts"
+  },
   "exports": {
     ".": "./src/index.ts",
     "./package.json": "./package.json"
@@ -392,6 +397,7 @@ const page = PageBlueprint.make({
     loader: () => import('./PluginPage').then(m => <m.PluginPage />),
   },
 });
+
 export const plugin = createFrontendPlugin({
   pluginId: 'example-plugin',
   extensions: [page],
