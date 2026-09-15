@@ -40,10 +40,12 @@ describe('createPluginProject', () => {
       source: 'matrix',
       packages: new Map([
         ['@backstage/backend-plugin-api', '1.10.0'],
+        ['@backstage/backend-defaults', '0.12.5'],
         ['@backstage/catalog-model', '1.10.0'],
         ['@backstage/cli', '0.36.5'],
         ['@backstage/core-plugin-api', '1.12.7'],
         ['@backstage/frontend-plugin-api', '0.17.2'],
+        ['@backstage/frontend-defaults', '0.4.5'],
         ['@backstage/plugin-catalog-node', '2.2.4'],
       ]),
     });
@@ -95,6 +97,11 @@ describe('createPluginProject', () => {
         '@red-hat-developer-hub/cli',
       );
       expect(packageJson.packageManager).toBe('yarn@4.17.1');
+      expect(packageJson.scripts.start).toBe(
+        type === 'catalog-processor-module'
+          ? undefined
+          : 'backstage-cli package start',
+      );
       await expect(
         fs.readFile(path.join(output, '.yarnrc.yml'), 'utf8'),
       ).resolves.toBe('nodeLinker: node-modules\n');
@@ -115,7 +122,10 @@ describe('createPluginProject', () => {
             'package.json',
             'src/index.ts',
             'tsconfig.json',
-            ...(type === 'frontend' ? ['src/PluginPage.tsx'] : []),
+            ...(type === 'frontend'
+              ? ['src/PluginPage.tsx', 'dev/index.tsx']
+              : []),
+            ...(type === 'backend' ? ['dev/index.ts'] : []),
           ].map(async file => [
             file,
             await fs.readFile(path.join(output, file), 'utf8'),

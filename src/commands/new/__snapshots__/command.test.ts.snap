@@ -59,6 +59,7 @@ RHDH Dynamic Plugin Factory is the preferred workflow for repeatable build and p
   "types": "src/index.ts",
   "backstage": { "role": "backend-plugin", "pluginId": "example-plugin" },
   "scripts": {
+    "start": "backstage-cli package start",
     "build": "yarn tsc && backstage-cli package build",
     "tsc": "tsc --declaration",
     "test": "backstage-cli package test --passWithNoTests"
@@ -66,6 +67,7 @@ RHDH Dynamic Plugin Factory is the preferred workflow for repeatable build and p
   "dependencies": { "@backstage/backend-plugin-api": "1.10.0" },
   "devDependencies": {
     "@backstage/cli": "0.36.5",
+    "@backstage/backend-defaults": "0.12.5",
     "@types/jest": "^29.5.14",
     "jest": "^29.7.0",
     "jest-environment-jsdom": "^29.7.0",
@@ -114,12 +116,22 @@ export default plugin;
     "tsconfig.json",
     "{
   "extends": "@backstage/cli/config/tsconfig.json",
-  "include": ["src"],
+  "include": ["src", "dev"],
   "compilerOptions": {
     "outDir": "dist-types",
     "rootDir": "."
   }
 }
+",
+  ],
+  [
+    "dev/index.ts",
+    "import { createBackend } from '@backstage/backend-defaults';
+
+const backend = createBackend();
+
+backend.add(import('../src'));
+backend.start();
 ",
   ],
 ]
@@ -309,6 +321,7 @@ RHDH Dynamic Plugin Factory is the preferred workflow for repeatable build and p
   "types": "src/index.ts",
   "backstage": { "role": "frontend-plugin", "pluginId": "example-plugin" },
   "scripts": {
+    "start": "backstage-cli package start",
     "build": "yarn tsc && backstage-cli package build",
     "tsc": "tsc --declaration",
     "test": "backstage-cli package test --passWithNoTests"
@@ -319,8 +332,10 @@ RHDH Dynamic Plugin Factory is the preferred workflow for repeatable build and p
   },
   "devDependencies": {
     "@backstage/cli": "0.36.5",
+    "@backstage/frontend-defaults": "0.4.5",
     "@types/jest": "^29.5.14",
     "@types/react": "^18.0.0",
+    "@types/react-dom": "^18.0.0",
     "react": "^18.0.0",
     "react-dom": "^18.0.0",
     "react-router-dom": "^6.30.2",
@@ -363,7 +378,7 @@ export default createFrontendPlugin({
     "tsconfig.json",
     "{
   "extends": "@backstage/cli/config/tsconfig.json",
-  "include": ["src"],
+  "include": ["src", "dev"],
   "compilerOptions": {
     "outDir": "dist-types",
     "rootDir": "."
@@ -378,6 +393,19 @@ export default createFrontendPlugin({
 export function PluginPage() {
   return React.createElement('h1', undefined, 'example-plugin');
 }
+",
+  ],
+  [
+    "dev/index.tsx",
+    "import ReactDOM from 'react-dom/client';
+
+import { createApp } from '@backstage/frontend-defaults';
+
+import plugin from '../src';
+
+const app = createApp({ features: [plugin] });
+
+ReactDOM.createRoot(document.getElementById('root')!).render(app.createRoot());
 ",
   ],
 ]

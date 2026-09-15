@@ -8,6 +8,7 @@
   "types": "src/index.ts",
   "backstage": { "role": "frontend-plugin", "pluginId": "{{pluginId}}" },
   "scripts": {
+    "start": "backstage-cli package start",
     "build": "yarn tsc && backstage-cli package build",
     "tsc": "tsc --declaration",
     "test": "backstage-cli package test --passWithNoTests"
@@ -18,8 +19,10 @@
   },
   "devDependencies": {
     "@backstage/cli": "{{versionQuery '@backstage/cli'}}",
+    "@backstage/frontend-defaults": "{{versionQuery '@backstage/frontend-defaults'}}",
     "@types/jest": "^29.5.14",
     "@types/react": "^18.0.0",
+    "@types/react-dom": "^18.0.0",
     "react": "^18.0.0",
     "react-dom": "^18.0.0",
     "react-router-dom": "^6.30.2",
