@@ -45,7 +45,7 @@ describe('createPluginProject', () => {
         ['@backstage/cli', '0.36.5'],
         ['@backstage/core-plugin-api', '1.12.7'],
         ['@backstage/frontend-plugin-api', '0.17.2'],
-        ['@backstage/frontend-defaults', '0.4.5'],
+        ['@backstage/frontend-dev-utils', '0.4.5'],
         ['@backstage/plugin-catalog-node', '2.2.4'],
       ]),
     });
