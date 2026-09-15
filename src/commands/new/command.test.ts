@@ -39,13 +39,13 @@ describe('createPluginProject', () => {
       backstageVersion: '1.54.0',
       source: 'matrix',
       packages: new Map([
-        ['@backstage/backend-plugin-api', '1.10.0'],
         ['@backstage/backend-defaults', '0.12.5'],
+        ['@backstage/backend-plugin-api', '1.10.0'],
         ['@backstage/catalog-model', '1.10.0'],
         ['@backstage/cli', '0.36.5'],
         ['@backstage/core-plugin-api', '1.12.7'],
-        ['@backstage/frontend-plugin-api', '0.17.2'],
         ['@backstage/frontend-dev-utils', '0.4.5'],
+        ['@backstage/frontend-plugin-api', '0.17.2'],
         ['@backstage/plugin-catalog-node', '2.2.4'],
       ]),
     });
