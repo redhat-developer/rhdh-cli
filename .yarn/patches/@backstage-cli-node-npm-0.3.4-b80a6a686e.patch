@@ -1,0 +1,27 @@
+diff --git a/dist/index.d.ts b/dist/index.d.ts
+index 8daae4886d170770fe6f04c267a920fd4c43d9cc..beac522b540649638f76cfccc3396ac05d159a6e 100644
+--- a/dist/index.d.ts
++++ b/dist/index.d.ts
+@@ -401,7 +401,7 @@ declare class PackageRoles {
+  *
+  * @public
+  */
+-declare const packageFeatureType: readonly ["@backstage/BackendFeature", "@backstage/BackstagePlugin", "@backstage/FrontendPlugin", "@backstage/FrontendModule"];
++declare const packageFeatureType: readonly ["@backstage/BackendFeature", "@backstage/BackstagePlugin", "@backstage/FrontendPlugin", "@backstage/FrontendModule", "@backstage/FrontendFeatureLoader"];
+ /**
+  * @public
+  */
+diff --git a/dist/monorepo/PackageGraph.cjs.js b/dist/monorepo/PackageGraph.cjs.js
+index 6599b1452af5c6026c8c267684a14622e635363c..7d6fee21357b6bb6376f98aa9ce6df2ac710cb98 100644
+--- a/dist/monorepo/PackageGraph.cjs.js
++++ b/dist/monorepo/PackageGraph.cjs.js
+@@ -14,7 +14,8 @@ const packageFeatureType = [
+   "@backstage/BackendFeature",
+   "@backstage/BackstagePlugin",
+   "@backstage/FrontendPlugin",
+-  "@backstage/FrontendModule"
++  "@backstage/FrontendModule",
++  "@backstage/FrontendFeatureLoader"
+ ];
+ class PackageGraph extends Map {
+   /**

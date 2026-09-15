@@ -2036,38 +2036,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@backstage/cli-node@npm:0.3.3":
-  version: 0.3.3
-  resolution: "@backstage/cli-node@npm:0.3.3"
-  dependencies:
-    "@backstage/cli-common": "npm:^0.2.2"
-    "@backstage/errors": "npm:^1.3.1"
-    "@backstage/types": "npm:^1.2.2"
-    "@manypkg/get-packages": "npm:^1.1.3"
-    "@yarnpkg/lockfile": "npm:^1.1.0"
-    "@yarnpkg/parsers": "npm:^3.0.0"
-    chalk: "npm:^4.0.0"
-    cleye: "npm:^2.6.0"
-    fs-extra: "npm:^11.2.0"
-    keytar: "npm:^7.9.0"
-    pirates: "npm:^4.0.6"
-    proper-lockfile: "npm:^4.1.2"
-    semver: "npm:^7.5.3"
-    yaml: "npm:^2.0.0"
-    zod: "npm:^3.25.76 || ^4.0.0"
-  peerDependencies:
-    "@swc/core": ^1.15.6
-  dependenciesMeta:
-    keytar:
-      optional: true
-  peerDependenciesMeta:
-    "@swc/core":
-      optional: true
-  checksum: 10/0d14768b309af12a6d29a8048a110dd4f2993aeca35115199f9e12aae9113c7088a60575018ad76f5fad102f984ac9f93edd775b7b9213aad430b7001ae237d3
-  languageName: node
-  linkType: hard
-
-"@backstage/cli-node@npm:^0.3.3, @backstage/cli-node@npm:^0.3.4":
+"@backstage/cli-node@npm:0.3.4":
   version: 0.3.4
   resolution: "@backstage/cli-node@npm:0.3.4"
   dependencies:
@@ -2095,6 +2064,37 @@ __metadata:
     "@swc/core":
       optional: true
   checksum: 10/ad8806510910569831e107ad512b0866cdad137c9966c5bd27e2fdbfd46a79ef97052882ff59d77d20529f6d7ee4c14310d978cbc404e81ccb61abcfda80ab75
+  languageName: node
+  linkType: hard
+
+"@backstage/cli-node@patch:@backstage/cli-node@npm%3A0.3.4#~/.yarn/patches/@backstage-cli-node-npm-0.3.4-b80a6a686e.patch":
+  version: 0.3.4
+  resolution: "@backstage/cli-node@patch:@backstage/cli-node@npm%3A0.3.4#~/.yarn/patches/@backstage-cli-node-npm-0.3.4-b80a6a686e.patch::version=0.3.4&hash=03b749"
+  dependencies:
+    "@backstage/cli-common": "npm:^0.3.0"
+    "@backstage/errors": "npm:^1.3.1"
+    "@backstage/types": "npm:^1.2.2"
+    "@manypkg/get-packages": "npm:^1.1.3"
+    "@yarnpkg/lockfile": "npm:^1.1.0"
+    "@yarnpkg/parsers": "npm:^3.0.0"
+    chalk: "npm:^4.0.0"
+    cleye: "npm:^2.6.0"
+    fs-extra: "npm:^11.2.0"
+    keytar: "npm:^7.9.0"
+    pirates: "npm:^4.0.6"
+    proper-lockfile: "npm:^4.1.2"
+    semver: "npm:^7.5.3"
+    yaml: "npm:^2.0.0"
+    zod: "npm:^3.25.76 || ^4.0.0"
+  peerDependencies:
+    "@swc/core": ^1.15.6
+  dependenciesMeta:
+    keytar:
+      optional: true
+  peerDependenciesMeta:
+    "@swc/core":
+      optional: true
+  checksum: 10/76e681952d9ae7c5b1afd66fd897e3fcc511b427de0f241f200b718de7ca24d579d4032104c2f402b3a31f62f14e667eb4e81b59afcdd5c5a52f89bdcab62151
   languageName: node
   linkType: hard
 
@@ -4613,7 +4613,7 @@ __metadata:
     "@backstage/cli-module-build": "npm:0.1.4"
     "@backstage/cli-module-config": "npm:0.1.3"
     "@backstage/cli-module-test-jest": "npm:0.1.3"
-    "@backstage/cli-node": "npm:0.3.3"
+    "@backstage/cli-node": "patch:@backstage/cli-node@npm%3A0.3.4#~/.yarn/patches/@backstage-cli-node-npm-0.3.4-b80a6a686e.patch"
     "@backstage/config": "npm:~1.3.8"
     "@backstage/config-loader": "npm:~1.10.12"
     "@backstage/core-plugin-api": "npm:~1.12.7"
