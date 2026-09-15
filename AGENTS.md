@@ -39,6 +39,36 @@ import prefix, typescript:S4624 nested template literals) before they accumulate
   `plugin dev` in `src/commands/index.ts` and `src/commands/dev/` for the
   reference implementation.
 
+## CLI UX Design Conventions
+
+- **Entity references**: Commands that target a single entity must accept a
+  positional argument in `[kind:][namespace/]name` format (parsed by
+  `parseEntityRef` / `resolveEntityRef` in `kv.ts`). Do not introduce
+  per-command flags like `--entity-ref`, `--template-ref`, or
+  `--name`/`--kind`/`--namespace` as the primary entity input. Optional
+  `--kind` and `--namespace` flags may be offered to disambiguate short
+  names, but the positional ref is the canonical interface.
+- **Filter and input flags**: Use repeatable `--flag key=value` syntax
+  (accumulated with `collect` and parsed by `resolveJsonInput` in `kv.ts`)
+  instead of JSON string arguments. Example:
+  `--filter kind=Component --filter spec.type=service`, not
+  `--filters '{"kind":"Component"}'`.
+- **Plugin dependencies**: Commands that depend on optional Backstage plugins
+  (e.g., `techdocs-mcp-extras`, `search-backend-module-techdocs`) must detect
+  when the plugin is not configured and exit with a clear error message
+  suggesting how to enable it. Do not surface raw HTTP 400/500 responses.
+- **Exit codes**: Commands must exit with a non-zero code when the requested
+  entity is not found or the operation fails. Use `handleCommandError` from
+  `intent-errors.ts` (which calls `process.exit(1)`) for all error paths.
+  Informational "not found" messages must not exit 0.
+- **Error presentation**: Use `intent-errors.ts` to extract human-readable
+  reasons from Backstage error responses. Do not expose raw JSON schema
+  validation output or full stack traces to the user. The `formatError`
+  helper renders structured `{error, reason, suggestion}` objects in both
+  human and JSON modes.
+- **Help text**: Passthrough commands must surface the underlying tool's
+  flags in `--help` output, not just the wrapper's flags.
+
 ## Architecture
 
 - Intent-based commands invoke the bundled `@backstage/cli` through
