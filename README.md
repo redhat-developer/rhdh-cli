@@ -157,11 +157,11 @@ rhdh-cli catalog list --kind Component --filter spec.lifecycle=production
 rhdh-cli search "deployment guide" --types '["techdocs"]'
 
 # Get API specification
-rhdh-cli api get-spec --name my-api
+rhdh-cli api get-spec my-api
 
 # Execute a template
 rhdh-cli template execute \
-  --template-ref template:default/nodejs-service \
+  template:default/nodejs-service \
   --value name=my-app \
   --value owner=team-platform
 ```
