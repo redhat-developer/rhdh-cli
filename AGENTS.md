@@ -13,21 +13,79 @@
 
 ## Key Conventions
 
-<!-- Add 2-3 conventions an agent couldn't discover by reading the code —
-     e.g. co-location rules, naming patterns, file organisation decisions. -->
+- **RHDH-to-Backstage version mapping.** RHDH releases map to specific
+  Backstage release versions. The primary lookup fetches
+  `build-metadata.json` from the `redhat-developer/rhdh` GitHub repo
+  (branch `release-X.Y`). When that fails (network error, missing
+  branch), a static compatibility matrix in `src/lib/rhdhVersion.ts`
+  (`RHDH_COMPATIBILITY_MATRIX`) provides the fallback. The matrix must
+  be updated manually each RHDH release cycle; RHIDP-16902 will add CI
+  validation that checks supported entries against authoritative RHDH
+  metadata and reports divergences. Bare numeric versions
+  like `1.54.0` are treated as RHDH versions — to target a Backstage
+  version directly, users must use the `backstage:` prefix (e.g.
+  `backstage:1.54.0`).
+- **Offline vs air-gapped.** `RHDH_OFFLINE=true` skips
+  only the GitHub metadata fetch (Tier 1 of version resolution). The
+  Backstage release manifest is still fetched from
+  `versions.backstage.io` (Tier 3). For true air-gapped environments,
+  users must also supply `--manifest-file` (or `BACKSTAGE_MANIFEST_FILE`)
+  pointing to a local copy of the manifest JSON.
+- **Error signaling.** Command handlers signal non-zero exit by throwing
+  `ExitCodeError` from `src/lib/errors.ts`. The `lazy()` wrapper in
+  `src/commands/index.ts` catches these and calls `process.exit(code)`.
+  Do not call `process.exit()` directly from command handler code —
+  throw `ExitCodeError` instead so tests can assert on the error without
+  killing the process.
 
 ## Architecture
 
-<!-- Add non-obvious architectural decisions or places where things live
-     unexpectedly — e.g. why a module lives where it does, key abstractions,
-     anything that would surprise a reader unfamiliar with the project. -->
+- **Version resolution engine** (`src/lib/rhdhVersion.ts`). Resolves
+  an RHDH version alias (e.g. `2.1.0`, `latest`, `next`) to its
+  underlying Backstage release version and package manifest via a
+  3-tier strategy: remote metadata → static matrix → Backstage
+  manifest. See the source and `src/lib/rhdhVersion.test.ts` for
+  caching semantics and fallback order.
+- **Manifest caching** (`src/lib/backstageVersion.ts`). Fetches and
+  caches the Backstage release manifest. Supports
+  `BACKSTAGE_MANIFEST_FILE` for local file override and
+  `BACKSTAGE_VERSIONS_BASE_URL` for custom manifest servers —
+  compatible with the upstream Backstage yarn plugin environment
+  variables. See the source for cache-key composition.
+- **Command structure** (`src/commands/`). Each CLI command is a
+  directory containing:
+
+  - `command.ts` — exports the handler function (an
+    `async (opts: OptionValues) => Promise<void>`)
+  - `index.ts` — re-exports `{ command }` from `command.ts`
+  - `command.test.ts` — co-located tests (when present)
+
+  Commands are registered in `src/commands/index.ts` using Commander,
+  with options declared inline and the action wired via
+  `lazy(() => import('./command-dir').then(m => m.command))`.
+
+- **Intent-based actions** (`src/commands/intent-based-actions/`).
+  A separate registration path (`registerIntentCommands`) for
+  passthrough commands that delegate to the Backstage CLI.
 
 ## Pattern References
 
-<!-- Point agents to 3-5 real examples for the most common change types.
-     Example:
-     - New CLI command: follow the pattern in `src/commands/config/show.ts`
-     - New lib utility: see `src/lib/parallel.ts` as reference -->
+- **New CLI command:** follow `src/commands/check-versions/command.ts`
+  for the handler pattern (option parsing, calling a library function,
+  formatting output, throwing `ExitCodeError` on failure) and
+  `src/commands/check-versions/index.ts` for the re-export convention.
+  Register the command in `src/commands/index.ts`.
+- **Version resolution:** see `src/lib/rhdhVersion.ts` for the 3-tier
+  resolution pattern (remote → static matrix → manifest) and how to
+  extend the compatibility matrix.
+- **Test patterns with mocked fetch:** see
+  `src/lib/rhdhVersion.test.ts` — uses `setupFetchMock()` to stub
+  `globalThis.fetch` with URL-based routing, `clearRhdhVersionCache()`
+  / `clearManifestCache()` in `beforeEach`, and restores the original
+  fetch in `afterEach`.
+- **Backstage manifest utilities:** see
+  `src/lib/backstageVersion.ts` for manifest fetching, caching, and
+  `backstage:^` protocol resolution.
 
 ## PR Conventions
 
