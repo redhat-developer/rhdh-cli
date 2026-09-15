@@ -43,8 +43,9 @@ import prefix, typescript:S4624 nested template literals) before they accumulate
 
 - **Entity references**: Commands that target a single entity must accept a
   positional argument in `[kind:][namespace/]name` format (parsed by
-  `parseEntityRef` / `resolveEntityRef` in `kv.ts`). Do not introduce
-  per-command flags like `--entity-ref`, `--template-ref`, or
+  `parseEntityRef` in `kv.ts`, resolved via `resolveEntityWithAmbiguityCheck`
+  in `helpers.ts` which adds catalog-based ambiguity detection). Do not
+  introduce per-command flags like `--entity-ref`, `--template-ref`, or
   `--name`/`--kind`/`--namespace` as the primary entity input. Optional
   `--kind` and `--namespace` flags may be offered to disambiguate short
   names, but the positional ref is the canonical interface.
