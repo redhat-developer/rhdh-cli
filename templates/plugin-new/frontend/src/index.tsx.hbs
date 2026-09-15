@@ -1,6 +1,5 @@
 import { createRouteRef } from '@backstage/core-plugin-api';
 import { createFrontendPlugin, PageBlueprint } from '@backstage/frontend-plugin-api';
-import React from 'react';
 
 const rootRouteRef = createRouteRef({ id: '{{pluginId}}' });
 const page = PageBlueprint.make({
@@ -8,7 +7,7 @@ const page = PageBlueprint.make({
     title: '{{pluginId}}',
     path: '/{{pluginId}}',
     routeRef: rootRouteRef,
-    loader: () => import('./PluginPage').then(m => React.createElement(m.PluginPage)),
+    loader: () => import('./PluginPage').then(m => <m.PluginPage />),
   },
 });
 

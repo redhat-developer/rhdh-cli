@@ -317,8 +317,8 @@ RHDH Dynamic Plugin Factory is the preferred workflow for repeatable build and p
   "packageManager": "yarn@4.17.1",
   "private": true,
   "license": "Apache-2.0",
-  "main": "src/index.ts",
-  "types": "src/index.ts",
+  "main": "src/index.tsx",
+  "types": "src/index.tsx",
   "backstage": { "role": "frontend-plugin", "pluginId": "example-plugin" },
   "scripts": {
     "start": "backstage-cli package start",
@@ -351,10 +351,9 @@ RHDH Dynamic Plugin Factory is the preferred workflow for repeatable build and p
 ",
   ],
   [
-    "src/index.ts",
+    "src/index.tsx",
     "import { createRouteRef } from '@backstage/core-plugin-api';
 import { createFrontendPlugin, PageBlueprint } from '@backstage/frontend-plugin-api';
-import React from 'react';
 
 const rootRouteRef = createRouteRef({ id: 'example-plugin' });
 const page = PageBlueprint.make({
@@ -362,7 +361,7 @@ const page = PageBlueprint.make({
     title: 'example-plugin',
     path: '/example-plugin',
     routeRef: rootRouteRef,
-    loader: () => import('./PluginPage').then(m => React.createElement(m.PluginPage)),
+    loader: () => import('./PluginPage').then(m => <m.PluginPage />),
   },
 });
 
@@ -379,6 +378,7 @@ export default createFrontendPlugin({
   "extends": "@backstage/cli/config/tsconfig.json",
   "include": ["src", "dev"],
   "compilerOptions": {
+    "jsx": "react-jsx",
     "outDir": "dist-types",
     "rootDir": "."
   }

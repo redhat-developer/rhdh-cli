@@ -57,7 +57,7 @@ describe('createPluginProject', () => {
   });
 
   it.each([
-    ['frontend', 'src/index.ts', 'PageBlueprint'],
+    ['frontend', 'src/index.tsx', 'PageBlueprint'],
     ['backend', 'src/index.ts', 'createBackendPlugin'],
     [
       'catalog-processor-module',
@@ -120,7 +120,7 @@ describe('createPluginProject', () => {
             'README.md',
             'backstage.json',
             'package.json',
-            'src/index.ts',
+            entryPoint,
             'tsconfig.json',
             ...(type === 'frontend'
               ? ['src/PluginPage.tsx', 'dev/index.tsx']
