@@ -17,9 +17,9 @@ This new CLI aims to offer more flexibility and ease of use compared to the prev
 > | `npx @janus-idp/cli package package-dynamic-plugins` | `npx @red-hat-developer-hub/cli plugin package` |
 <!-- prettier-ignore-end -->
 
-## Migrating to 3.0.0
+## Migrating to 2.1.0
 
-Version 3.0.0 is a breaking release for frontend plugin export. Scalprum support has been removed and frontend exports now use Backstage standard module federation and NFS metadata only.
+Version 2.1.0 is a breaking release for frontend plugin export. Scalprum support has been removed and frontend exports now use Backstage standard module federation and NFS metadata only.
 
 Update frontend plugin scripts and CI jobs as follows:
 
