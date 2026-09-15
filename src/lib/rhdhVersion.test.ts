@@ -151,7 +151,7 @@ describe('rhdhVersion', () => {
       expect(findStaticMatrixBackstageVersion('2.0.0')).toBe('1.52.0');
       expect(findStaticMatrixBackstageVersion('1.9.0')).toBe('1.45.3');
       expect(findStaticMatrixBackstageVersion('1.8.0')).toBe('1.42.5');
-      expect(findStaticMatrixBackstageVersion('main')).toBe('1.54.0');
+      expect(findStaticMatrixBackstageVersion('main')).toBe('1.54.6');
     });
 
     it('resolves minor versions without patch to matrix entry', () => {
@@ -223,6 +223,22 @@ describe('rhdhVersion', () => {
       });
 
       await expect(fetchRemoteRhdhMetadata('2.0.0')).resolves.toBeUndefined();
+    });
+
+    it('falls back to the requested RHDH version when metadata is invalid', async () => {
+      setupFetchMock({
+        metadata: {
+          card: {
+            'RHDH Version': '2.0.0::warning',
+            'Backstage Version': '1.52.0',
+          },
+        },
+      });
+
+      await expect(fetchRemoteRhdhMetadata('2.0.0')).resolves.toEqual({
+        rhdhVersion: '2.0.0',
+        backstageVersion: '1.52.0',
+      });
     });
   });
 

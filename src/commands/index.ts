@@ -187,6 +187,25 @@ export function registerPluginCommand(program: Command) {
     )
     .option('--json', 'Output upgrade results as JSON')
     .action(lazy(() => import('./upgrade').then(m => m.command)));
+
+  command
+    .command('new [name]')
+    .description('Create a standalone RHDH dynamic plugin project')
+    .option('--name <plugin-name>', 'Plugin name (alternative to the argument)')
+    .option(
+      '--type <frontend|backend|catalog-processor-module>',
+      'Plugin type to create',
+    )
+    .option('--rhdh-version <version>', 'Target RHDH version')
+    .option(
+      '--output <directory>',
+      'Output directory (defaults to the plugin name)',
+    )
+    .option(
+      '--manifest-file <path>',
+      'Path to a local Backstage release manifest JSON file',
+    )
+    .action(lazy(() => import('./new').then(m => m.command)));
 }
 
 export function registerCommands(program: Command) {
