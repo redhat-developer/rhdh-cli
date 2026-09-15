@@ -112,6 +112,7 @@ describe('createPluginProject', () => {
             'package.json',
             'src/index.ts',
             'tsconfig.json',
+            ...(type === 'frontend' ? ['src/PluginPage.tsx'] : []),
           ].map(async file => [
             file,
             await fs.readFile(path.join(output, file), 'utf8'),

@@ -366,5 +366,14 @@ export default createFrontendPlugin({
 }
 ",
   ],
+  [
+    "src/PluginPage.tsx",
+    "import React from 'react';
+
+export function PluginPage() {
+  return React.createElement('h1', undefined, 'example-plugin');
+}
+",
+  ],
 ]
 `;
