@@ -1,15 +1,12 @@
 import { createRouteRef } from '@backstage/core-plugin-api';
 import { createFrontendPlugin, PageBlueprint } from '@backstage/frontend-plugin-api';
+import ExtensionOutlinedIcon from '@mui/icons-material/ExtensionOutlined';
 
 const rootRouteRef = createRouteRef({ id: '{{pluginId}}' });
 const page = PageBlueprint.make({
   params: {
     title: '{{pluginId}}',
-    icon: (
-      <svg aria-hidden="true" fill="currentColor" viewBox="0 0 24 24">
-        <path d="M19 13h-2v2h-2v2h2v2h2v-2h2v-2h-2zm-4-6.5A2.5 2.5 0 0 0 12.5 4c-.63 0-1.2.24-1.65.62A3.5 3.5 0 0 0 8 3a3.5 3.5 0 0 0-2.08 6.31A3.5 3.5 0 0 0 7.5 16H9v-2H7.5a1.5 1.5 0 0 1 0-3h1V9H8a1.5 1.5 0 1 1 1.5-1.5V9h2V6.5a1 1 0 1 1 2 0V9h1.5a1.5 1.5 0 1 1 0 3H13v2h2a3.5 3.5 0 0 0 0-7.5z" />
-      </svg>
-    ),
+    icon: <ExtensionOutlinedIcon />,
     path: '/{{pluginId}}',
     routeRef: rootRouteRef,
     loader: () => import('./PluginPage').then(m => <m.PluginPage />),
