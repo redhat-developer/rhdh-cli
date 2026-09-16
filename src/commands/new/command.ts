@@ -114,7 +114,7 @@ async function loadTemplate(
     values?: unknown;
   };
   if (typeof template.role !== 'string') {
-    throw new Error(`Template "${templateName}" has no role.`);
+    throw new TypeError(`Template "${templateName}" has no role.`);
   }
   const values = Object.fromEntries(
     Object.entries(template.values ?? {}).filter(

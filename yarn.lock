@@ -3403,6 +3403,7 @@ __metadata:
     "@spotify/prettier-config": "npm:15.0.0"
     "@types/fs-extra": "npm:^11.0.0"
     "@types/jest": "npm:^29.5.14"
+    "@types/lodash": "npm:^4.14.151"
     "@types/mock-fs": "npm:4.13.4"
     "@types/node": "npm:18.19.34"
     "@types/npm-packlist": "npm:3.0.0"
@@ -4829,6 +4830,13 @@ __metadata:
   dependencies:
     "@types/node": "npm:*"
   checksum: 10/309fda20eb5f1cf68f2df28931afdf189c5e7e6bec64ac783ce737bb98908d57f6f58757ad5da9be37b815645a6f914e2d4f3ac66c574b8fe1ba6616284d0e97
+  languageName: node
+  linkType: hard
+
+"@types/lodash@npm:^4.14.151":
+  version: 4.17.25
+  resolution: "@types/lodash@npm:4.17.25"
+  checksum: 10/f786e05664439cc8d327fd97c62c060d81b3c4ed52127d01fbc926139e1a669c1554bf3cd0dbb43f8fcc7d9b5c6c23c543cc36de8dc815c9f289ea852b26ebd6
   languageName: node
   linkType: hard
 
