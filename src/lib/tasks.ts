@@ -19,16 +19,18 @@ import { assertError } from '@backstage/errors';
 import chalk from 'chalk';
 import fs from 'fs-extra';
 import handlebars from 'handlebars';
-import camelCase from 'lodash/camelCase';
-import kebabCase from 'lodash/kebabCase';
-import lowerCase from 'lodash/lowerCase';
-import lowerFirst from 'lodash/lowerFirst';
+import {
+  camelCase,
+  kebabCase,
+  lowerCase,
+  lowerFirst,
+  snakeCase,
+  startCase,
+  upperCase,
+  upperFirst,
+} from 'lodash';
 import ora from 'ora';
 import recursive from 'recursive-readdir';
-import snakeCase from 'lodash/snakeCase';
-import startCase from 'lodash/startCase';
-import upperCase from 'lodash/upperCase';
-import upperFirst from 'lodash/upperFirst';
 
 import { exec as execCb } from 'child_process';
 import { basename, dirname } from 'path';

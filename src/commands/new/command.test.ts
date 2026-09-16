@@ -6,6 +6,14 @@ import { resolveRhdhVersion } from '../../lib/rhdhVersion';
 import { completeInteractiveOptions, createPluginProject } from './command';
 import { getRhdhProfile } from './rhdhProfiles';
 
+const frontendDevDependencies = {
+  '@testing-library/react': '^16.0.0',
+  '@types/react': '^18.0.0',
+  '@types/react-dom': '^18.0.0',
+  'react-dom': '^18.0.0',
+  'react-router-dom': '^6.30.2',
+};
+
 jest.mock('../../lib/rhdhVersion', () => ({
   ...jest.requireActual('../../lib/rhdhVersion'),
   resolveRhdhVersion: jest.fn(),
@@ -57,16 +65,22 @@ describe('createPluginProject', () => {
   });
 
   it.each([
-    ['frontend', 'src/plugin.tsx', 'createFrontendPlugin'],
-    ['backend', 'src/plugin.ts', 'createBackendPlugin'],
+    [
+      'frontend',
+      'src/plugin.tsx',
+      'createFrontendPlugin',
+      frontendDevDependencies,
+    ],
+    ['backend', 'src/plugin.ts', 'createBackendPlugin', {}],
     [
       'catalog-processor-module',
       'src/module.ts',
       'catalogProcessingExtensionPoint',
+      {},
     ],
   ])(
     'creates a %s plugin project',
-    async (type, entryPoint, expectedSource) => {
+    async (type, entryPoint, expectedSource, expectedReactDevDependencies) => {
       const output = path.join(tmpDir, type);
 
       const result = await createPluginProject({
@@ -109,27 +123,13 @@ describe('createPluginProject', () => {
       expect(Object.keys(packageJson.resolutions).sort()).toEqual([
         '@types/express',
       ]);
-      if (type === 'frontend') {
-        expect(packageJson.devDependencies['@testing-library/react']).toBe(
-          '^16.0.0',
-        );
-        expect(packageJson.devDependencies['@types/react']).toBe('^18.0.0');
-        expect(packageJson.devDependencies['@types/react-dom']).toBe('^18.0.0');
-        expect(packageJson.devDependencies['react-dom']).toBe('^18.0.0');
-        expect(packageJson.devDependencies['react-router-dom']).toBe('^6.30.2');
-      } else {
-        expect(packageJson.devDependencies).not.toHaveProperty(
-          '@testing-library/react',
-        );
-        expect(packageJson.devDependencies).not.toHaveProperty('@types/react');
-        expect(packageJson.devDependencies).not.toHaveProperty(
-          '@types/react-dom',
-        );
-        expect(packageJson.devDependencies).not.toHaveProperty('react-dom');
-        expect(packageJson.devDependencies).not.toHaveProperty(
-          'react-router-dom',
-        );
-      }
+      expect(
+        Object.fromEntries(
+          Object.entries(packageJson.devDependencies).filter(([name]) =>
+            Object.hasOwn(frontendDevDependencies, name),
+          ),
+        ),
+      ).toEqual(expectedReactDevDependencies);
       await expect(
         fs.readFile(path.join(output, '.yarnrc.yml'), 'utf8'),
       ).resolves.toBe('nodeLinker: node-modules\n');
