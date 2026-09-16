@@ -38,7 +38,7 @@ export async function renderPortableTemplate(
   const template = handlebars.create();
   template.registerHelper(handlebarsHelpers);
   template.registerHelper({
-    versionQuery(name: string, versionHint: string | unknown) {
+    versionQuery(name: string, versionHint: unknown) {
       return versionProvider(
         name,
         typeof versionHint === 'string' ? versionHint : undefined,
