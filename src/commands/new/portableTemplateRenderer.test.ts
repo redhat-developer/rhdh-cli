@@ -36,4 +36,23 @@ describe('renderPortableTemplate', () => {
       fs.pathExists(resolvePath('output', 'portable-template.yaml')),
     ).resolves.toBe(false);
   });
+
+  it('rejects a rendered filename outside the destination directory', async () => {
+    mockFs({
+      template: {
+        '{{fileName}}.txt.hbs': 'content',
+      },
+      output: {},
+    });
+
+    await expect(
+      renderPortableTemplate(
+        'template',
+        'output',
+        { fileName: '../outside' },
+        () => '^0.1.2',
+        {},
+      ),
+    ).rejects.toThrow('escapes destination');
+  });
 });

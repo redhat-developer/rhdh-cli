@@ -178,23 +178,11 @@ export function registerPluginCommand(program: Command) {
     .option('--name <plugin-name>', 'Plugin name (alternative to the argument)')
     .option(
       '--type <frontend|backend|catalog-processor-module>',
-      'Legacy plugin type alias',
-    )
-    .option(
-      '--template <template-name>',
-      'Installed upstream template to render',
-    )
-    .option(
-      '--module-id <module-id>',
-      'Module ID for upstream module templates',
+      'Type of RHDH dynamic plugin project to create',
     )
     .option(
       '--plugin-package <package-name>',
       'Generated package name (defaults to @internal/backstage-plugin-<name>)',
-    )
-    .option(
-      '--target-plugin-package <package-name>',
-      'Existing plugin package for upstream module templates',
     )
     .option('--rhdh-version <version>', 'Target RHDH version')
     .option(

@@ -29,10 +29,7 @@ const templateAliases: Record<PluginType, string> = {
 export interface CreatePluginOptions {
   name?: string;
   type?: string;
-  template?: string;
-  moduleId?: string;
   pluginPackage?: string;
-  targetPluginPackage?: string;
   output?: string;
   rhdhVersion?: string;
   manifestFile?: string;
@@ -65,17 +62,6 @@ function assertPluginName(name: string): void {
 }
 
 function resolveTemplateName(options: CreatePluginOptions): string {
-  if (options.template && options.type) {
-    throw new Error('Use either --template or --type, not both.');
-  }
-  if (options.template) {
-    if (!/^[a-z0-9-]+$/.test(options.template)) {
-      throw new Error(
-        'Template names may contain only lowercase letters, numbers, and hyphens.',
-      );
-    }
-    return options.template;
-  }
   if (!options.type || !pluginTypes.includes(options.type as PluginType)) {
     throw new Error(`Plugin type must be one of: ${pluginTypes.join(', ')}.`);
   }
@@ -178,7 +164,6 @@ export async function completeInteractiveOptions(
   const name = options.name || (await prompt('Plugin name: ')).trim();
   const type =
     options.type ||
-    options.template ||
     (
       await prompt(
         'Plugin type or template (frontend, backend, catalog-processor-module): ',
@@ -187,22 +172,19 @@ export async function completeInteractiveOptions(
   if (!name || !type) {
     throw new Error('Plugin name and type cannot be empty.');
   }
-  if (options.template || !pluginTypes.includes(type as PluginType)) {
-    return { ...options, name, type: undefined, template: type };
-  }
   return { ...options, name, type };
 }
 
 async function promptForMissingOptions(
   options: CreatePluginOptions,
 ): Promise<CreatePluginOptions> {
-  if (options.name && (options.type || options.template)) {
+  if (options.name && options.type) {
     return options;
   }
   if (!process.stdin.isTTY) {
     const missing = [
       !options.name && 'plugin name',
-      !options.type && !options.template && '--type or --template',
+      !options.type && '--type',
     ].filter(Boolean);
     throw new Error(
       `${missing.join(' and ')} ${missing.length === 1 ? 'is' : 'are'} required when running without an interactive terminal.`,
@@ -248,21 +230,6 @@ export async function createPluginProject(
   });
   const profile = getRhdhProfile(resolved.rhdhVersion);
   const template = await loadTemplate(templateName, profile);
-  const moduleId =
-    options.moduleId ||
-    (options.type === 'catalog-processor-module' ? options.name : undefined);
-  if (template.role.endsWith('-module') && !moduleId) {
-    throw new Error('--module-id is required for upstream module templates.');
-  }
-  if (
-    (templateName === 'backend-plugin-module' ||
-      templateName === 'frontend-plugin-module') &&
-    !options.targetPluginPackage
-  ) {
-    throw new Error(
-      '--target-plugin-package is required for this upstream module template.',
-    );
-  }
   const versionProvider = (
     packageName: string,
     versionHint?: string,
@@ -286,8 +253,11 @@ export async function createPluginProject(
       outputDir,
       {
         pluginId: options.name,
-        moduleId,
-        pluginPackage: options.targetPluginPackage,
+        moduleId:
+          options.type === 'catalog-processor-module'
+            ? options.name
+            : undefined,
+        pluginPackage: undefined,
         name: options.name,
         packageName:
           options.pluginPackage || `@internal/backstage-plugin-${options.name}`,
@@ -330,10 +300,7 @@ export async function command(
   const options = await promptForMissingOptions({
     name: name || opts.name,
     type: opts.type,
-    template: opts.template,
-    moduleId: opts.moduleId,
     pluginPackage: opts.pluginPackage,
-    targetPluginPackage: opts.targetPluginPackage,
     output: opts.output,
     rhdhVersion: opts.rhdhVersion,
     manifestFile: opts.manifestFile,

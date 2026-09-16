@@ -10,7 +10,14 @@ import {
   upperCase,
   upperFirst,
 } from 'lodash';
-import { basename, dirname } from 'node:path';
+import {
+  basename,
+  dirname,
+  isAbsolute,
+  relative,
+  resolve,
+  sep,
+} from 'node:path';
 import recursive from 'recursive-readdir';
 
 const handlebarsHelpers = {
@@ -46,6 +53,7 @@ export async function renderPortableTemplate(
     },
   });
   let values = context;
+  const destinationRoot = resolve(destinationDir);
   for (const [key, value] of Object.entries(templatedValues)) {
     values = {
       ...values,
@@ -61,7 +69,17 @@ export async function renderPortableTemplate(
     const renderedFile = template.compile(relativeFile, { strict: true })(
       values,
     );
-    const destinationFile = `${destinationDir}/${renderedFile}`;
+    const destinationFile = resolve(destinationRoot, renderedFile);
+    const destinationRelative = relative(destinationRoot, destinationFile);
+    if (
+      destinationRelative === '..' ||
+      destinationRelative.startsWith(`..${sep}`) ||
+      isAbsolute(destinationRelative)
+    ) {
+      throw new Error(
+        `Template output path escapes destination: ${renderedFile}`,
+      );
+    }
     await fs.ensureDir(dirname(destinationFile));
 
     if (file.endsWith('.hbs')) {

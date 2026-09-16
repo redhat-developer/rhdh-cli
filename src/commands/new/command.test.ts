@@ -180,54 +180,14 @@ describe('createPluginProject', () => {
     },
   );
 
-  it('renders an upstream module template with its supplied values', async () => {
-    const output = path.join(tmpDir, 'module');
-
-    await createPluginProject({
-      name: 'example-plugin',
-      template: 'backend-plugin-module',
-      moduleId: 'example-module',
-      pluginPackage: '@example/plugin-module',
-      targetPluginPackage: '@example/plugin-backend',
-      output,
-    });
-
-    const packageJson = await fs.readJson(path.join(output, 'package.json'));
-    expect(packageJson.backstage).toEqual({
-      role: 'backend-plugin-module',
-      pluginId: 'example-plugin',
-      pluginPackage: '@example/plugin-backend',
-    });
-    expect(packageJson.name).toBe('@example/plugin-module');
-    expect(packageJson.devDependencies).not.toHaveProperty(
-      '@testing-library/react',
-    );
-    expect(packageJson.devDependencies).not.toHaveProperty('@types/react');
-    expect(packageJson.devDependencies).not.toHaveProperty('react-dom');
-    await expect(
-      fs.readFile(path.join(output, 'src/module.ts'), 'utf8'),
-    ).resolves.toContain('examplePluginModuleExampleModule');
-  });
-
-  it('requires module options for generic module templates', async () => {
+  it('rejects an unsupported plugin type', async () => {
     await expect(
       createPluginProject({
         name: 'example-plugin',
-        template: 'backend-plugin-module',
         output: path.join(tmpDir, 'module'),
+        type: 'backend-plugin-module',
       }),
-    ).rejects.toThrow('--module-id');
-  });
-
-  it('requires a target plugin package for generic module templates', async () => {
-    await expect(
-      createPluginProject({
-        name: 'example-plugin',
-        template: 'backend-plugin-module',
-        moduleId: 'example-module',
-        output: path.join(tmpDir, 'module'),
-      }),
-    ).rejects.toThrow('--target-plugin-package');
+    ).rejects.toThrow('Plugin type must be one of');
   });
 
   it('rejects RHDH versions other than 2.1', async () => {
