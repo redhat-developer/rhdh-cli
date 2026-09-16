@@ -53,7 +53,6 @@ describe('templatingTask', () => {
       destDir,
       {
         pluginVersion: '0.0.0',
-        pluginName: 'example plugin',
       },
       () => '^0.1.2',
       true,
