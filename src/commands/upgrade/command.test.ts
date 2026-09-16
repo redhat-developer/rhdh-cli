@@ -46,6 +46,7 @@ describe('upgrade command', () => {
       dependencies?: Record<string, string>;
       devDependencies?: Record<string, string>;
       peerDependencies?: Record<string, string>;
+      resolutions?: Record<string, string>;
     },
     manifestPackages: [string, string][] = [
       ['@backstage/core-plugin-api', '1.12.0'],
@@ -236,6 +237,41 @@ describe('upgrade command', () => {
       expect(result.wouldUpdateFiles).toEqual(['package.json']);
       const pkg = await fs.readJson(path.join(tmpDir, 'package.json'));
       expect(pkg.dependencies['@backstage/core-plugin-api']).toBe('^1.9.0');
+    });
+
+    it('leaves resolution overrides unchanged', async () => {
+      await setupFixture(
+        {
+          resolutions: {
+            '@backstage/cli-common': '0.3.0',
+            '@backstage/cli-defaults': '0.1.5',
+            '@backstage/cli-module-build': '^0.1.4',
+            '@backstage/cli-module-test-jest': '0.1.5',
+            '@backstage/cli-node': '0.3.4',
+            '@backstage/unknown-pkg': '^1.0.0',
+            '@types/express': '4.17.21',
+          },
+        },
+        [['@backstage/cli-module-build', '0.1.5']],
+      );
+
+      const result = await upgradePluginDependencies({
+        targetDir: tmpDir,
+        skipInstall: true,
+      });
+
+      expect(result.unmanifested).toEqual([]);
+      expect(result.changes).toEqual([]);
+      const updatedPkg = await fs.readJson(path.join(tmpDir, 'package.json'));
+      expect(updatedPkg.resolutions).toEqual({
+        '@backstage/cli-common': '0.3.0',
+        '@backstage/cli-defaults': '0.1.5',
+        '@backstage/cli-module-build': '^0.1.4',
+        '@backstage/cli-module-test-jest': '0.1.5',
+        '@backstage/cli-node': '0.3.4',
+        '@backstage/unknown-pkg': '^1.0.0',
+        '@types/express': '4.17.21',
+      });
     });
 
     it('reports backstage.json as a dry-run change', async () => {
