@@ -5,7 +5,8 @@ import { createInterface } from 'node:readline/promises';
 import YAML from 'yaml';
 
 import { resolveRhdhVersion } from '../../lib/rhdhVersion';
-import { Task, templatingTask } from '../../lib/tasks';
+import { Task } from '../../lib/tasks';
+import { renderPortableTemplate } from './portableTemplateRenderer';
 import {
   applyRhdhTemplateRoleOverlay,
   getRhdhProfile,
@@ -280,7 +281,7 @@ export async function createPluginProject(
 
   await fs.ensureDir(outputDir);
   try {
-    await templatingTask(
+    await renderPortableTemplate(
       template.directory,
       outputDir,
       {
@@ -294,7 +295,6 @@ export async function createPluginProject(
         backstageVersion: resolved.backstageVersion,
       },
       versionProvider,
-      false,
       template.values,
     );
     await adaptStandaloneProject(

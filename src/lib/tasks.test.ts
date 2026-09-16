@@ -42,7 +42,6 @@ describe('templatingTask', () => {
       [tmplDir]: {
         sub: {
           'version.txt.hbs': testVersionFileContent,
-          '{{camelCase pluginName}}.txt.hbs': '{{upperFirst pluginName}}',
         },
         'test.txt': testFileContent,
       },
@@ -58,9 +57,6 @@ describe('templatingTask', () => {
       },
       () => '^0.1.2',
       true,
-      {
-        pluginVar: '{{camelCase pluginName}}Plugin',
-      },
     );
 
     await expect(
@@ -69,8 +65,5 @@ describe('templatingTask', () => {
     await expect(
       fs.readFile(resolvePath(destDir, 'sub/version.txt'), 'utf8'),
     ).resolves.toBe('version: 0.0.0 ^0.1.2');
-    await expect(
-      fs.readFile(resolvePath(destDir, 'sub/examplePlugin.txt'), 'utf8'),
-    ).resolves.toBe('Example plugin');
   });
 });

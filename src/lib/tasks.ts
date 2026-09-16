@@ -19,16 +19,6 @@ import { assertError } from '@backstage/errors';
 import chalk from 'chalk';
 import fs from 'fs-extra';
 import handlebars from 'handlebars';
-import {
-  camelCase,
-  kebabCase,
-  lowerCase,
-  lowerFirst,
-  snakeCase,
-  startCase,
-  upperCase,
-  upperFirst,
-} from 'lodash';
 import ora from 'ora';
 import recursive from 'recursive-readdir';
 
@@ -39,17 +29,6 @@ import { promisify } from 'util';
 const exec = promisify(execCb);
 
 const TASK_NAME_MAX_LENGTH = 14;
-
-const handlebarsHelpers = {
-  camelCase,
-  kebabCase,
-  lowerCase,
-  lowerFirst,
-  snakeCase,
-  startCase,
-  upperCase,
-  upperFirst,
-};
 
 export class Task {
   static log(name: string = '') {
@@ -125,52 +104,36 @@ export async function templatingTask(
   context: any,
   versionProvider: (name: string, versionHint?: string) => string,
   isMonoRepo: boolean,
-  templatedValues: Record<string, string> = {},
 ) {
   const files = await recursive(templateDir).catch(error => {
     throw new Error(`Failed to read template directory: ${error.message}`);
   });
 
-  const template = handlebars.create();
-  template.registerHelper(handlebarsHelpers);
-  template.registerHelper({
-    versionQuery(name: string, versionHint: string | unknown) {
-      return versionProvider(
-        name,
-        typeof versionHint === 'string' ? versionHint : undefined,
-      );
-    },
-  });
-  let values = context;
-  for (const [key, value] of Object.entries(templatedValues)) {
-    values = {
-      ...values,
-      [key]: template.compile(value, { strict: true })(values),
-    };
-  }
-
   for (const file of files) {
-    const relativeFile = file.slice(templateDir.length + 1);
-    if (relativeFile === 'portable-template.yaml') {
-      continue;
-    }
-    const renderedFile = template.compile(relativeFile, { strict: true })(
-      values,
-    );
-    const destinationFile = `${destinationDir}/${renderedFile}`;
+    const destinationFile = file.replace(templateDir, destinationDir);
     await fs.ensureDir(dirname(destinationFile));
 
     if (file.endsWith('.hbs')) {
       await Task.forItem('templating', basename(file), async () => {
         const destination = destinationFile.replace(/\.hbs$/, '');
 
-        const compiled = template.compile(
-          (await fs.readFile(file)).toString(),
+        const template = await fs.readFile(file);
+        const compiled = handlebars.compile(template.toString(), {
+          strict: true,
+        });
+        const contents = compiled(
+          { name: basename(destination), ...context },
           {
-            strict: true,
+            helpers: {
+              versionQuery(name: string, versionHint: string | unknown) {
+                return versionProvider(
+                  name,
+                  typeof versionHint === 'string' ? versionHint : undefined,
+                );
+              },
+            },
           },
         );
-        const contents = compiled({ name: basename(destination), ...values });
 
         await fs.writeFile(destination, contents).catch(error => {
           throw new Error(
