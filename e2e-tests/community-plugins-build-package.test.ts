@@ -110,13 +110,9 @@ describe('export and package backstage-community plugin', () => {
         // eslint-disable-next-line jest/no-conditional-expect
         expect(
           fs.existsSync(
-            path.join(
-              getFullPluginPath(),
-              'dist-dynamic/dist-scalprum/plugin-manifest.json',
-            ),
+            path.join(getFullPluginPath(), 'dist-dynamic/dist/remoteEntry.js'),
           ),
         ).toEqual(true);
-
         const distDynamicPkg = JSON.parse(
           fs.readFileSync(
             path.join(getFullPluginPath(), 'dist-dynamic/package.json'),
