@@ -876,7 +876,7 @@ rhdh-cli catalog list \
 rhdh-cli api list --type openapi --output json
 
 # 2. Get the OpenAPI spec
-rhdh-cli api get-spec --name my-api --output json
+rhdh-cli api get-spec my-api --output json
 ```
 
 ### Workflow 3: Search Documentation and Retrieve Content
@@ -886,7 +886,7 @@ rhdh-cli api get-spec --name my-api --output json
 rhdh-cli docs search "deployment" --output json
 
 # 2. Get specific doc page (RHDH only)
-rhdh-cli docs get --entity-ref component:default/my-service --page-path deployment
+rhdh-cli docs get component:default/my-service --page-path deployment
 ```
 
 ### Workflow 4: Validate and Register New Entity
@@ -908,7 +908,7 @@ rhdh-cli template list
 
 # 2. Execute template
 rhdh-cli template execute \
-  --template-ref template:default/nodejs-microservice \
+  template:default/nodejs-microservice \
   --value name=payment-service \
   --value description="Payment processing service" \
   --value owner=team-payments \
@@ -993,11 +993,11 @@ rhdh-cli catalog list \
   --output json | jq '.entities[].metadata.name'
 
 # 4. Get API spec
-rhdh-cli api get-spec --name my-api --output json | jq '.definition'
+rhdh-cli api get-spec my-api --output json | jq '.definition'
 
 # 5. Execute template
 rhdh-cli template execute \
-  --template-ref template:default/service \
+  template:default/service \
   --value name=new-service \
   --value owner=team-a \
   --output json
