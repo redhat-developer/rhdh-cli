@@ -38,33 +38,36 @@ function isTruthyCiEnv(value: string | undefined): boolean {
   return normalized === 'true' || normalized === '1' || normalized === 'yes';
 }
 
+async function warnAboutLegacyScalprum(
+  packageJson: Record<string, unknown>,
+): Promise<void> {
+  const references: string[] = [];
+  if ('scalprum' in packageJson) {
+    references.push('the `scalprum` package field');
+  }
+  if (Array.isArray(packageJson.files)) {
+    for (const file of packageJson.files) {
+      if (typeof file === 'string' && file.includes('dist-scalprum')) {
+        references.push(`the \`${file}\` files entry`);
+      }
+    }
+  }
+  if (await fs.pathExists(path.join(paths.targetDir, 'dist-scalprum'))) {
+    references.push('the `dist-scalprum` directory');
+  }
+
+  if (references.length > 0) {
+    const message = `Legacy Scalprum content detected: ${references.join(', ')}. Remove it before exporting.`;
+    Task.log(`${chalk.yellow('Warning:')} ${message}`);
+  }
+}
+
 export async function frontend(
   _: PackageRoleInfo,
   opts: OptionValues,
 ): Promise<string> {
   const originalPkg = await fs.readJson(paths.resolveTarget('package.json'));
   const { name, files } = originalPkg;
-
-  if ('scalprum' in originalPkg) {
-    throw new Error(
-      'Frontend plugin export no longer supports the `scalprum` package field; remove it before exporting',
-    );
-  }
-
-  const legacyScalprumFile = Array.isArray(files)
-    ? files.find((file: string) => file.includes('dist-scalprum'))
-    : undefined;
-  if (legacyScalprumFile) {
-    throw new Error(
-      `Frontend plugin export no longer supports Scalprum files; remove \`${legacyScalprumFile}\` before exporting`,
-    );
-  }
-
-  if (await fs.pathExists(path.join(paths.targetDir, 'dist-scalprum'))) {
-    throw new Error(
-      'Frontend plugin export no longer supports the `dist-scalprum` directory; remove it before exporting',
-    );
-  }
 
   if (opts.clean) {
     await fs.remove(path.join(paths.targetDir, 'dist'));
@@ -96,6 +99,8 @@ export async function frontend(
       }
     }
   }
+
+  await warnAboutLegacyScalprum(originalPkg);
 
   const distDynamicRelativePath = 'dist-dynamic';
   const target = path.resolve(paths.targetDir, distDynamicRelativePath);

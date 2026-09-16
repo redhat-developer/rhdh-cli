@@ -25,7 +25,7 @@ Update frontend plugin scripts and CI jobs as follows:
 
 - Remove `--scalprum-config`, `--generate-scalprum-assets`, `--no-generate-scalprum-assets`, `--generate-module-federation-assets`, and `--no-generate-module-federation-assets` from `rhdh-cli plugin export` invocations. Standard module-federation assets are now generated automatically.
 - Replace consumers of `dist-scalprum/plugin-manifest.json` with the generated assets under `dist/`, including `dist/remoteEntry.js`, and use `backstage.features` for NFS feature metadata.
-- Remove `dist-scalprum` and related glob entries from frontend plugin `files` fields. Delete any checked-in or stale `dist-scalprum` output before exporting.
+- Remove `dist-scalprum` and related glob entries from frontend plugin `files` fields, and delete any checked-in or stale `dist-scalprum` output before exporting. CLI 2.1.0 warns about legacy Scalprum content; it does not provide a Scalprum fallback, so normal NFS build/export failures still fail the export.
 - The legacy `plugin build` and `plugin start` commands are no longer available.
 
 ## `plugin package` requirements

@@ -11,7 +11,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - **Frontend plugin export:** Frontend plugins now use Backstage standard module federation exclusively. The generated remote assets are written to `dist/`, including `dist/remoteEntry.js`.
 - Removed the frontend export options `--scalprum-config`, `--generate-scalprum-assets`, `--no-generate-scalprum-assets`, `--generate-module-federation-assets`, and `--no-generate-module-federation-assets`. Frontend module-federation assets are now always generated during `plugin export`.
 - Removed the legacy Scalprum frontend bundler and the `plugin build` and `plugin start` commands.
-- Frontend dynamic packages no longer contain `dist-scalprum/`, `plugin-manifest.json`, or a `scalprum` package manifest field.
+- Frontend exports warn when legacy `dist-scalprum/`, `plugin-manifest.json`, or `scalprum` package metadata is still present. Legacy content does not provide a fallback; normal NFS build/export failures still fail the export.
 
 ### Migration
 
