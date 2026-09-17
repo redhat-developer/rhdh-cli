@@ -301,6 +301,18 @@ describe('createPluginProject', () => {
     expect(mockResolveRhdhVersion).not.toHaveBeenCalled();
   });
 
+  it('rejects an invalid --module-id before resolving a version', async () => {
+    await expect(
+      createPluginProject({
+        name: 'example-plugin',
+        type: 'catalog-processor-module',
+        moduleId: 'InvalidID',
+        output: tmpDir,
+      }),
+    ).rejects.toThrow('Plugin name must start');
+    expect(mockResolveRhdhVersion).not.toHaveBeenCalled();
+  });
+
   it.each([
     ['whitespace in name', 'my package', 'valid npm package name'],
     ['control character', 'pkg\x01name', 'valid npm package name'],

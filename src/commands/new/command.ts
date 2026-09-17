@@ -63,6 +63,7 @@ export interface CreatePluginOptions {
   template?: string;
   /** Module ID for module-type templates. Defaults to the plugin name. */
   moduleId?: string;
+  /** Generated package name. Defaults to `@internal/backstage-plugin-<name>`. Validated against npm name rules. */
   pluginPackage?: string;
   output?: string;
   rhdhVersion?: string;
@@ -77,7 +78,7 @@ export interface PluginProjectResult {
 
 type Prompt = (question: string) => Promise<string>;
 
-const rhdhReadmeSection = `
+const RHDH_README_SECTION = `
 ## RHDH dynamic plugin export
 
 Export this plugin for RHDH without adding the CLI as a dependency:
@@ -223,7 +224,7 @@ async function adaptStandaloneProject(
       { spaces: 2 },
     ),
   ]);
-  await fs.appendFile(path.join(outputDir, 'README.md'), rhdhReadmeSection);
+  await fs.appendFile(path.join(outputDir, 'README.md'), RHDH_README_SECTION);
 }
 
 /** Prompts for any plugin creation options omitted by the caller. */
@@ -287,6 +288,9 @@ export async function createPluginProject(
     );
   }
   assertPluginName(options.name);
+  if (options.moduleId) {
+    assertPluginName(options.moduleId);
+  }
   if (options.pluginPackage) {
     assertPackageName(options.pluginPackage);
   }
