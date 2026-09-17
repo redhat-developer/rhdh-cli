@@ -454,7 +454,7 @@ npx @red-hat-developer-hub/cli plugin export
     "@testing-library/jest-dom": "6.0.0",
     "@testing-library/react": "^16.0.0",
     "@testing-library/user-event": "14.0.0",
-    "msw": "1.0.0",
+    "msw": "^2",
     "react": "^16.13.1 || ^17.0.0 || ^18.0.0",
     "@backstage/cli-defaults": "0.1.5",
     "jest": "^29.7.0",
@@ -469,6 +469,14 @@ npx @red-hat-developer-hub/cli plugin export
   "files": [
     "dist"
   ],
+  "jest": {
+    "testEnvironmentOptions": {
+      "customExportConditions": [
+        "node",
+        "node-addons"
+      ]
+    }
+  },
   "packageManager": "yarn@4.17.1",
   "resolutions": {
     "@types/express": "4.17.21"

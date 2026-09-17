@@ -13,6 +13,33 @@ import {
   RhdhProfile,
 } from './rhdhProfiles';
 
+/**
+ * Root of the RHDH-owned template overlay tree, relative to this file's
+ * compiled location. The tree mirrors the upstream @backstage/cli-module-new
+ * template structure: `<overlaysRoot>/<upstream-template-name>/<relative-file>`.
+ *
+ * Files present here shadow the corresponding upstream template file during
+ * rendering. Use overlays to patch individual files that are incompatible with
+ * a specific RHDH release without forking the full upstream template. When the
+ * upstream template package is upgraded, audit each overlay and remove it if
+ * the upstream has caught up.
+ *
+ * In both the TypeScript source tree (`src/commands/new/`) and the compiled
+ * output (`dist/commands/new/`), this file is three directories below the
+ * package root, so `../../..` reliably resolves to the package root where
+ * `templates/plugin-new/` lives.
+ *
+ * Note: `__dirname` is intentional here. The CLI uses it the same way
+ * `src/lib/paths.ts` does — to locate package-relative assets shipped
+ * alongside the compiled output. `resolvePackagePath()` from
+ * `@backstage/backend-plugin-api` is not appropriate for a CLI tool.
+ */
+const RHDH_TEMPLATE_OVERLAYS_ROOT = path.resolve(
+  /* eslint-disable-next-line no-restricted-syntax */
+  __dirname,
+  '../../../templates/plugin-new',
+);
+
 export const pluginTypes = [
   'frontend',
   'backend',
@@ -104,6 +131,8 @@ async function loadTemplate(
   profile: RhdhProfile,
 ): Promise<{
   directory: string;
+  /** RHDH overlay directory for this template, or undefined if empty. */
+  overlayDir: string | undefined;
   role: string;
   values: Record<string, string>;
 }> {
@@ -139,7 +168,17 @@ async function loadTemplate(
       (entry): entry is [string, string] => typeof entry[1] === 'string',
     ),
   );
-  return { directory, role: template.role, values };
+  // The overlay directory shadows individual upstream files that need
+  // RHDH-specific fixes. Only pass it to the renderer when it actually exists
+  // so the renderer's fs.pathExists check per file is the only hot path.
+  const overlayDir = path.join(RHDH_TEMPLATE_OVERLAYS_ROOT, templateName);
+  const overlayExists = await fs.pathExists(overlayDir);
+  return {
+    directory,
+    overlayDir: overlayExists ? overlayDir : undefined,
+    role: template.role,
+    values,
+  };
 }
 
 async function adaptStandaloneProject(
@@ -306,6 +345,7 @@ export async function createPluginProject(
       },
       versionProvider,
       template.values,
+      template.overlayDir,
     );
     await adaptStandaloneProject(
       outputDir,

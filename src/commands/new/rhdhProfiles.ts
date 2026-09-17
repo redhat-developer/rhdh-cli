@@ -46,6 +46,18 @@ export const rhdhProfiles: Record<string, RhdhProfileDefinition> = {
           // frontend-dev-utils declares these as peers for the standalone dev app.
           'react-dom': '^18.0.0',
           'react-router-dom': '^6.30.2',
+          // The @backstage/cli-module-new 0.1.6 frontend-plugin template (Backstage
+          // 1.54.6) pins msw@1.0.0. MSW v1's setupServer() only intercepts the
+          // Node http/https modules and XHR; it does not intercept native Node.js
+          // fetch (globalThis.fetch), which Backstage's fetchApiRef uses in tests
+          // via @backstage/frontend-test-utils. This makes the generated
+          // TodoPage.test.tsx hang on findByText() on Node 18+. The fix
+          // (msw@^2 + the http/HttpResponse API) shipped upstream in
+          // @backstage/cli-module-new 0.1.7 (Backstage 1.55.0). Until RHDH
+          // targets that release, we pin msw@^2 here and supply a patched
+          // TodoPage.test.tsx.hbs via the RHDH template overlay in
+          // templates/plugin-new/frontend-plugin/.
+          msw: '^2',
         },
       },
     },

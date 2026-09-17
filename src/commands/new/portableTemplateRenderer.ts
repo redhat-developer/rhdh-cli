@@ -14,6 +14,7 @@ import {
   basename,
   dirname,
   isAbsolute,
+  join,
   relative,
   resolve,
   sep,
@@ -37,6 +38,19 @@ export async function renderPortableTemplate(
   context: Record<string, unknown>,
   versionProvider: (name: string, versionHint?: string) => string,
   templatedValues: Record<string, string>,
+  /**
+   * Optional RHDH-owned overlay directory that mirrors the upstream template
+   * tree. For each file present here, the overlay version is rendered in place
+   * of the upstream file. Use this to patch individual upstream template files
+   * that are broken or incompatible with a specific RHDH release — for example,
+   * to update a generated test that uses a deprecated API — without forking the
+   * entire template.
+   *
+   * The overlay directory must contain only files that are intentional patches.
+   * When the underlying upstream template package is upgraded, verify that each
+   * overlay file is still necessary and remove it if the upstream has caught up.
+   */
+  overlayDir?: string,
 ): Promise<void> {
   const files = await recursive(templateDir).catch(error => {
     throw new Error(`Failed to read template directory: ${error.message}`);
@@ -82,11 +96,18 @@ export async function renderPortableTemplate(
     }
     await fs.ensureDir(dirname(destinationFile));
 
-    if (file.endsWith('.hbs')) {
+    // If an RHDH overlay provides a replacement for this upstream file, use it.
+    // The overlay path mirrors the upstream template tree (same relative path).
+    const overlayFile = overlayDir ? join(overlayDir, relativeFile) : undefined;
+    const sourceFile =
+      overlayFile && (await fs.pathExists(overlayFile)) ? overlayFile : file;
+
+    if (sourceFile.endsWith('.hbs')) {
       const destination = destinationFile.replace(/\.hbs$/, '');
-      const contents = template.compile((await fs.readFile(file)).toString(), {
-        strict: true,
-      })({ ...values, name: basename(destination) });
+      const contents = template.compile(
+        (await fs.readFile(sourceFile)).toString(),
+        { strict: true },
+      )({ ...values, name: basename(destination) });
 
       await fs.writeFile(destination, contents).catch(error => {
         throw new Error(
@@ -94,7 +115,7 @@ export async function renderPortableTemplate(
         );
       });
     } else {
-      await fs.copyFile(file, destinationFile).catch(error => {
+      await fs.copyFile(sourceFile, destinationFile).catch(error => {
         throw new Error(
           `Failed to copy file to ${destinationFile}: ${error.message}`,
         );
