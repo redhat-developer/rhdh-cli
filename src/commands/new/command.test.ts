@@ -3,7 +3,11 @@ import os from 'node:os';
 import path from 'node:path';
 
 import { resolveRhdhVersion } from '../../lib/rhdhVersion';
-import { completeInteractiveOptions, createPluginProject } from './command';
+import {
+  completeInteractiveOptions,
+  createPluginProject,
+  supportedTemplateNames,
+} from './command';
 import { getRhdhProfile } from './rhdhProfiles';
 
 const frontendDevDependencies = {
@@ -189,6 +193,65 @@ describe('createPluginProject', () => {
     ).rejects.toThrow('Plugin type must be one of');
   });
 
+  it('accepts --template as an alternative to --type', async () => {
+    const output = path.join(tmpDir, 'template-frontend');
+
+    const result = await createPluginProject({
+      name: 'example-plugin',
+      template: 'frontend-plugin',
+      output,
+      rhdhVersion: '2.1.0',
+    });
+
+    expect(result).toEqual({
+      outputDir: output,
+      rhdhVersion: '2.1.0',
+      backstageVersion: '1.54.6',
+    });
+    expect(
+      await fs.readFile(path.join(output, 'src/plugin.tsx'), 'utf8'),
+    ).toContain('createFrontendPlugin');
+  });
+
+  it('rejects an unsupported --template value before resolving a version', async () => {
+    await expect(
+      createPluginProject({
+        name: 'example-plugin',
+        template: 'backend-plugin-module',
+        output: path.join(tmpDir, 'bad-template'),
+      }),
+    ).rejects.toThrow('Unsupported template');
+    expect(mockResolveRhdhVersion).not.toHaveBeenCalled();
+  });
+
+  it('exposes all supported template names', () => {
+    expect(supportedTemplateNames).toEqual([
+      'frontend-plugin',
+      'backend-plugin',
+      'catalog-processor-module',
+    ]);
+  });
+
+  it('accepts --module-id to override the module identifier', async () => {
+    const output = path.join(tmpDir, 'custom-module-id');
+
+    await createPluginProject({
+      name: 'example-plugin',
+      type: 'catalog-processor-module',
+      moduleId: 'my-module',
+      output,
+      rhdhVersion: '2.1.0',
+    });
+
+    // processorClass = upperFirst(camelCase('my-module')) + 'Processor' = 'MyModuleProcessor'
+    expect(
+      await fs.readFile(
+        path.join(output, 'src/processor/MyModuleProcessor.ts'),
+        'utf8',
+      ),
+    ).toContain('MyModuleProcessor');
+  });
+
   it('rejects RHDH versions other than 2.1', async () => {
     mockResolveRhdhVersion.mockResolvedValueOnce({
       rhdhVersion: '2.0.4',
@@ -326,5 +389,24 @@ describe('createPluginProject', () => {
       rhdhVersion: '2.1.0',
     });
     expect(prompt).toHaveBeenCalledTimes(2);
+  });
+
+  it('skips the type prompt when --template is already set', async () => {
+    const prompt = jest
+      .fn<Promise<string>, [string]>()
+      .mockResolvedValueOnce('example-plugin');
+
+    await expect(
+      completeInteractiveOptions(
+        { template: 'backend-plugin', rhdhVersion: '2.1.0' },
+        prompt,
+      ),
+    ).resolves.toEqual({
+      name: 'example-plugin',
+      type: 'backend-plugin',
+      template: 'backend-plugin',
+      rhdhVersion: '2.1.0',
+    });
+    expect(prompt).toHaveBeenCalledTimes(1);
   });
 });
