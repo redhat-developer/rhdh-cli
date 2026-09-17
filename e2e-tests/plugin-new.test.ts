@@ -67,4 +67,28 @@ describe('plugin new', () => {
       fs.existsSync(path.join(pluginDir, 'dist-dynamic', 'package.json')),
     ).toBe(true);
   });
+
+  it('creates a catalog-processor-module that installs, typechecks, builds, and exports', async () => {
+    const pluginDir = path.join(tmpDir, 'catalog-processor-module');
+
+    logSection('Generate catalog processor module');
+    await runCommand(
+      `"${rhdhCli}" plugin new example-plugin --type catalog-processor-module --output "${pluginDir}" --rhdh-version 2.1.0`,
+    );
+
+    await buildAndExport(pluginDir);
+
+    expect(fs.existsSync(path.join(pluginDir, 'dist'))).toBe(true);
+    expect(fs.existsSync(path.join(pluginDir, 'dist-dynamic'))).toBe(true);
+
+    // Verify the exported module carries the correct backstage metadata
+    const exportedPkg = await fs.readJson(
+      path.join(pluginDir, 'dist-dynamic', 'package.json'),
+    );
+    expect(exportedPkg.backstage.role).toBe('backend-plugin-module');
+    expect(exportedPkg.backstage.pluginId).toBe('catalog');
+    expect(exportedPkg.backstage.pluginPackage).toBe(
+      '@backstage/plugin-catalog-backend',
+    );
+  });
 });
