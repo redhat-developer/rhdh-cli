@@ -97,6 +97,7 @@ npx @red-hat-developer-hub/cli plugin export
     "dist"
   ],
   "packageManager": "yarn@4.17.1",
+  "version": "0.1.0",
   "resolutions": {
     "@types/express": "4.17.21"
   }
@@ -294,6 +295,7 @@ npx @red-hat-developer-hub/cli plugin export
     "dist"
   ],
   "packageManager": "yarn@4.17.1",
+  "version": "0.1.0",
   "resolutions": {
     "@types/express": "4.17.21"
   }
@@ -458,6 +460,7 @@ npx @red-hat-developer-hub/cli plugin export
     }
   },
   "packageManager": "yarn@4.17.1",
+  "version": "0.1.0",
   "resolutions": {
     "@types/express": "4.17.21"
   }
