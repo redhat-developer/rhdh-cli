@@ -4,7 +4,7 @@ All notable changes to `@red-hat-developer-hub/cli` are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## 2.1.0 - 2026-09-14
+## 2.1.0 - 2026-09-16
 
 ### Changed
 
@@ -15,6 +15,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Migration guidance: Remove the deleted frontend export options from scripts and CI jobs.
 - Migration guidance: Update integrations that read `dist-scalprum/plugin-manifest.json` to use the standard module-federation output under `dist/` and NFS metadata in `backstage.features`.
 - Migration guidance: Remove `dist-scalprum` and related glob entries from frontend plugin `files` fields and clean any checked-in legacy output before exporting with rhdh-cli 2.1.0.
+
+## 2.0.9 - 2026-09-15
+
+### Added
+
+- Add intent-based `catalog`, `api`, `search`, `docs`, and `template` command groups for querying and managing RHDH through Backstage actions. These commands support human-readable and JSON output, multi-instance targeting, structured errors, and entity reference disambiguation ([RHIDP-14129](https://redhat.atlassian.net/browse/RHIDP-14129), [#156](https://github.com/redhat-developer/rhdh-cli/pull/156)).
 
 ## 2.0.8 - 2026-09-15
 

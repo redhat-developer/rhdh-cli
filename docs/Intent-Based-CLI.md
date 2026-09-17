@@ -25,7 +25,7 @@ Complete guide for using `rhdh-cli` to interact with Red Hat Developer Hub insta
 
 ## Overview
 
-`rhdh-cli` provides intent-based commands for querying and managing RHDH catalog entities, API specifications, TechDocs content, and software templates. All commands support both human-readable output (default) and structured JSON output (`--output json`) for automation and AI agents.
+`rhdh-cli` provides intent-based commands for querying and managing RHDH catalog entities, API specifications, TechDocs content, and software templates. The `catalog`, `api`, `search`, `docs`, and `template` commands support both human-readable output (default) and structured JSON output (`--output json`) for automation and AI agents.
 
 **Key Features:**
 
@@ -49,6 +49,8 @@ rhdh-cli --help
 
 Before using the CLI, your RHDH instance requires specific configuration.
 
+The plugin image tags in the following examples target RHDH 2.1, which uses Backstage 1.54.6. For another supported RHDH release, use plugin images built for that release's Backstage version.
+
 ### 1. Enable the Auth Plugin
 
 The `rhdh-cli auth login` flow requires the `@backstage/plugin-auth` frontend plugin to serve the OAuth2 consent page. RHDH does not include this plugin by default.
@@ -58,7 +60,7 @@ Install it as a dynamic plugin from `rhdh-plugin-export-overlays`:
 ```yaml
 # dynamic-plugins.yaml
 plugins:
-  - package: 'oci://ghcr.io/redhat-developer/rhdh-plugin-export-overlays/backstage-plugin-auth:bs_1.49.4__0.1.6'
+  - package: 'oci://ghcr.io/redhat-developer/rhdh-plugin-export-overlays/backstage-plugin-auth:bs_1.54.6__0.1.11'
     disabled: false
     pluginConfig:
       dynamicPlugins:
@@ -75,11 +77,13 @@ Add to `app-config.local.yaml`:
 
 ```yaml
 auth:
-  experimentalClientIdMetadataDocuments:
+  clientIdMetadataDocuments:
     enabled: true
   experimentalRefreshToken:
     enabled: true
 ```
+
+For RHDH 1.10 through 2.0, use the deprecated `experimentalClientIdMetadataDocuments` key instead of `clientIdMetadataDocuments`.
 
 ### 3. Enable TechDocs MCP Extras Plugin (Optional)
 
@@ -88,20 +92,20 @@ To use TechDocs actions (`docs list`, `docs get`, `docs coverage`), install the 
 ```yaml
 # dynamic-plugins.yaml
 plugins:
-  - package: oci://ghcr.io/redhat-developer/rhdh-plugin-export-overlays/red-hat-developer-hub-backstage-plugin-techdocs-mcp-extras:bs_1.49.4__0.2.3
+  - package: oci://ghcr.io/redhat-developer/rhdh-plugin-export-overlays/red-hat-developer-hub-backstage-plugin-techdocs-mcp-extras:bs_1.54.6__0.2.6
     disabled: false
 ```
 
-**Note:** Only `docs list`, `docs get`, `docs coverage`, and `docs build` require this plugin.
+**Note:** Only `docs list`, `docs get`, and `docs coverage` require this plugin. The `docs build` command uses the standard TechDocs sync endpoint and does not require this plugin.
 
 ### 4. Enable TechDocs Search Backend Module (Optional)
 
-To use TechDocs search functionality (`search --types '["techdocs"]'` and `docs search`), install the TechDocs search backend module:
+To use TechDocs search functionality (`search --types techdocs` and `docs search`), install the TechDocs search backend module:
 
 ```yaml
 # dynamic-plugins.yaml
 plugins:
-  - package: 'oci://ghcr.io/redhat-developer/rhdh-plugin-export-overlays/backstage-plugin-search-backend-module-techdocs:bs_1.52.0__0.4.15'
+  - package: 'oci://ghcr.io/redhat-developer/rhdh-plugin-export-overlays/backstage-plugin-search-backend-module-techdocs:bs_1.54.6__0.4.17'
     disabled: false
 ```
 
@@ -193,11 +197,12 @@ The following table shows how intent-based CLI commands map to underlying Backst
 
 ## Commands Reference
 
-All commands support:
+All commands support `--help` for detailed usage information. The intent-based `catalog`, `api`, `search`, `docs`, and `template` commands also support:
 
-- `--help` for detailed usage information
 - `--output json` for machine-readable structured output
 - `--instance <name>` to target a specific authenticated RHDH instance
+
+The pass-through `auth` and `actions` commands have command-specific options. Run `rhdh-cli <command> --help` before using these commands in automation.
 
 ### Catalog Commands
 
@@ -876,7 +881,7 @@ rhdh-cli catalog list \
 rhdh-cli api list --type openapi --output json
 
 # 2. Get the OpenAPI spec
-rhdh-cli api get-spec --name my-api --output json
+rhdh-cli api get-spec my-api --output json
 ```
 
 ### Workflow 3: Search Documentation and Retrieve Content
@@ -886,7 +891,7 @@ rhdh-cli api get-spec --name my-api --output json
 rhdh-cli docs search "deployment" --output json
 
 # 2. Get specific doc page (RHDH only)
-rhdh-cli docs get --entity-ref component:default/my-service --page-path deployment
+rhdh-cli docs get component:default/my-service --page-path deployment
 ```
 
 ### Workflow 4: Validate and Register New Entity
@@ -907,8 +912,7 @@ rhdh-cli catalog register \
 rhdh-cli template list
 
 # 2. Execute template
-rhdh-cli template execute \
-  --template-ref template:default/nodejs-microservice \
+rhdh-cli template execute template:default/nodejs-microservice \
   --value name=payment-service \
   --value description="Payment processing service" \
   --value owner=team-payments \
@@ -917,7 +921,7 @@ rhdh-cli template execute \
 
 ## Output Modes
 
-All commands support two output modes:
+The intent-based `catalog`, `api`, `search`, `docs`, and `template` commands support two output modes:
 
 ### Human-Readable Mode (Default)
 
@@ -954,12 +958,12 @@ rhdh-cli catalog list --kind Component --output json
 
 ### Best Practices for AI Agents
 
-1. **Always use JSON output:** `--output json` for all commands
+1. **Use JSON output for intent-based commands:** Use `--output json` with `catalog`, `api`, `search`, `docs`, and `template` commands.
 2. **Parse errors from JSON:** Check for `error` field in response
 3. **Use specific filters:** Leverage `--kind`, `--type`, `--filter` to reduce result size
-4. **Respect pagination:** Use `--limit` and cursor-based pagination for large result sets
-5. **Handle field selection:** Use `--fields` to retrieve only needed data
-6. **Instance-specific queries:** Use `--instance` when working with multiple RHDH environments
+4. **Respect pagination:** Use `--limit` for catalog, API, and template lists, and use `--page-limit` and `--page-cursor` for search results.
+5. **Handle field selection:** Use `--fields` with `catalog list` to retrieve only needed data.
+6. **Instance-specific queries:** Use `--instance` with commands that support it, or select the default instance with `auth select`.
 7. **Error recovery:** Parse `suggestion` field from error responses for corrective actions
 
 ### Discovery via --help
@@ -993,11 +997,10 @@ rhdh-cli catalog list \
   --output json | jq '.entities[].metadata.name'
 
 # 4. Get API spec
-rhdh-cli api get-spec --name my-api --output json | jq '.definition'
+rhdh-cli api get-spec my-api --output json | jq '.definition'
 
 # 5. Execute template
-rhdh-cli template execute \
-  --template-ref template:default/service \
+rhdh-cli template execute template:default/service \
   --value name=new-service \
   --value owner=team-a \
   --output json
@@ -1035,11 +1038,11 @@ If `docs list`, `docs get`, or `docs coverage` fail:
 - Verify the plugin is installed and enabled on the RHDH instance
 - Check server-side configuration in `app-config.local.yaml`
 - Verify client-side source registration: `rhdh-cli actions sources list` should show `techdocs-mcp-extras`
-- Use `docs search` as an alternative, which works with all RHDH instances
+- If the TechDocs search backend module is enabled, use `docs search` as an alternative that does not require `techdocs-mcp-extras`
 
 ### Output Parsing Issues
 
-If JSON output is malformed:
+If JSON output from an intent-based command is malformed:
 
 - Check for errors on stderr
 - Verify exit code (0 = success)
