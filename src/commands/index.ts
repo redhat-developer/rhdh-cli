@@ -202,6 +202,31 @@ export function registerPluginCommand(program: Command) {
       'Path to a local Backstage release manifest JSON file',
     )
     .action(lazy(() => import('./new').then(m => m.command)));
+
+  command
+    .command('dev [action]')
+    .description('Run a dynamic plugin against an existing RHDH Local runtime')
+    .option(
+      '--rhdh-local-dir <directory>',
+      'Path to an existing RHDH Local checkout (defaults to RHDH_LOCAL_DIR)',
+    )
+    .option(
+      '--container-tool <tool>',
+      'Container tool to use: podman or docker',
+      'podman',
+    )
+    .option('--all', 'Include every RHDH Local Compose service in log output')
+    .option('--rhdh', 'Show RHDH application logs')
+    .option('--installer', 'Show dynamic plugin installer logs')
+    .option(
+      '--clean',
+      'After stopping, remove runtime containers and networks without removing volumes',
+    )
+    .option(
+      '--configure',
+      'Add the CLI-managed plugin configuration include to RHDH Local',
+    )
+    .action(lazy(() => import('./dev').then(m => m.command)));
 }
 
 export function registerCommands(program: Command) {

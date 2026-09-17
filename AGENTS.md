@@ -59,6 +59,40 @@ condition under which it can be removed. When upgrading `@backstage/cli-module-n
 to a new version (i.e. adding a new RHDH release profile), audit every file
 in `templates/plugin-new/` and remove overlays whose upstream has caught up.
 
+### `plugin dev` — local runtime command
+
+`src/commands/dev/` owns the `rhdh-cli plugin dev` command. It exports the
+current plugin into an existing RHDH Local checkout and drives its Compose
+runtime lifecycle.
+
+Key files:
+
+- `command.ts` — all sub-action logic (`start`, `update`, `stop`, `logs`,
+  `status`), runtime validation, config management, and staging.
+- `index.ts` — re-exports `command` for lazy-loading via `src/commands/index.ts`.
+
+**Runtime contract:** `plugin dev` requires an explicit RHDH Local checkout via
+`--rhdh-local-dir <path>` or the `RHDH_LOCAL_DIR` environment variable. It
+validates the presence of `compose.yaml`, `compose-dynamic-plugins-root.yaml`,
+`prepare-and-install-dynamic-plugins.sh`, and `wait-for-plugins-and-start.sh`.
+It never mutates the checkout's Git state or user-owned configuration files.
+
+**Staging contract:** Plugins are staged to `local-plugins/<package-name>/`
+inside the RHDH Local checkout. The RHDH Local installer picks them up via
+`npm pack` from that path. The CLI writes its plugin entry to
+`configs/dynamic-plugins/rhdh-cli.generated.yaml`; `--configure` adds that
+file to `dynamic-plugins.override.yaml`'s `includes` list on first use.
+
+**Pre-flight check:** `start` and `update` call `validateProjectFiles()` before
+invoking `plugin export`. For backend plugins this checks that `dist-types/`
+exists, failing fast with a clear `yarn tsc` instruction rather than letting
+`yarn build` fail deep in the export process.
+
+**Symlink handling:** `stagePlugin` uses `fs.remove` + `fs.copy` with
+`dereference: false` so relative symlinks in `node_modules/.bin/` are preserved
+as symlinks in the staged copy rather than followed, which would cause a
+self-copy error on repeated `update` runs.
+
 ## Pattern References
 
 - New command group: `src/commands/intent-based-actions/catalog.ts`
