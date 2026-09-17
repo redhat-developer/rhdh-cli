@@ -67,6 +67,19 @@ in `templates/plugin-new/` and remove overlays whose upstream has caught up.
 - Structured CLI errors: `src/commands/intent-based-actions/intent-errors.ts`
 - Repeatable `key=value` and JSON input parsing: `src/commands/intent-based-actions/kv.ts`
 
+## CI & Packaging
+
+- The `verify-plugin-export.yaml` workflow builds the CLI with `yarn pack`,
+  then installs the resulting tarball via `npm install -g`. Dependencies in
+  `package.json` must therefore use npm-compatible version specifiers — do not
+  use Yarn-specific protocols (`patch:`, `portal:`, `workspace:`) in the
+  `dependencies` field. Avoiding them in `devDependencies` is also recommended
+  for consistency, though only `dependencies` are resolved during the CI
+  install step.
+- The Verify workflow runs against 9 plugin workspaces (adoption-insights,
+  bulk-import, extensions, global-header, homepage, orchestrator, quickstart,
+  scorecard, theme) from the `rhdh-plugin-export-overlays` repo.
+
 ## PR Conventions
 
 - PR titles must follow [Conventional Commits](https://www.conventionalcommits.org/) — enforced by CI (`pr-semantic.yaml`)
