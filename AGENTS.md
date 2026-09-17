@@ -31,6 +31,34 @@
   `techdocs-mcp-extras` actions. `docs search` uses the standard
   `search:query` action.
 
+### `plugin new` — scaffold command
+
+`src/commands/new/` owns the `rhdh-cli plugin new` command. It renders portable
+template assets from the release-matched `@backstage/cli-module-new` package
+rather than maintaining RHDH-owned template files.
+
+Key files:
+
+- `command.ts` — entry point, option parsing, template loading, and the
+  RHDH standalone adapter (`adaptStandaloneProject`).
+- `portableTemplateRenderer.ts` — Handlebars renderer that walks an upstream
+  template directory and an optional RHDH overlay directory.
+- `rhdhProfiles.ts` — per-release dependency profiles and role overlays.
+  **Add a new profile here when targeting a new RHDH release.**
+
+**Supported templates** are constrained to `supportedTemplateNames` in
+`command.ts`. Only add a template name here after writing an e2e test for it
+in `e2e-tests/plugin-new.test.ts` that covers scaffold → install → test →
+build → export.
+
+**RHDH template overlays** (`templates/plugin-new/<upstream-template-name>/`)
+shadow individual upstream files that are incompatible with a specific RHDH
+release without forking the full template. Each overlay file contains a
+Handlebars comment explaining which upstream version it patches and the
+condition under which it can be removed. When upgrading `@backstage/cli-module-new`
+to a new version (i.e. adding a new RHDH release profile), audit every file
+in `templates/plugin-new/` and remove overlays whose upstream has caught up.
+
 ## Pattern References
 
 - New command group: `src/commands/intent-based-actions/catalog.ts`

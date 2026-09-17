@@ -4,6 +4,23 @@ All notable changes to `@red-hat-developer-hub/cli` are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Changed
+
+- **`plugin new`:** Replace RHDH-owned template files with the portable template assets published by the release-matched `@backstage/cli-module-new` package (`0.1.6` for RHDH 2.1 / Backstage 1.54.6). The RHDH adapter supplies standalone `backstage.json`, Yarn Berry configuration, TypeScript configuration, RHDH export guidance, and dev harnesses. All `@backstage/*` direct dependencies are pinned from the target release manifest; transitive ranges remain upstream-managed.
+- **`plugin new` (package name convention):** The default generated `package.json` `name` no longer carries a type suffix. Previously, the RHDH-owned backend template appended `-backend` (producing `@internal/backstage-plugin-<name>-backend`) and the catalog processor module template appended a similar suffix; the upstream `@backstage/cli-module-new` templates use a flat `@internal/backstage-plugin-<name>` for all types. Scripts or CI configurations that reference the old type-suffixed name should update accordingly, or pass `--plugin-package @internal/backstage-plugin-<name>-backend` to restore the previous name.
+
+### Added
+
+- **`plugin new --template <name>`:** Select a generated project type using the upstream portable template name (`frontend-plugin`, `backend-plugin`, `catalog-processor-module`) as an alternative to `--type`. Only templates with end-to-end test coverage are accepted. Passing an unsupported template name produces a clear error listing the accepted values.
+- **`plugin new --module-id <id>`:** Override the module identifier for module-type templates (e.g. `catalog-processor-module`). Defaults to the plugin name when omitted, preserving non-interactive behaviour.
+- **`plugin new --plugin-package <name>`:** Set the generated `package.json` `name` field. Validated against npm package name rules (lowercase, max 214 chars, no whitespace or special characters). Defaults to `@internal/backstage-plugin-<name>`.
+
+### Fixed
+
+- **`plugin new` (frontend):** Generated frontend plugin tests now pass under Node 18+ without modification. The upstream `@backstage/cli-module-new` 0.1.6 template pinned `msw@1.0.0`, whose `setupServer()` does not intercept `globalThis.fetch` used by Backstage's `fetchApiRef` in tests, causing the generated `TodoPage` test to time out. Three RHDH template overlay files patch the generated project: the test is updated to the MSW v2 API (`http`/`HttpResponse`); `setupTests.ts` exposes the Web API globals (`TextEncoder`, `BroadcastChannel`, etc.) missing from Jest 29 + jsdom; and `package.json` gains `jest.testEnvironmentOptions.customExportConditions` so Jest 29 resolves MSW v2's `msw/node` package-exports subpath. These overlays will be removed when RHDH targets `@backstage/cli-module-new` 0.1.7+ (Backstage 1.55.0).
+
 ## 2.1.0 - 2026-09-16
 
 ### Changed

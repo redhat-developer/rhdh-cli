@@ -1,0 +1,72 @@
+{{!--
+  RHDH overlay for the upstream @backstage/cli-module-new 0.1.6 frontend-plugin
+  package.json.hbs. Adds a jest.testEnvironmentOptions block required to make
+  MSW v2 work under Jest 29 + jest-environment-jsdom.
+
+  MSW v2 and its @mswjs/interceptors dependency use package.json "exports"
+  subpath conditions that Jest 29 does not resolve by default. Setting
+  customExportConditions: ['node', 'node-addons'] tells Jest to honour the
+  'node' export condition, which maps msw/node and interceptor subpaths to
+  their CJS output files.
+
+  The upstream @backstage/cli-module-test-jest FixedJSDOMEnvironment (Jest 30+)
+  already sets these conditions automatically. This overlay is a stopgap for
+  projects generated against @backstage/cli-module-new 0.1.6 (Backstage 1.54.6).
+
+  When the RHDH release targeting @backstage/cli-module-new 0.1.7+
+  (Backstage 1.55.0) is supported, verify whether this overlay is still
+  needed and remove it if the upstream template has caught up.
+--}}
+{
+  "name": "{{packageName}}",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "publishConfig": {
+    "access": "public",
+    "main": "dist/index.esm.js",
+    "types": "dist/index.d.ts"
+  },
+  "backstage": {
+    "role": "frontend-plugin",
+    "pluginId": "{{pluginId}}"
+  },
+  "sideEffects": false,
+  "scripts": {
+    "start": "backstage-cli package start",
+    "build": "backstage-cli package build",
+    "lint": "backstage-cli package lint",
+    "test": "backstage-cli package test",
+    "clean": "backstage-cli package clean",
+    "prepack": "backstage-cli package prepack",
+    "postpack": "backstage-cli package postpack"
+  },
+  "dependencies": {
+    "@backstage/core-components": "{{versionQuery '@backstage/core-components'}}",
+    "@backstage/frontend-plugin-api": "{{versionQuery '@backstage/frontend-plugin-api'}}",
+    "@backstage/theme": "{{versionQuery '@backstage/theme'}}",
+    "@backstage/ui": "{{versionQuery '@backstage/ui'}}",
+    "react-use": "{{versionQuery 'react-use' '17.2.4'}}"
+  },
+  "peerDependencies": {
+    "react": "{{versionQuery 'react' '^16.13.1 || ^17.0.0 || ^18.0.0'}}"
+  },
+  "devDependencies": {
+    "@backstage/cli": "{{versionQuery '@backstage/cli'}}",
+    "@backstage/frontend-dev-utils": "{{versionQuery '@backstage/frontend-dev-utils'}}",
+    "@backstage/frontend-defaults": "{{versionQuery '@backstage/frontend-defaults'}}",
+    "@backstage/frontend-test-utils": "{{versionQuery '@backstage/frontend-test-utils'}}",
+    "@testing-library/jest-dom": "{{versionQuery '@testing-library/jest-dom' '6.0.0'}}",
+    "@testing-library/react": "{{versionQuery '@testing-library/react' '14.0.0'}}",
+    "@testing-library/user-event": "{{versionQuery '@testing-library/user-event' '14.0.0'}}",
+    "msw": "{{versionQuery 'msw' '1.0.0'}}",
+    "react": "{{versionQuery 'react' '^16.13.1 || ^17.0.0 || ^18.0.0'}}"
+  },
+  "files": [
+    "dist"
+  ],
+  "jest": {
+    "testEnvironmentOptions": {
+      "customExportConditions": ["node", "node-addons"]
+    }
+  }
+}

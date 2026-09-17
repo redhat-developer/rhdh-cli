@@ -1,25 +1,22 @@
-/*
- * Copyright 2026 The Backstage Authors
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 import fs from 'fs-extra';
 import os from 'node:os';
 import path from 'node:path';
 
 import { resolveRhdhVersion } from '../../lib/rhdhVersion';
-import { completeInteractiveOptions, createPluginProject } from './command';
+import {
+  completeInteractiveOptions,
+  createPluginProject,
+  supportedTemplateNames,
+} from './command';
+import { getRhdhProfile } from './rhdhProfiles';
+
+const frontendDevDependencies = {
+  '@testing-library/react': '^16.0.0',
+  '@types/react': '^18.0.0',
+  '@types/react-dom': '^18.0.0',
+  'react-dom': '^18.0.0',
+  'react-router-dom': '^6.30.2',
+};
 
 jest.mock('../../lib/rhdhVersion', () => ({
   ...jest.requireActual('../../lib/rhdhVersion'),
@@ -36,15 +33,32 @@ describe('createPluginProject', () => {
     tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'plugin-new-test-'));
     mockResolveRhdhVersion.mockResolvedValue({
       rhdhVersion: '2.1.0',
-      backstageVersion: '1.54.0',
+      backstageVersion: '1.54.6',
       source: 'matrix',
       packages: new Map([
+        ['@backstage/backend-defaults', '0.12.5'],
         ['@backstage/backend-plugin-api', '1.10.0'],
+        ['@backstage/backend-test-utils', '1.11.5'],
+        ['@backstage/catalog-client', '1.10.0'],
         ['@backstage/catalog-model', '1.10.0'],
         ['@backstage/cli', '0.36.5'],
+        ['@backstage/cli-common', '0.3.0'],
+        ['@backstage/cli-defaults', '0.1.5'],
+        ['@backstage/cli-module-build', '0.1.7'],
+        ['@backstage/cli-module-test-jest', '0.1.5'],
+        ['@backstage/cli-node', '0.3.4'],
+        ['@backstage/config', '1.3.8'],
+        ['@backstage/core-components', '0.17.0'],
         ['@backstage/core-plugin-api', '1.12.7'],
+        ['@backstage/errors', '1.3.1'],
+        ['@backstage/frontend-defaults', '0.1.0'],
+        ['@backstage/frontend-dev-utils', '0.4.5'],
         ['@backstage/frontend-plugin-api', '0.17.2'],
+        ['@backstage/frontend-test-utils', '0.2.0'],
         ['@backstage/plugin-catalog-node', '2.2.4'],
+        ['@backstage/theme', '0.6.0'],
+        ['@backstage/types', '1.2.2'],
+        ['@backstage/ui', '0.10.0'],
       ]),
     });
   });
@@ -55,16 +69,22 @@ describe('createPluginProject', () => {
   });
 
   it.each([
-    ['frontend', 'src/index.ts', 'PageBlueprint'],
-    ['backend', 'src/index.ts', 'createBackendPlugin'],
+    [
+      'frontend',
+      'src/plugin.tsx',
+      'createFrontendPlugin',
+      frontendDevDependencies,
+    ],
+    ['backend', 'src/plugin.ts', 'createBackendPlugin', {}],
     [
       'catalog-processor-module',
-      'src/index.ts',
+      'src/module.ts',
       'catalogProcessingExtensionPoint',
+      {},
     ],
   ])(
     'creates a %s plugin project',
-    async (type, entryPoint, expectedSource) => {
+    async (type, entryPoint, expectedSource, expectedReactDevDependencies) => {
       const output = path.join(tmpDir, type);
 
       const result = await createPluginProject({
@@ -77,7 +97,7 @@ describe('createPluginProject', () => {
       expect(result).toEqual({
         outputDir: output,
         rhdhVersion: '2.1.0',
-        backstageVersion: '1.54.0',
+        backstageVersion: '1.54.6',
       });
       expect(mockResolveRhdhVersion).toHaveBeenCalledWith('2.1.0', {
         manifestFile: undefined,
@@ -88,34 +108,78 @@ describe('createPluginProject', () => {
 
       const packageJson = await fs.readJson(path.join(output, 'package.json'));
       expect(packageJson.devDependencies['@backstage/cli']).toBe('0.36.5');
-      expect(packageJson.devDependencies['jest-environment-jsdom']).toBe(
-        '^29.7.0',
-      );
       expect(packageJson.devDependencies).not.toHaveProperty(
         '@red-hat-developer-hub/cli',
       );
+      expect(packageJson.files).toEqual(['dist']);
+      expect(packageJson.scripts.start).toBe('backstage-cli package start');
       expect(packageJson.packageManager).toBe('yarn@4.17.1');
+      expect(packageJson.devDependencies['@types/jest']).toBe('^29.5.14');
+      expect(packageJson.devDependencies.jest).toBe('^29.7.0');
+      expect(packageJson.devDependencies['jest-environment-jsdom']).toBe(
+        '^29.7.0',
+      );
+      expect(packageJson.devDependencies['@backstage/cli-defaults']).toBe(
+        '0.1.5',
+      );
+      expect(packageJson.devDependencies.typescript).toBe('5.4.5');
+      expect(packageJson.resolutions['@types/express']).toBe('4.17.21');
+      expect(Object.keys(packageJson.resolutions).sort()).toEqual([
+        '@types/express',
+      ]);
+      expect(
+        Object.fromEntries(
+          Object.entries(packageJson.devDependencies).filter(([name]) =>
+            Object.hasOwn(frontendDevDependencies, name),
+          ),
+        ),
+      ).toEqual(expectedReactDevDependencies);
       await expect(
         fs.readFile(path.join(output, '.yarnrc.yml'), 'utf8'),
       ).resolves.toBe('nodeLinker: node-modules\n');
       await expect(
-        fs.readFile(path.join(output, 'README.md'), 'utf8'),
-      ).resolves.toContain('npx @red-hat-developer-hub/cli plugin export');
+        fs.readFile(path.join(output, '.gitignore'), 'utf8'),
+      ).resolves.toContain('node_modules');
+      await expect(
+        fs.readFile(path.join(output, '.gitignore'), 'utf8'),
+      ).resolves.toContain('dist-dynamic');
       await expect(
         fs.readJson(path.join(output, 'backstage.json')),
-      ).resolves.toEqual({ version: '1.54.0' });
+      ).resolves.toEqual({ version: '1.54.6' });
+      await expect(
+        fs.readJson(path.join(output, 'tsconfig.json')),
+      ).resolves.toEqual({
+        extends: '@backstage/cli/config/tsconfig.json',
+        include: ['src', 'dev', 'migrations'],
+        compilerOptions: {
+          jsx: 'react-jsx',
+          outDir: 'dist-types',
+          rootDir: '.',
+        },
+      });
+      await expect(
+        fs.readFile(path.join(output, 'README.md'), 'utf8'),
+      ).resolves.toContain('npx @red-hat-developer-hub/cli plugin export');
 
       await expect(
         Promise.all(
           [
-            '.gitignore',
+            '.eslintrc.js',
             '.yarnrc.yml',
             'README.md',
             'backstage.json',
             'package.json',
-            'src/index.ts',
             'tsconfig.json',
-            ...(type === 'frontend' ? ['src/PluginPage.tsx'] : []),
+            ...(type === 'frontend'
+              ? [
+                  'src/plugin.tsx',
+                  'src/routes.ts',
+                  'src/components/TodoPage/TodoPage.tsx',
+                  'dev/index.tsx',
+                ]
+              : []),
+            ...(type === 'backend' ? ['src/plugin.ts', 'src/router.ts'] : []),
+            ...(type === 'catalog-processor-module' ? ['src/module.ts'] : []),
           ].map(async file => [
             file,
             await fs.readFile(path.join(output, file), 'utf8'),
@@ -124,6 +188,155 @@ describe('createPluginProject', () => {
       ).resolves.toMatchSnapshot();
     },
   );
+
+  it('rejects an unsupported plugin type', async () => {
+    await expect(
+      createPluginProject({
+        name: 'example-plugin',
+        output: path.join(tmpDir, 'module'),
+        type: 'backend-plugin-module',
+      }),
+    ).rejects.toThrow('Plugin type must be one of');
+  });
+
+  it('accepts --template as an alternative to --type', async () => {
+    const output = path.join(tmpDir, 'template-frontend');
+
+    const result = await createPluginProject({
+      name: 'example-plugin',
+      template: 'frontend-plugin',
+      output,
+      rhdhVersion: '2.1.0',
+    });
+
+    expect(result).toEqual({
+      outputDir: output,
+      rhdhVersion: '2.1.0',
+      backstageVersion: '1.54.6',
+    });
+    expect(
+      await fs.readFile(path.join(output, 'src/plugin.tsx'), 'utf8'),
+    ).toContain('createFrontendPlugin');
+  });
+
+  it('rejects an unsupported --template value before resolving a version', async () => {
+    await expect(
+      createPluginProject({
+        name: 'example-plugin',
+        template: 'backend-plugin-module',
+        output: path.join(tmpDir, 'bad-template'),
+      }),
+    ).rejects.toThrow('Unsupported template');
+    expect(mockResolveRhdhVersion).not.toHaveBeenCalled();
+  });
+
+  it('accepts an upstream template name passed as --type (e.g. from the interactive prompt)', async () => {
+    const output = path.join(tmpDir, 'type-as-upstream-name');
+
+    const result = await createPluginProject({
+      name: 'example-plugin',
+      type: 'frontend-plugin',
+      output,
+      rhdhVersion: '2.1.0',
+    });
+
+    expect(result.outputDir).toBe(output);
+    expect(
+      await fs.readFile(path.join(output, 'src/plugin.tsx'), 'utf8'),
+    ).toContain('createFrontendPlugin');
+  });
+
+  it('rejects conflicting --type and --template values before resolving a version', async () => {
+    await expect(
+      createPluginProject({
+        name: 'example-plugin',
+        type: 'frontend',
+        template: 'backend-plugin',
+        output: path.join(tmpDir, 'conflict'),
+      }),
+    ).rejects.toThrow('do not match');
+    expect(mockResolveRhdhVersion).not.toHaveBeenCalled();
+  });
+
+  it('accepts agreeing --type and --template values', async () => {
+    const output = path.join(tmpDir, 'type-template-agree');
+
+    const result = await createPluginProject({
+      name: 'example-plugin',
+      type: 'backend',
+      template: 'backend-plugin',
+      output,
+      rhdhVersion: '2.1.0',
+    });
+
+    expect(result.outputDir).toBe(output);
+  });
+
+  it('exposes all supported template names', () => {
+    expect(supportedTemplateNames).toEqual([
+      'frontend-plugin',
+      'backend-plugin',
+      'catalog-processor-module',
+    ]);
+  });
+
+  it('accepts --module-id to override the module identifier', async () => {
+    const output = path.join(tmpDir, 'custom-module-id');
+
+    await createPluginProject({
+      name: 'example-plugin',
+      type: 'catalog-processor-module',
+      moduleId: 'my-module',
+      output,
+      rhdhVersion: '2.1.0',
+    });
+
+    // processorClass = upperFirst(camelCase('my-module')) + 'Processor' = 'MyModuleProcessor'
+    expect(
+      await fs.readFile(
+        path.join(output, 'src/processor/MyModuleProcessor.ts'),
+        'utf8',
+      ),
+    ).toContain('MyModuleProcessor');
+  });
+
+  it('rejects RHDH versions other than 2.1', async () => {
+    mockResolveRhdhVersion.mockResolvedValueOnce({
+      rhdhVersion: '2.0.4',
+      backstageVersion: '1.52.0',
+      source: 'matrix',
+      packages: new Map(),
+    });
+
+    await expect(
+      createPluginProject({
+        name: 'example-plugin',
+        type: 'frontend',
+        output: path.join(tmpDir, 'unsupported'),
+        rhdhVersion: '2.0.4',
+      }),
+    ).rejects.toThrow('supports RHDH 2.1 only');
+  });
+
+  it('selects the RHDH 2.1 upstream-template profile', () => {
+    expect(getRhdhProfile('2.1.0')).toMatchObject({
+      templatePackageVersion: '0.1.6',
+      packageManager: 'yarn@4.17.1',
+      devDependencies: {
+        '@backstage/cli-defaults': '0.1.5',
+        jest: '^29.7.0',
+      },
+      templateRoleOverlays: {
+        'frontend-plugin': {
+          devDependencies: {
+            'react-dom': '^18.0.0',
+            'react-router-dom': '^6.30.2',
+          },
+        },
+      },
+    });
+    expect(() => getRhdhProfile('2.0.4')).toThrow('supports RHDH 2.1 only');
+  });
 
   it('rejects an invalid name before resolving a version', async () => {
     await expect(
@@ -135,6 +348,38 @@ describe('createPluginProject', () => {
     ).rejects.toThrow('Plugin name must start');
     expect(mockResolveRhdhVersion).not.toHaveBeenCalled();
   });
+
+  it('rejects an invalid --module-id before resolving a version', async () => {
+    await expect(
+      createPluginProject({
+        name: 'example-plugin',
+        type: 'catalog-processor-module',
+        moduleId: 'InvalidID',
+        output: tmpDir,
+      }),
+    ).rejects.toThrow('Plugin name must start');
+    expect(mockResolveRhdhVersion).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['whitespace in name', 'my package', 'valid npm package name'],
+    ['control character', 'pkg\x01name', 'valid npm package name'],
+    ['name exceeding 214 chars', 'a'.repeat(215), '214 characters or fewer'],
+    ['invalid characters', 'My_Package!', 'valid npm package name'],
+  ])(
+    'rejects an invalid --plugin-package value (%s) before resolving a version',
+    async (_label, pluginPackage, expectedError) => {
+      await expect(
+        createPluginProject({
+          name: 'example-plugin',
+          type: 'frontend',
+          pluginPackage,
+          output: tmpDir,
+        }),
+      ).rejects.toThrow(expectedError);
+      expect(mockResolveRhdhVersion).not.toHaveBeenCalled();
+    },
+  );
 
   it('rejects a non-empty output directory', async () => {
     await fs.outputFile(path.join(tmpDir, 'existing'), 'content');
@@ -154,7 +399,7 @@ describe('createPluginProject', () => {
     await fs.ensureDir(output);
     mockResolveRhdhVersion.mockResolvedValueOnce({
       rhdhVersion: '2.1.0',
-      backstageVersion: '1.54.0',
+      backstageVersion: '1.54.6',
       source: 'matrix',
       packages: new Map(),
     });
@@ -174,7 +419,7 @@ describe('createPluginProject', () => {
     const output = path.join(tmpDir, 'new-output');
     mockResolveRhdhVersion.mockResolvedValueOnce({
       rhdhVersion: '2.1.0',
-      backstageVersion: '1.54.0',
+      backstageVersion: '1.54.6',
       source: 'matrix',
       packages: new Map(),
     });
@@ -204,5 +449,24 @@ describe('createPluginProject', () => {
       rhdhVersion: '2.1.0',
     });
     expect(prompt).toHaveBeenCalledTimes(2);
+  });
+
+  it('skips the type prompt when --template is already set', async () => {
+    const prompt = jest
+      .fn<Promise<string>, [string]>()
+      .mockResolvedValueOnce('example-plugin');
+
+    await expect(
+      completeInteractiveOptions(
+        { template: 'backend-plugin', rhdhVersion: '2.1.0' },
+        prompt,
+      ),
+    ).resolves.toEqual({
+      name: 'example-plugin',
+      type: 'backend-plugin',
+      template: 'backend-plugin',
+      rhdhVersion: '2.1.0',
+    });
+    expect(prompt).toHaveBeenCalledTimes(1);
   });
 });

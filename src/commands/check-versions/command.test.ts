@@ -39,6 +39,7 @@ describe('checkPluginDependencies', () => {
       dependencies?: Record<string, string>;
       devDependencies?: Record<string, string>;
       peerDependencies?: Record<string, string>;
+      resolutions?: Record<string, string>;
     },
     manifestPackages: [string, string][] = [
       ['@backstage/core-plugin-api', '1.12.0'],
@@ -178,6 +179,28 @@ describe('checkPluginDependencies', () => {
     );
     expect(unknownPkg?.status).toBe('unmanifested');
     expect(unknownPkg?.expected).toBeUndefined();
+  });
+
+  it('ignores resolution overrides', async () => {
+    await setupFixture(
+      {
+        resolutions: {
+          '@backstage/cli-common': '0.3.0',
+          '@backstage/cli-defaults': '0.1.5',
+          '@backstage/cli-module-build': '0.1.4',
+          '@backstage/cli-module-test-jest': '0.1.5',
+          '@backstage/cli-node': '0.3.4',
+          '@backstage/unknown-pkg': '1.0.0',
+          '@types/express': '4.17.21',
+        },
+      },
+      [['@backstage/cli-module-build', '0.1.5']],
+    );
+
+    const result = await checkPluginDependencies({ targetDir: tmpDir });
+
+    expect(result.valid).toBe(true);
+    expect(result.packages).toEqual([]);
   });
 
   describe('CLI command handler', () => {

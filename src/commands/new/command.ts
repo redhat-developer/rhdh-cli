@@ -1,27 +1,44 @@
-/*
- * Copyright 2026 The Backstage Authors
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 import { OptionValues } from 'commander';
 import fs from 'fs-extra';
 import path from 'node:path';
 import { createInterface } from 'node:readline/promises';
+import YAML from 'yaml';
 
-import { paths } from '../../lib/paths';
 import { resolveRhdhVersion } from '../../lib/rhdhVersion';
-import { Task, templatingTask } from '../../lib/tasks';
+import { Task } from '../../lib/tasks';
+import { renderPortableTemplate } from './portableTemplateRenderer';
+import {
+  applyRhdhTemplateRoleOverlay,
+  getRhdhProfile,
+  RhdhProfile,
+} from './rhdhProfiles';
+
+/**
+ * Root of the RHDH-owned template overlay tree, relative to this file's
+ * compiled location. The tree mirrors the upstream @backstage/cli-module-new
+ * template structure: `<overlaysRoot>/<upstream-template-name>/<relative-file>`.
+ *
+ * Files present here shadow the corresponding upstream template file during
+ * rendering. Use overlays to patch individual files that are incompatible with
+ * a specific RHDH release without forking the full upstream template. When the
+ * upstream template package is upgraded, audit each overlay and remove it if
+ * the upstream has caught up.
+ *
+ * In both the TypeScript source tree (`src/commands/new/`) and the compiled
+ * output (`dist/commands/new/`), this file is three directories below the
+ * package root, so `../../..` reliably resolves to the package root where
+ * `templates/plugin-new/` lives.
+ *
+ * Note: `__dirname` is intentional here. The CLI uses it the same way
+ * `src/lib/paths.ts` does — to locate package-relative assets shipped
+ * alongside the compiled output. `resolvePackagePath()` from
+ * `@backstage/backend-plugin-api` is not appropriate for a CLI tool.
+ */
+const RHDH_TEMPLATE_OVERLAYS_ROOT = path.resolve(
+  /* eslint-disable-next-line no-restricted-syntax */
+  __dirname,
+  '../../../templates/plugin-new',
+);
 
 export const pluginTypes = [
   'frontend',
@@ -30,9 +47,24 @@ export const pluginTypes = [
 ] as const;
 export type PluginType = (typeof pluginTypes)[number];
 
+const templateAliases: Record<PluginType, string> = {
+  frontend: 'frontend-plugin',
+  backend: 'backend-plugin',
+  'catalog-processor-module': 'catalog-processor-module',
+};
+
+/** Upstream template names accepted by `--template`. Constrained to templates with e2e coverage. */
+export const supportedTemplateNames = Object.values(templateAliases);
+
 export interface CreatePluginOptions {
   name?: string;
   type?: string;
+  /** Upstream template name (e.g. 'frontend-plugin'). Overrides `type` when provided. */
+  template?: string;
+  /** Module ID for module-type templates. Defaults to the plugin name. */
+  moduleId?: string;
+  /** Generated package name. Defaults to `@internal/backstage-plugin-<name>`. Validated against npm name rules. */
+  pluginPackage?: string;
   output?: string;
   rhdhVersion?: string;
   manifestFile?: string;
@@ -46,6 +78,16 @@ export interface PluginProjectResult {
 
 type Prompt = (question: string) => Promise<string>;
 
+const RHDH_README_SECTION = `
+## RHDH dynamic plugin export
+
+Export this plugin for RHDH without adding the CLI as a dependency:
+
+\`\`\`bash
+npx @red-hat-developer-hub/cli plugin export
+\`\`\`
+`;
+
 function assertPluginName(name: string): void {
   if (!/^[a-z][a-z0-9]*(-[a-z0-9]+)*$/.test(name)) {
     throw new Error(
@@ -54,12 +96,169 @@ function assertPluginName(name: string): void {
   }
 }
 
-function assertPluginType(
-  type: string | undefined,
-): asserts type is PluginType {
-  if (!type || !pluginTypes.includes(type as PluginType)) {
+function assertPackageName(packageName: string): void {
+  // npm package name rules: max 214 chars, lowercase, no whitespace or
+  // special characters other than hyphens, dots, underscores, and scoped
+  // package prefixes (@scope/).
+  if (packageName.length > 214) {
+    throw new Error('Package name must be 214 characters or fewer.');
+  }
+  if (
+    !/^(@[a-z0-9-~][a-z0-9-._~]*\/)?[a-z0-9-~][a-z0-9-._~]*$/.test(packageName)
+  ) {
+    throw new Error(
+      'Package name must be a valid npm package name (lowercase, no whitespace or special characters other than hyphens, dots, and underscores).',
+    );
+  }
+}
+
+function resolveTemplateName(options: CreatePluginOptions): string {
+  // If both --type and --template are supplied, they must agree.
+  if (options.template && options.type) {
+    const fromType =
+      templateAliases[options.type as PluginType] ?? options.type;
+    if (fromType !== options.template) {
+      throw new Error(
+        `--type (${options.type}) and --template (${options.template}) do not match.`,
+      );
+    }
+  }
+  if (options.template) {
+    if (!supportedTemplateNames.includes(options.template)) {
+      throw new Error(
+        `Unsupported template "${options.template}". Supported templates: ${supportedTemplateNames.join(', ')}.`,
+      );
+    }
+    return options.template;
+  }
+  // The interactive prompt stores its answer in `type`, which may be either a
+  // friendly alias (e.g. 'frontend') or a full upstream template name
+  // (e.g. 'frontend-plugin'). Accept upstream names directly here.
+  if (options.type && supportedTemplateNames.includes(options.type)) {
+    return options.type;
+  }
+  if (!options.type || !pluginTypes.includes(options.type as PluginType)) {
     throw new Error(`Plugin type must be one of: ${pluginTypes.join(', ')}.`);
   }
+  return templateAliases[options.type as PluginType];
+}
+
+async function loadTemplate(
+  templateName: string,
+  profile: RhdhProfile,
+): Promise<{
+  directory: string;
+  /** RHDH overlay directory for this template, or undefined if empty. */
+  overlayDir: string | undefined;
+  role: string;
+  values: Record<string, string>;
+}> {
+  const packageJson = require('@backstage/cli-module-new/package.json') as {
+    version: string;
+  };
+  if (packageJson.version !== profile.templatePackageVersion) {
+    throw new Error(
+      `RHDH template adapter requires @backstage/cli-module-new ${profile.templatePackageVersion}, found ${packageJson.version}.`,
+    );
+  }
+  const packageJsonPath = require.resolve(
+    '@backstage/cli-module-new/package.json',
+  );
+  const directory = path.join(
+    path.dirname(packageJsonPath),
+    'templates',
+    templateName,
+  );
+  const templateFile = path.join(directory, 'portable-template.yaml');
+  if (!(await fs.pathExists(templateFile))) {
+    throw new Error(`Unknown upstream template "${templateName}".`);
+  }
+  const template = YAML.parse(await fs.readFile(templateFile, 'utf8')) as {
+    role?: unknown;
+    values?: unknown;
+  };
+  if (typeof template.role !== 'string') {
+    throw new TypeError(`Template "${templateName}" has no role.`);
+  }
+  const values = Object.fromEntries(
+    Object.entries(template.values ?? {}).filter(
+      (entry): entry is [string, string] => typeof entry[1] === 'string',
+    ),
+  );
+  // The overlay directory shadows individual upstream files that need
+  // RHDH-specific fixes. Only pass it to the renderer when it actually exists
+  // so the renderer's fs.pathExists check per file is the only hot path.
+  const overlayDir = path.join(RHDH_TEMPLATE_OVERLAYS_ROOT, templateName);
+  const overlayExists = await fs.pathExists(overlayDir);
+  return {
+    directory,
+    overlayDir: overlayExists ? overlayDir : undefined,
+    role: template.role,
+    values,
+  };
+}
+
+async function adaptStandaloneProject(
+  outputDir: string,
+  backstageVersion: string,
+  profile: Omit<RhdhProfile, 'templateRoleOverlays'>,
+): Promise<void> {
+  const packageJsonPath = path.join(outputDir, 'package.json');
+  const packageJson = await fs.readJson(packageJsonPath);
+  packageJson.packageManager = profile.packageManager;
+  packageJson.devDependencies = {
+    ...packageJson.devDependencies,
+    ...profile.devDependencies,
+  };
+  packageJson.resolutions = {
+    ...packageJson.resolutions,
+    ...profile.resolutions,
+  };
+
+  await Promise.all([
+    fs.writeJson(packageJsonPath, packageJson, { spaces: 2 }),
+    fs.writeFile(
+      path.join(outputDir, '.yarnrc.yml'),
+      'nodeLinker: node-modules\n',
+    ),
+    fs.writeFile(
+      path.join(outputDir, '.gitignore'),
+      [
+        'dist',
+        'dist-types',
+        'dist-dynamic',
+        'coverage',
+        'node_modules',
+        '*.local.yaml',
+        '.yarn/*',
+        '!.yarn/patches',
+        '!.yarn/plugins',
+        '!.yarn/releases',
+        '!.yarn/sdks',
+        '!.yarn/versions',
+        '',
+      ].join('\n'),
+    ),
+    fs.writeJson(
+      path.join(outputDir, 'backstage.json'),
+      { version: backstageVersion },
+      { spaces: 2 },
+    ),
+    fs.writeJson(
+      path.join(outputDir, 'tsconfig.json'),
+      {
+        extends: '@backstage/cli/config/tsconfig.json',
+        include: ['src', 'dev', 'migrations'],
+        compilerOptions: {
+          jsx: 'react-jsx',
+          outDir: 'dist-types',
+          rootDir: '.',
+        },
+      },
+      { spaces: 2 },
+    ),
+  ]);
+  await fs.appendFile(path.join(outputDir, 'README.md'), RHDH_README_SECTION);
 }
 
 /** Prompts for any plugin creation options omitted by the caller. */
@@ -68,11 +267,14 @@ export async function completeInteractiveOptions(
   prompt: Prompt,
 ): Promise<CreatePluginOptions> {
   const name = options.name || (await prompt('Plugin name: ')).trim();
+  // A --template value satisfies the type requirement; only prompt when both are absent.
   const type =
     options.type ||
+    options.template ||
     (
       await prompt(
-        'Plugin type (frontend, backend, catalog-processor-module): ',
+        'Plugin type (frontend, backend, catalog-processor-module) ' +
+          'or upstream template name (frontend-plugin, backend-plugin, catalog-processor-module): ',
       )
     ).trim();
   if (!name || !type) {
@@ -84,13 +286,13 @@ export async function completeInteractiveOptions(
 async function promptForMissingOptions(
   options: CreatePluginOptions,
 ): Promise<CreatePluginOptions> {
-  if (options.name && options.type) {
+  if (options.name && (options.type || options.template)) {
     return options;
   }
   if (!process.stdin.isTTY) {
     const missing = [
       !options.name && 'plugin name',
-      !options.type && '--type',
+      !options.type && !options.template && '--type or --template',
     ].filter(Boolean);
     throw new Error(
       `${missing.join(' and ')} ${missing.length === 1 ? 'is' : 'are'} required when running without an interactive terminal.`,
@@ -120,7 +322,13 @@ export async function createPluginProject(
     );
   }
   assertPluginName(options.name);
-  assertPluginType(options.type);
+  if (options.moduleId) {
+    assertPluginName(options.moduleId);
+  }
+  if (options.pluginPackage) {
+    assertPackageName(options.pluginPackage);
+  }
+  const templateName = resolveTemplateName(options);
 
   const outputDir = path.resolve(options.output || options.name);
   const outputExisted = await fs.pathExists(outputDir);
@@ -134,30 +342,54 @@ export async function createPluginProject(
   const resolved = await resolveRhdhVersion(options.rhdhVersion, {
     manifestFile: options.manifestFile,
   });
-  const versionProvider = (packageName: string): string => {
+  const profile = getRhdhProfile(resolved.rhdhVersion);
+  const template = await loadTemplate(templateName, profile);
+  const versionProvider = (
+    packageName: string,
+    versionHint?: string,
+  ): string => {
     const version = resolved.packages.get(packageName);
-    if (!version) {
-      throw new Error(
-        `The Backstage ${resolved.backstageVersion} release manifest does not contain ${packageName}.`,
-      );
+    if (version) {
+      return version;
     }
-    return version;
+    if (versionHint) {
+      return versionHint;
+    }
+    throw new Error(
+      `The Backstage ${resolved.backstageVersion} release manifest does not contain ${packageName}.`,
+    );
   };
-  const templateDir = paths.resolveOwn(`templates/plugin-new/${options.type}`);
 
   await fs.ensureDir(outputDir);
   try {
-    await templatingTask(
-      templateDir,
+    // Module templates (e.g. catalog-processor-module) derive generated
+    // identifiers from moduleId. Default it to the plugin name so that
+    // non-interactive invocations work without --module-id.
+    const isModuleTemplate = template.role.endsWith('-module');
+    const moduleId =
+      options.moduleId || (isModuleTemplate ? options.name : undefined);
+
+    await renderPortableTemplate(
+      template.directory,
       outputDir,
       {
         pluginId: options.name,
-        packageName: `@internal/backstage-plugin-${options.name}`,
+        moduleId,
+        pluginPackage: undefined,
+        name: options.name,
+        packageName:
+          options.pluginPackage || `@internal/backstage-plugin-${options.name}`,
         rhdhVersion: resolved.rhdhVersion,
         backstageVersion: resolved.backstageVersion,
       },
       versionProvider,
-      false,
+      template.values,
+      template.overlayDir,
+    );
+    await adaptStandaloneProject(
+      outputDir,
+      resolved.backstageVersion,
+      applyRhdhTemplateRoleOverlay(profile, template.role),
     );
   } catch (error) {
     await (outputExisted ? fs.emptyDir(outputDir) : fs.remove(outputDir)).catch(
@@ -187,6 +419,9 @@ export async function command(
   const options = await promptForMissingOptions({
     name: name || opts.name,
     type: opts.type,
+    template: opts.template,
+    moduleId: opts.moduleId,
+    pluginPackage: opts.pluginPackage,
     output: opts.output,
     rhdhVersion: opts.rhdhVersion,
     manifestFile: opts.manifestFile,
