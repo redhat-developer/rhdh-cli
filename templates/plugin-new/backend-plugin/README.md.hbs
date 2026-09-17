@@ -1,0 +1,29 @@
+{{!--
+  RHDH overlay for the upstream @backstage/cli-module-new 0.1.6 backend-plugin
+  README.md.hbs. The upstream file contains installation instructions that
+  reference adding the plugin to `packages/backend/src/index.ts` in a Backstage
+  monorepo and running `yarn start` from the monorepo root — neither of which
+  applies to an RHDH standalone plugin project.
+
+  This overlay replaces those sections with standalone development guidance
+  and defers installation to the RHDH dynamic plugin export workflow.
+
+  When the RHDH release targeting @backstage/cli-module-new 0.1.7+
+  (Backstage 1.55.0) is supported, review whether upstream has improved the
+  standalone-project README and remove this overlay if it has caught up.
+--}}
+# {{pluginId}}
+
+Replace this text with a description of your plugin backend.
+
+## Development
+
+Start the plugin backend in standalone mode:
+
+```bash
+yarn start
+```
+
+This runs the plugin without a full RHDH instance, which is useful for
+iterating on the plugin logic in isolation.
+

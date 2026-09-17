@@ -138,6 +138,12 @@ describe('createPluginProject', () => {
         fs.readFile(path.join(output, '.yarnrc.yml'), 'utf8'),
       ).resolves.toBe('nodeLinker: node-modules\n');
       await expect(
+        fs.readFile(path.join(output, '.gitignore'), 'utf8'),
+      ).resolves.toContain('node_modules');
+      await expect(
+        fs.readFile(path.join(output, '.gitignore'), 'utf8'),
+      ).resolves.toContain('dist-dynamic');
+      await expect(
         fs.readJson(path.join(output, 'backstage.json')),
       ).resolves.toEqual({ version: '1.54.6' });
       await expect(
@@ -222,6 +228,48 @@ describe('createPluginProject', () => {
       }),
     ).rejects.toThrow('Unsupported template');
     expect(mockResolveRhdhVersion).not.toHaveBeenCalled();
+  });
+
+  it('accepts an upstream template name passed as --type (e.g. from the interactive prompt)', async () => {
+    const output = path.join(tmpDir, 'type-as-upstream-name');
+
+    const result = await createPluginProject({
+      name: 'example-plugin',
+      type: 'frontend-plugin',
+      output,
+      rhdhVersion: '2.1.0',
+    });
+
+    expect(result.outputDir).toBe(output);
+    expect(
+      await fs.readFile(path.join(output, 'src/plugin.tsx'), 'utf8'),
+    ).toContain('createFrontendPlugin');
+  });
+
+  it('rejects conflicting --type and --template values before resolving a version', async () => {
+    await expect(
+      createPluginProject({
+        name: 'example-plugin',
+        type: 'frontend',
+        template: 'backend-plugin',
+        output: path.join(tmpDir, 'conflict'),
+      }),
+    ).rejects.toThrow('do not match');
+    expect(mockResolveRhdhVersion).not.toHaveBeenCalled();
+  });
+
+  it('accepts agreeing --type and --template values', async () => {
+    const output = path.join(tmpDir, 'type-template-agree');
+
+    const result = await createPluginProject({
+      name: 'example-plugin',
+      type: 'backend',
+      template: 'backend-plugin',
+      output,
+      rhdhVersion: '2.1.0',
+    });
+
+    expect(result.outputDir).toBe(output);
   });
 
   it('exposes all supported template names', () => {

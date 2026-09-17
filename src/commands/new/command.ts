@@ -113,6 +113,16 @@ function assertPackageName(packageName: string): void {
 }
 
 function resolveTemplateName(options: CreatePluginOptions): string {
+  // If both --type and --template are supplied, they must agree.
+  if (options.template && options.type) {
+    const fromType =
+      templateAliases[options.type as PluginType] ?? options.type;
+    if (fromType !== options.template) {
+      throw new Error(
+        `--type (${options.type}) and --template (${options.template}) do not match.`,
+      );
+    }
+  }
   if (options.template) {
     if (!supportedTemplateNames.includes(options.template)) {
       throw new Error(
@@ -120,6 +130,12 @@ function resolveTemplateName(options: CreatePluginOptions): string {
       );
     }
     return options.template;
+  }
+  // The interactive prompt stores its answer in `type`, which may be either a
+  // friendly alias (e.g. 'frontend') or a full upstream template name
+  // (e.g. 'frontend-plugin'). Accept upstream names directly here.
+  if (options.type && supportedTemplateNames.includes(options.type)) {
+    return options.type;
   }
   if (!options.type || !pluginTypes.includes(options.type as PluginType)) {
     throw new Error(`Plugin type must be one of: ${pluginTypes.join(', ')}.`);
@@ -204,6 +220,24 @@ async function adaptStandaloneProject(
     fs.writeFile(
       path.join(outputDir, '.yarnrc.yml'),
       'nodeLinker: node-modules\n',
+    ),
+    fs.writeFile(
+      path.join(outputDir, '.gitignore'),
+      [
+        'dist',
+        'dist-types',
+        'dist-dynamic',
+        'coverage',
+        'node_modules',
+        '*.local.yaml',
+        '.yarn/*',
+        '!.yarn/patches',
+        '!.yarn/plugins',
+        '!.yarn/releases',
+        '!.yarn/sdks',
+        '!.yarn/versions',
+        '',
+      ].join('\n'),
     ),
     fs.writeJson(
       path.join(outputDir, 'backstage.json'),

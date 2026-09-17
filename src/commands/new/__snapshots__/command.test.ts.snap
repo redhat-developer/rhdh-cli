@@ -16,32 +16,19 @@ exports[`createPluginProject creates a backend plugin project 1`] = `
     "README.md",
     "# example-plugin
 
-This plugin backend was templated using the Backstage CLI. You should replace this text with a description of your plugin backend.
-
-## Installation
-
-This plugin is installed via the \`@internal/backstage-plugin-example-plugin\` package. To install it to your backend package, run the following command:
-
-\`\`\`bash
-# From your root directory
-yarn --cwd packages/backend add @internal/backstage-plugin-example-plugin
-\`\`\`
-
-Then add the plugin to your backend in \`packages/backend/src/index.ts\`:
-
-\`\`\`ts
-const backend = createBackend();
-// ...
-backend.add(import('@internal/backstage-plugin-example-plugin'));
-\`\`\`
+Replace this text with a description of your plugin backend.
 
 ## Development
 
-This plugin backend can be started in a standalone mode from directly in this
-package with \`yarn start\`. It is a limited setup that is most convenient when
-developing the plugin backend itself.
+Start the plugin backend in standalone mode:
 
-If you want to run the entire project, including the frontend, run \`yarn start\` from the root directory.
+\`\`\`bash
+yarn start
+\`\`\`
+
+This runs the plugin without a full RHDH instance, which is useful for
+iterating on the plugin logic in isolation.
+
 
 ## RHDH dynamic plugin export
 
@@ -243,9 +230,8 @@ exports[`createPluginProject creates a catalog-processor-module plugin project 1
     "README.md",
     "# @internal/backstage-plugin-example-plugin
 
-The example-plugin-processor module for [@backstage/plugin-catalog-backend](https://www.npmjs.com/package/@backstage/plugin-catalog-backend).
+The example-plugin-processor module for the RHDH Software Catalog.
 
-_This plugin was created through the Backstage CLI_
 
 ## RHDH dynamic plugin export
 
@@ -376,24 +362,18 @@ exports[`createPluginProject creates a frontend plugin project 1`] = `
     "README.md",
     "# example-plugin
 
-Welcome to the example-plugin plugin!
+Replace this text with a description of your plugin.
 
-_This plugin was created through the Backstage CLI_
+## Development
 
-## Getting started
+Serve the plugin in isolation with the local dev harness:
 
-Your plugin has been added to the app in this repository, meaning you'll be able
-to access it by running \`yarn start\` in the root directory, and then navigating
-to [/example-plugin](http://localhost:3000/example-plugin).
+\`\`\`bash
+yarn start
+\`\`\`
 
-This plugin is built with Backstage's [frontend
-system](https://backstage.io/docs/frontend-system/architecture/index), and you
-can find more information about building plugins in the [plugin builder
-documentation](https://backstage.io/docs/frontend-system/building-plugins/index).
+This starts a standalone development server without requiring a full RHDH instance. The setup for it is in the [./dev](./dev) directory.
 
-You can also serve the plugin in isolation by running \`yarn start\` in the plugin directory.
-This method of serving the plugin provides quicker iteration speed and a faster startup and hot reloads.
-It is only meant for local development, and the setup for it can be found inside the [/dev](./dev) directory.
 
 ## RHDH dynamic plugin export
 
