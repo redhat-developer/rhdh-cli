@@ -160,7 +160,6 @@ describe('createPluginProject', () => {
             'backstage.json',
             'package.json',
             'tsconfig.json',
-            entryPoint,
             ...(type === 'frontend'
               ? [
                   'src/plugin.tsx',
@@ -169,8 +168,8 @@ describe('createPluginProject', () => {
                   'dev/index.tsx',
                 ]
               : []),
-            ...(type === 'backend' ? ['src/router.ts'] : []),
-            ...(type === 'backend' ? ['src/plugin.ts'] : []),
+            ...(type === 'backend' ? ['src/plugin.ts', 'src/router.ts'] : []),
+            ...(type === 'catalog-processor-module' ? ['src/module.ts'] : []),
           ].map(async file => [
             file,
             await fs.readFile(path.join(output, file), 'utf8'),
@@ -238,6 +237,26 @@ describe('createPluginProject', () => {
     ).rejects.toThrow('Plugin name must start');
     expect(mockResolveRhdhVersion).not.toHaveBeenCalled();
   });
+
+  it.each([
+    ['whitespace in name', 'my package', 'valid npm package name'],
+    ['control character', 'pkg\x01name', 'valid npm package name'],
+    ['name exceeding 214 chars', 'a'.repeat(215), '214 characters or fewer'],
+    ['invalid characters', 'My_Package!', 'valid npm package name'],
+  ])(
+    'rejects an invalid --plugin-package value (%s) before resolving a version',
+    async (_label, pluginPackage, expectedError) => {
+      await expect(
+        createPluginProject({
+          name: 'example-plugin',
+          type: 'frontend',
+          pluginPackage,
+          output: tmpDir,
+        }),
+      ).rejects.toThrow(expectedError);
+      expect(mockResolveRhdhVersion).not.toHaveBeenCalled();
+    },
+  );
 
   it('rejects a non-empty output directory', async () => {
     await fs.outputFile(path.join(tmpDir, 'existing'), 'content');

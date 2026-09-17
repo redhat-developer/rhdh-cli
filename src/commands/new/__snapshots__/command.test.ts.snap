@@ -224,42 +224,6 @@ export async function createRouter({
 }
 ",
   ],
-  [
-    "src/plugin.ts",
-    "import {
-  coreServices,
-  createBackendPlugin,
-} from '@backstage/backend-plugin-api';
-import { createRouter } from './router';
-import { todoListServiceRef } from './services/TodoListService';
-
-/**
- * examplePluginPlugin backend plugin
- *
- * @public
- */
-export const examplePluginPlugin = createBackendPlugin({
-  pluginId: 'example-plugin',
-  register(env) {
-    env.registerInit({
-      deps: {
-        httpAuth: coreServices.httpAuth,
-        httpRouter: coreServices.httpRouter,
-        todoList: todoListServiceRef,
-      },
-      async init({ httpAuth, httpRouter, todoList }) {
-        httpRouter.use(
-          await createRouter({
-            httpAuth,
-            todoList,
-          }),
-        );
-      },
-    });
-  },
-});
-",
-  ],
 ]
 `;
 
@@ -527,35 +491,6 @@ npx @red-hat-developer-hub/cli plugin export
     "rootDir": "."
   }
 }
-",
-  ],
-  [
-    "src/plugin.tsx",
-    "import {
-  createFrontendPlugin,
-  PageBlueprint,
-} from '@backstage/frontend-plugin-api';
-
-import { rootRouteRef } from './routes';
-
-export const page = PageBlueprint.make({
-  params: {
-    path: '/example-plugin',
-    routeRef: rootRouteRef,
-    loader: () =>
-      import('./components/TodoPage').then(m => (
-        <m.TodoPage />
-      )),
-  },
-});
-
-export const examplePluginPlugin = createFrontendPlugin({
-  pluginId: 'example-plugin',
-  extensions: [page],
-  routes: {
-    root: rootRouteRef,
-  }
-});
 ",
   ],
   [

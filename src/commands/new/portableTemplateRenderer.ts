@@ -62,7 +62,7 @@ export async function renderPortableTemplate(
   }
 
   for (const file of files) {
-    const relativeFile = file.slice(templateDir.length + 1);
+    const relativeFile = relative(templateDir, file);
     if (relativeFile === 'portable-template.yaml') {
       continue;
     }
@@ -86,7 +86,7 @@ export async function renderPortableTemplate(
       const destination = destinationFile.replace(/\.hbs$/, '');
       const contents = template.compile((await fs.readFile(file)).toString(), {
         strict: true,
-      })({ name: basename(destination), ...values });
+      })({ ...values, name: basename(destination) });
 
       await fs.writeFile(destination, contents).catch(error => {
         throw new Error(

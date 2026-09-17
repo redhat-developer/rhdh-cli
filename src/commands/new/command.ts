@@ -61,6 +61,22 @@ function assertPluginName(name: string): void {
   }
 }
 
+function assertPackageName(packageName: string): void {
+  // npm package name rules: max 214 chars, lowercase, no whitespace or
+  // special characters other than hyphens, dots, underscores, and scoped
+  // package prefixes (@scope/).
+  if (packageName.length > 214) {
+    throw new Error('Package name must be 214 characters or fewer.');
+  }
+  if (
+    !/^(@[a-z0-9-~][a-z0-9-._~]*\/)?[a-z0-9-~][a-z0-9-._~]*$/.test(packageName)
+  ) {
+    throw new Error(
+      'Package name must be a valid npm package name (lowercase, no whitespace or special characters other than hyphens, dots, and underscores).',
+    );
+  }
+}
+
 function resolveTemplateName(options: CreatePluginOptions): string {
   if (!options.type || !pluginTypes.includes(options.type as PluginType)) {
     throw new Error(`Plugin type must be one of: ${pluginTypes.join(', ')}.`);
@@ -214,6 +230,9 @@ export async function createPluginProject(
     );
   }
   assertPluginName(options.name);
+  if (options.pluginPackage) {
+    assertPackageName(options.pluginPackage);
+  }
   const templateName = resolveTemplateName(options);
 
   const outputDir = path.resolve(options.output || options.name);
