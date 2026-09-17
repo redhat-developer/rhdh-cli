@@ -7,7 +7,7 @@ import { log, logSection, runCommand } from './support/plugin-export-build';
 const TEST_TIMEOUT = 5 * 60 * 1000;
 const rhdhCli = path.resolve(__dirname, '../bin/rhdh-cli');
 
-/** Shared install + typecheck + build + export sequence for a generated project. */
+/** Shared install + typecheck + build + test + export sequence for a generated project. */
 async function buildAndExport(pluginDir: string): Promise<void> {
   log(`Installing generated project in ${pluginDir}`);
   await runCommand(
@@ -20,6 +20,9 @@ async function buildAndExport(pluginDir: string): Promise<void> {
 
   log('Building generated project');
   await runCommand('yarn build', { cwd: pluginDir });
+
+  log('Running generated project tests');
+  await runCommand('yarn test --watchAll=false', { cwd: pluginDir });
 
   log('Exporting as a dynamic plugin');
   await runCommand(`"${rhdhCli}" plugin export`, { cwd: pluginDir });

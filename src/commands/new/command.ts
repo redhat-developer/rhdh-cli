@@ -238,7 +238,8 @@ export async function completeInteractiveOptions(
     options.template ||
     (
       await prompt(
-        'Plugin type or template (frontend, backend, catalog-processor-module): ',
+        'Plugin type (frontend, backend, catalog-processor-module) ' +
+          'or upstream template name (frontend-plugin, backend-plugin, catalog-processor-module): ',
       )
     ).trim();
   if (!name || !type) {
