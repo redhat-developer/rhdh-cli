@@ -70,7 +70,7 @@ describe('plugin dev', () => {
       'logs',
       'rhdh',
     ]);
-    expect(composeArgs('logs', false, false, false, true)).toEqual([
+    expect(composeArgs('logs', { follow: true })).toEqual([
       'compose',
       '-f',
       'compose.yaml',
@@ -90,7 +90,7 @@ describe('plugin dev', () => {
       '--format',
       'json',
     ]);
-    expect(composeStatusArgs('docker')).toEqual([
+    expect(composeStatusArgs()).toEqual([
       'compose',
       '-f',
       'compose.yaml',
@@ -101,10 +101,12 @@ describe('plugin dev', () => {
       '--format',
       'json',
     ]);
-    expect(composeArgs('logs', false, false, true)).toContain(
+    expect(composeArgs('logs', { showInstaller: true })).toContain(
       'install-dynamic-plugins',
     );
-    expect(composeArgs('logs', false, true, true)).toEqual([
+    expect(
+      composeArgs('logs', { showRhdh: true, showInstaller: true }),
+    ).toEqual([
       'compose',
       '-f',
       'compose.yaml',
@@ -364,6 +366,27 @@ describe('plugin dev', () => {
 
       // Second call (simulating update) must not fail on existing symlink
       await expect(stagePlugin(runtimeDir)).resolves.toBeUndefined();
+    } finally {
+      delete (global as any).__pluginDevTestDir;
+      await fs.remove(srcDir);
+      await fs.remove(runtimeDir);
+    }
+  });
+
+  it('rejects a package name that would escape local-plugins/', async () => {
+    const srcDir = await fs.mkdtemp(path.join(os.tmpdir(), 'plugin-dev-src-'));
+    const runtimeDir = await fs.mkdtemp(
+      path.join(os.tmpdir(), 'plugin-dev-runtime-'),
+    );
+    (global as any).__pluginDevTestDir = srcDir;
+    try {
+      await fs.writeJson(path.join(srcDir, 'package.json'), {
+        name: '..',
+        version: '0.1.0',
+        backstage: { role: 'backend-plugin' },
+      });
+      await fs.ensureDir(path.join(srcDir, 'dist-dynamic'));
+      await expect(stagePlugin(runtimeDir)).rejects.toThrow('not inside');
     } finally {
       delete (global as any).__pluginDevTestDir;
       await fs.remove(srcDir);

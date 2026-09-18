@@ -16,8 +16,8 @@
 
 import { OptionValues } from 'commander';
 import fs from 'fs-extra';
-import path from 'node:path';
 import YAML from 'yaml';
+import path from 'node:path';
 
 import { execFile, run } from '../../lib/run';
 import { Task } from '../../lib/tasks';
@@ -31,8 +31,6 @@ const requiredRuntimeFiles = [
   'wait-for-plugins-and-start.sh',
 ];
 const generatedConfig = 'configs/dynamic-plugins/rhdh-cli.generated.yaml';
-
-// ── Shared runtime helpers ────────────────────────────────────────────────────
 
 export function resolveRuntimeDir(runtimeDir: string | undefined): string {
   const resolved = runtimeDir ?? process.env.RHDH_LOCAL_DIR;
@@ -83,14 +81,10 @@ async function getRuntimeStatus(
   containerTool: string,
   runtimeDir: string,
 ): Promise<string> {
-  const { stdout } = await execFile(
-    containerTool,
-    composeStatusArgs(containerTool),
-    {
-      cwd: runtimeDir,
-      shell: false,
-    },
-  );
+  const { stdout } = await execFile(containerTool, composeStatusArgs(), {
+    cwd: runtimeDir,
+    shell: false,
+  });
   return formatRuntimeStatus(parseComposeStatus(stdout));
 }
 
@@ -101,8 +95,6 @@ async function compose(
 ) {
   await run(containerTool, args, { cwd: runtimeDir, shell: false });
 }
-
-// ── Subcommand handlers ───────────────────────────────────────────────────────
 
 export async function start(opts: OptionValues) {
   const { runtimeDir, containerTool } = await resolveAndValidate(opts);
@@ -140,7 +132,12 @@ export async function logs(opts: OptionValues) {
   await compose(
     containerTool,
     runtimeDir,
-    composeArgs('logs', opts.all, opts.rhdh, opts.installer, opts.follow),
+    composeArgs('logs', {
+      includeAll: opts.all,
+      showRhdh: opts.rhdh,
+      showInstaller: opts.installer,
+      follow: opts.follow,
+    }),
   );
 }
 
@@ -148,8 +145,6 @@ export async function status(opts: OptionValues) {
   const { runtimeDir, containerTool } = await resolveAndValidate(opts);
   Task.log(await getRuntimeStatus(containerTool, runtimeDir));
 }
-
-// ── Plugin staging ────────────────────────────────────────────────────────────
 
 export async function validateProjectFiles(): Promise<void> {
   const packageJson = await fs.readJson(paths.resolveTarget('package.json'));
@@ -179,10 +174,8 @@ export function resolveDistTypes(): string {
   const targetDir = paths.targetDir;
   const targetRoot = paths.targetRoot;
   if (targetDir === targetRoot) {
-    // Standalone project: dist-types is inside the plugin directory.
     return path.join(targetDir, 'dist-types');
   }
-  // Monorepo workspace: dist-types is at the workspace root, mirroring rootDir.
   const relativePlugin = path.relative(targetRoot, targetDir);
   return path.join(targetRoot, 'dist-types', relativePlugin);
 }
@@ -190,8 +183,19 @@ export function resolveDistTypes(): string {
 export async function stagePlugin(runtimeDir: string): Promise<void> {
   const packageJson = await fs.readJson(paths.resolveTarget('package.json'));
   const pluginName = packageJson.name.replace(/^@/, '').replaceAll('/', '-');
+  const localPluginsDir = path.join(runtimeDir, 'local-plugins');
+  const destination = path.join(localPluginsDir, pluginName);
+
+  // Guard against a crafted package name (e.g. "..") resolving outside
+  // local-plugins/ and causing fs.remove to delete the runtimeDir.
+  const relative = path.relative(localPluginsDir, destination);
+  if (relative.startsWith('..') || path.isAbsolute(relative)) {
+    throw new Error(
+      `Derived plugin directory ${destination} is not inside ${localPluginsDir}. Check the package name in package.json.`,
+    );
+  }
+
   const source = paths.resolveTarget('dist-dynamic');
-  const destination = path.join(runtimeDir, 'local-plugins', pluginName);
   if (!(await fs.pathExists(source))) {
     throw new Error(`Plugin export did not create ${source}.`);
   }
@@ -275,21 +279,27 @@ export async function ensureGeneratedConfigIncluded(
   Task.log(`Added ${generatedConfig} to ${override}.`);
 }
 
-// ── Compose argument builders ─────────────────────────────────────────────────
+type LogsOptions = {
+  includeAll?: boolean;
+  showRhdh?: boolean;
+  showInstaller?: boolean;
+  follow?: boolean;
+};
 
-export function composeStatusArgs(containerTool: string): string[] {
-  const args = composeArgs('status');
-  if (containerTool === 'docker') args.splice(-2, 0, '--all');
-  return args;
+export function composeStatusArgs(): string[] {
+  // Pass --all unconditionally: both Docker Compose and Podman Compose >=1.3
+  // accept it, and without it Podman Compose may omit exited containers from
+  // the output, causing formatRuntimeStatus to misreport the runtime state.
+  return [...composeArgs('status').slice(0, -2), '--all', '--format', 'json'];
 }
 
-export function composeArgs(
-  action: string,
-  includeAll = false,
-  showRhdh = false,
-  showInstaller = false,
-  follow = false,
-): string[] {
+export function composeArgs(action: string, opts: LogsOptions = {}): string[] {
+  const {
+    includeAll = false,
+    showRhdh = false,
+    showInstaller = false,
+    follow = false,
+  } = opts;
   const files = [
     'compose',
     '-f',
@@ -328,8 +338,6 @@ export function composeArgs(
   }
 }
 
-// ── Compose status parsing and formatting ─────────────────────────────────────
-
 type ComposeService = {
   Service?: string;
   Name?: string;
@@ -343,7 +351,15 @@ type ComposeService = {
 export function parseComposeStatus(output: string): ComposeService[] {
   const trimmed = output.trim();
   if (!trimmed) return [];
-  if (trimmed.startsWith('[')) return JSON.parse(trimmed);
+  if (trimmed.startsWith('[')) {
+    try {
+      return JSON.parse(trimmed);
+    } catch {
+      throw new Error(
+        `Unexpected non-JSON array output from compose status: ${trimmed.slice(0, 120)}`,
+      );
+    }
+  }
   return trimmed
     .split('\n')
     .filter(line => line.trim().startsWith('{'))
