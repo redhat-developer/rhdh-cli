@@ -157,13 +157,34 @@ export async function validateProjectFiles(): Promise<void> {
   const isBackend =
     role === 'backend-plugin' || role === 'backend-plugin-module';
   if (isBackend) {
-    const distTypes = paths.resolveTarget('dist-types');
+    const distTypes = resolveDistTypes();
     if (!(await fs.pathExists(distTypes))) {
       throw new Error(
-        `${distTypes} not found. Run \`yarn tsc\` in the plugin directory before using \`plugin dev\`.`,
+        `${distTypes} not found. Run \`yarn tsc\` before using \`plugin dev\`.`,
       );
     }
   }
+}
+
+/**
+ * Resolve the dist-types directory for the current plugin.
+ *
+ * In a standalone project targetDir === targetRoot, so dist-types sits directly
+ * inside the plugin directory. In a Backstage monorepo workspace the workspace
+ * tsconfig.json uses `rootDir: "."` and `outDir: "dist-types"` at the workspace
+ * root, so the compiled types land at:
+ *   <workspaceRoot>/dist-types/<relativePathToPlugin>/
+ */
+export function resolveDistTypes(): string {
+  const targetDir = paths.targetDir;
+  const targetRoot = paths.targetRoot;
+  if (targetDir === targetRoot) {
+    // Standalone project: dist-types is inside the plugin directory.
+    return path.join(targetDir, 'dist-types');
+  }
+  // Monorepo workspace: dist-types is at the workspace root, mirroring rootDir.
+  const relativePlugin = path.relative(targetRoot, targetDir);
+  return path.join(targetRoot, 'dist-types', relativePlugin);
 }
 
 export async function stagePlugin(runtimeDir: string): Promise<void> {

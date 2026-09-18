@@ -4,6 +4,16 @@ import path from 'node:path';
 
 jest.mock('../../lib/paths', () => ({
   paths: {
+    get targetDir() {
+      return (global as any).__pluginDevTestDir ?? os.tmpdir();
+    },
+    get targetRoot() {
+      return (
+        (global as any).__pluginDevTestRoot ??
+        (global as any).__pluginDevTestDir ??
+        os.tmpdir()
+      );
+    },
     resolveTarget: (...segments: string[]) =>
       path.join((global as any).__pluginDevTestDir ?? os.tmpdir(), ...segments),
   },
@@ -14,6 +24,7 @@ import {
   composeStatusArgs,
   formatRuntimeStatus,
   parseComposeStatus,
+  resolveDistTypes,
   resolveRuntimeDir,
   stagePlugin,
   validateContainerTool,
@@ -255,6 +266,56 @@ describe('plugin dev', () => {
     } finally {
       delete (global as any).__pluginDevTestDir;
       await fs.remove(directory);
+    }
+  });
+
+  it('resolves dist-types inside plugin dir for standalone projects', () => {
+    const pluginDir = '/tmp/my-plugin';
+    (global as any).__pluginDevTestDir = pluginDir;
+    // targetRoot === targetDir in standalone — dist-types is inside the plugin
+    expect(resolveDistTypes()).toBe(path.join(pluginDir, 'dist-types'));
+    delete (global as any).__pluginDevTestDir;
+  });
+
+  it('resolves dist-types at monorepo workspace root for monorepo packages', () => {
+    const workspaceRoot = '/tmp/my-workspace';
+    const pluginDir = path.join(workspaceRoot, 'plugins', 'my-backend');
+    (global as any).__pluginDevTestRoot = workspaceRoot;
+    (global as any).__pluginDevTestDir = pluginDir;
+    // targetRoot !== targetDir — dist-types mirrors the plugin's path under root
+    expect(resolveDistTypes()).toBe(
+      path.join(workspaceRoot, 'dist-types', 'plugins', 'my-backend'),
+    );
+    delete (global as any).__pluginDevTestDir;
+    delete (global as any).__pluginDevTestRoot;
+  });
+
+  it('finds dist-types in monorepo workspace root for backend plugins', async () => {
+    const workspaceRoot = await fs.mkdtemp(
+      path.join(os.tmpdir(), 'plugin-dev-root-'),
+    );
+    const pluginDir = path.join(workspaceRoot, 'plugins', 'my-backend');
+    await fs.ensureDir(pluginDir);
+    (global as any).__pluginDevTestRoot = workspaceRoot;
+    (global as any).__pluginDevTestDir = pluginDir;
+    try {
+      await fs.writeJson(path.join(pluginDir, 'package.json'), {
+        name: '@internal/my-backend',
+        version: '0.1.0',
+        backstage: { role: 'backend-plugin' },
+      });
+      // No dist-types yet — should fail with a clear message
+      await expect(validateProjectFiles()).rejects.toThrow('dist-types');
+
+      // Create dist-types at the monorepo root (mirroring rootDir: ".")
+      await fs.ensureDir(
+        path.join(workspaceRoot, 'dist-types', 'plugins', 'my-backend'),
+      );
+      await expect(validateProjectFiles()).resolves.toBeUndefined();
+    } finally {
+      delete (global as any).__pluginDevTestDir;
+      delete (global as any).__pluginDevTestRoot;
+      await fs.remove(workspaceRoot);
     }
   });
 
