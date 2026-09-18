@@ -30,6 +30,14 @@ import prefix, typescript:S4624 nested template literals) before they accumulate
 - Keep human/JSON rendering in `format.ts`, Backstage action invocation in
   `client.ts`, and command-level error presentation in `intent-errors.ts`.
 - Add or update the co-located `*.test.ts` file when changing command behavior.
+- **Use Commander subcommands, not positional arguments, when a command group
+  has distinct actions with different option sets.** Positional arguments
+  (e.g. `plugin dev [action]`) hide the available actions from `--help` and
+  force every option to be shared across all actions, making some combinations
+  nonsensical (e.g. `plugin dev status --configure`). Register each action as
+  its own `.command('action')` with only the flags that apply to it. See
+  `plugin dev` in `src/commands/index.ts` and `src/commands/dev/` for the
+  reference implementation.
 
 ## Architecture
 
@@ -73,15 +81,21 @@ in `templates/plugin-new/` and remove overlays whose upstream has caught up.
 
 ### `plugin dev` — local runtime command
 
-`src/commands/dev/` owns the `rhdh-cli plugin dev` command. It exports the
-current plugin into an existing RHDH Local checkout and drives its Compose
+`src/commands/dev/` owns the `rhdh-cli plugin dev` subcommand group. It exports
+the current plugin into an existing RHDH Local checkout and drives its Compose
 runtime lifecycle.
+
+Each action is a proper Commander subcommand with only the flags that apply to
+it: `start`, `update`, `stop`, `logs`, `status`. The subcommands are registered
+in `src/commands/index.ts` and lazy-load their handlers from `src/commands/dev/`.
 
 Key files:
 
-- `command.ts` — all sub-action logic (`start`, `update`, `stop`, `logs`,
-  `status`), runtime validation, config management, and staging.
-- `index.ts` — re-exports `command` for lazy-loading via `src/commands/index.ts`.
+- `command.ts` — per-subcommand handlers (`start`, `update`, `stop`, `logs`,
+  `status`) plus all shared helpers: runtime validation, config management,
+  plugin staging, Compose argument builders, and status formatting.
+- `index.ts` — re-exports the five handlers for lazy-loading via
+  `src/commands/index.ts`.
 
 **Runtime contract:** `plugin dev` requires an explicit RHDH Local checkout via
 `--rhdh-local-dir <path>` or the `RHDH_LOCAL_DIR` environment variable. It

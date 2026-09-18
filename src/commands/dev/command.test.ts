@@ -10,7 +10,6 @@ jest.mock('../../lib/paths', () => ({
 }));
 
 import {
-  actionsToRun,
   composeArgs,
   composeStatusArgs,
   formatRuntimeStatus,
@@ -153,16 +152,6 @@ describe('plugin dev', () => {
       'Unknown plugin dev action',
     );
     expect(() => validateContainerTool('buildah')).toThrow('Allowed values');
-  });
-
-  it('runs non-destructive cleanup after stop when requested', () => {
-    expect(actionsToRun('stop', true)).toEqual(['stop', 'clean']);
-    expect(actionsToRun('update', false)).toEqual([
-      'install-dynamic-plugins',
-      'stop-rhdh',
-      'start-rhdh',
-    ]);
-    expect(() => actionsToRun('start', true)).toThrow('only supported');
   });
 
   it('uses the command option before RHDH_LOCAL_DIR', () => {
