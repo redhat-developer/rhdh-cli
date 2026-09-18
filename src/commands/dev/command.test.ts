@@ -60,6 +60,16 @@ describe('plugin dev', () => {
       'logs',
       'rhdh',
     ]);
+    expect(composeArgs('logs', false, false, false, true)).toEqual([
+      'compose',
+      '-f',
+      'compose.yaml',
+      '-f',
+      'compose-dynamic-plugins-root.yaml',
+      'logs',
+      '--follow',
+      'rhdh',
+    ]);
     expect(composeArgs('status')).toEqual([
       'compose',
       '-f',
@@ -128,6 +138,14 @@ describe('plugin dev', () => {
         ExitCode: 1,
       },
     ]);
+  });
+
+  it('filters non-JSON lines from compose status output', () => {
+    expect(
+      parseComposeStatus(
+        'WARN[0000] Some deprecation warning\n{"Service":"rhdh","State":"running"}\n',
+      ),
+    ).toEqual([{ Service: 'rhdh', State: 'running' }]);
   });
 
   it('rejects unknown actions and container tools', () => {

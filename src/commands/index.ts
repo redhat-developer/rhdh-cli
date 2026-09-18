@@ -218,6 +218,7 @@ export function registerPluginCommand(program: Command) {
     .option('--all', 'Include every RHDH Local Compose service in log output')
     .option('--rhdh', 'Show RHDH application logs')
     .option('--installer', 'Show dynamic plugin installer logs')
+    .option('--follow', 'Follow log output (plugin dev logs only)')
     .option(
       '--clean',
       'After stopping, remove runtime containers and networks without removing volumes',

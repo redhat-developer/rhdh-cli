@@ -1,12 +1,28 @@
+/*
+ * Copyright 2024 The Backstage Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 import { OptionValues } from 'commander';
 import fs from 'fs-extra';
 import path from 'path';
+import YAML from 'yaml';
 
 import { execFile, run } from '../../lib/run';
 import { Task } from '../../lib/tasks';
 import { paths } from '../../lib/paths';
 import { command as exportCommand } from '../export-dynamic-plugin';
-import YAML from 'yaml';
 
 const requiredRuntimeFiles = [
   'compose.yaml',
@@ -42,7 +58,7 @@ export async function command(action: string | undefined, opts: OptionValues) {
   for (const actionToRun of actions) {
     await run(
       containerTool,
-      composeArgs(actionToRun, opts.all, opts.rhdh, opts.installer),
+      composeArgs(actionToRun, opts.all, opts.rhdh, opts.installer, opts.follow),
       {
         cwd: runtimeDir,
         shell: false,
@@ -97,7 +113,7 @@ export async function validateProjectFiles(): Promise<void> {
 
 export async function stagePlugin(runtimeDir: string): Promise<void> {
   const packageJson = await fs.readJson(paths.resolveTarget('package.json'));
-  const pluginName = packageJson.name.replace(/^@/, '').replace('/', '-');
+  const pluginName = packageJson.name.replace(/^@/, '').replaceAll('/', '-');
   const source = paths.resolveTarget('dist-dynamic');
   const destination = path.join(runtimeDir, 'local-plugins', pluginName);
   if (!(await fs.pathExists(source))) {
@@ -119,6 +135,19 @@ export async function updateGeneratedConfig(
 ): Promise<void> {
   const file = path.join(runtimeDir, generatedConfig);
   await fs.ensureDir(path.dirname(file));
+  if (await fs.pathExists(file)) {
+    try {
+      const existing = YAML.parse(await fs.readFile(file, 'utf8'));
+      const existingPackage = existing?.plugins?.[0]?.package;
+      if (existingPackage && existingPackage !== pluginPackage) {
+        Task.log(
+          `Warning: replacing existing plugin entry (${existingPackage}) with ${pluginPackage}. Only one plugin can be active in ${generatedConfig} at a time.`,
+        );
+      }
+    } catch {
+      // If the file is unreadable or unparseable, overwrite silently.
+    }
+  }
   await fs.writeFile(
     file,
     YAML.stringify({
@@ -224,6 +253,7 @@ export function composeArgs(
   includeAll = false,
   showRhdh = false,
   showInstaller = false,
+  follow = false,
 ): string[] {
   const files = [
     'compose',
@@ -250,7 +280,7 @@ export function composeArgs(
         if (showInstaller) services.push('install-dynamic-plugins');
         if (showRhdh) services.push('rhdh');
       }
-      return [...files, 'logs', ...services];
+      return [...files, 'logs', ...(follow ? ['--follow'] : []), ...services];
     }
     case 'status':
       return [...files, 'ps', '--format', 'json'];
@@ -277,7 +307,18 @@ export function parseComposeStatus(output: string): ComposeService[] {
   const trimmed = output.trim();
   if (!trimmed) return [];
   if (trimmed.startsWith('[')) return JSON.parse(trimmed);
-  return trimmed.split('\n').map(line => JSON.parse(line));
+  return trimmed
+    .split('\n')
+    .filter(line => line.trim().startsWith('{'))
+    .map(line => {
+      try {
+        return JSON.parse(line) as ComposeService;
+      } catch {
+        throw new Error(
+          `Unexpected non-JSON output from compose status: ${line}`,
+        );
+      }
+    });
 }
 
 export function formatRuntimeStatus(services: ComposeService[]): string {
