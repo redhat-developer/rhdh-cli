@@ -135,6 +135,13 @@ describe('plugin dev', () => {
         },
       ]),
     ).toBe('RHDH Local is running (healthy).');
+    // An exited installer with no ExitCode field must not be misreported as a failure.
+    expect(
+      formatRuntimeStatus([
+        { Names: ['rhdh'], State: 'running' },
+        { Names: ['rhdh-plugins-installer'], State: 'exited' },
+      ]),
+    ).toBe('RHDH Local is running.');
   });
 
   it('parses Docker Compose JSON Lines status output', () => {
@@ -382,10 +389,12 @@ describe('plugin dev', () => {
     });
   });
 
-  it('rejects a package name that would escape local-plugins/', async () => {
-    await withStagingDirs('..', async (srcDir, runtimeDir) => {
-      await fs.ensureDir(path.join(srcDir, 'dist-dynamic'));
-      await expect(stagePlugin(runtimeDir)).rejects.toThrow('not inside');
-    });
+  it('rejects package names that would resolve at or outside local-plugins/', async () => {
+    for (const badName of ['..', '@']) {
+      await withStagingDirs(badName, async (srcDir, runtimeDir) => {
+        await fs.ensureDir(path.join(srcDir, 'dist-dynamic'));
+        await expect(stagePlugin(runtimeDir)).rejects.toThrow('not inside');
+      });
+    }
   });
 });
