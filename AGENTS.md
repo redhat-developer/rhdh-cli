@@ -11,6 +11,18 @@
 - Type check single file: not supported — `tsconfig.json` extends Backstage's base config, so `tsc` must run project-wide; use `yarn tsc` and check for errors in the target file
 - Prettier check: `yarn prettier:check` (fix: `yarn prettier:fix`)
 
+## Pre-push Checklist
+
+Run these before every commit that will be pushed to a PR branch:
+
+```bash
+yarn lint:check && yarn prettier:check && yarn tsc
+```
+
+Fix any issues with `yarn lint:fix` and `yarn prettier:fix` before committing.
+SonarCloud runs on every push; address any new issues (typescript:S7772 `node:`
+import prefix, typescript:S4624 nested template literals) before they accumulate.
+
 ## Key Conventions
 
 - CLI command groups are co-located under `src/commands/intent-based-actions/`;
