@@ -90,7 +90,7 @@ describe('plugin dev', () => {
       '--format',
       'json',
     ]);
-    expect(composeStatusArgs()).toEqual([
+    expect(composeStatusArgs('docker')).toEqual([
       'compose',
       '-f',
       'compose.yaml',
@@ -98,6 +98,16 @@ describe('plugin dev', () => {
       'compose-dynamic-plugins-root.yaml',
       'ps',
       '--all',
+      '--format',
+      'json',
+    ]);
+    expect(composeStatusArgs('podman')).toEqual([
+      'compose',
+      '-f',
+      'compose.yaml',
+      '-f',
+      'compose-dynamic-plugins-root.yaml',
+      'ps',
       '--format',
       'json',
     ]);

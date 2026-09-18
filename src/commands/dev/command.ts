@@ -81,10 +81,14 @@ async function getRuntimeStatus(
   containerTool: string,
   runtimeDir: string,
 ): Promise<string> {
-  const { stdout } = await execFile(containerTool, composeStatusArgs(), {
-    cwd: runtimeDir,
-    shell: false,
-  });
+  const { stdout } = await execFile(
+    containerTool,
+    composeStatusArgs(containerTool),
+    {
+      cwd: runtimeDir,
+      shell: false,
+    },
+  );
   return formatRuntimeStatus(parseComposeStatus(stdout));
 }
 
@@ -299,11 +303,15 @@ type LogsOptions = {
   follow?: boolean;
 };
 
-export function composeStatusArgs(): string[] {
-  // Pass --all unconditionally: both Docker Compose and Podman Compose >=1.3
-  // accept it, and without it Podman Compose may omit exited containers from
-  // the output, causing formatRuntimeStatus to misreport the runtime state.
-  return [...composeArgs('status').slice(0, -2), '--all', '--format', 'json'];
+export function composeStatusArgs(containerTool: string): string[] {
+  // Docker Compose requires --all to include exited containers in ps output.
+  // podman-compose does not support --all and includes exited containers by
+  // default (verified with podman-compose 1.3+), so we omit it for podman.
+  const base = composeArgs('status');
+  if (containerTool === 'docker') {
+    base.splice(-2, 0, '--all');
+  }
+  return base;
 }
 
 export function composeArgs(action: string, opts: LogsOptions = {}): string[] {
