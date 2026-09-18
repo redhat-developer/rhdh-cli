@@ -94,7 +94,7 @@ rhdh-cli plugin dev start --configure --rhdh-local-dir /path/to/rhdh-local
 rhdh-cli plugin dev update
 ```
 
-Use `rhdh-cli plugin dev status` for the interpreted runtime state, `rhdh-cli plugin dev logs` for application logs, and `rhdh-cli plugin dev logs --installer` to diagnose installation failures. Stop the runtime with `rhdh-cli plugin dev stop`; add `--clean` to remove containers and networks while retaining volumes, configuration, and plugin artifacts.
+Use `rhdh-cli plugin dev status` for the interpreted runtime state, `rhdh-cli plugin dev logs` for application logs, and `rhdh-cli plugin dev logs --installer` to diagnose installation failures. Stop the runtime with `rhdh-cli plugin dev stop`; add `--clean` to remove containers and networks while retaining volumes, configuration, and plugin artifacts. The default container tool is `podman`; pass `--container-tool docker` if your environment uses Docker instead.
 
 ### Contributing
 
