@@ -58,7 +58,13 @@ export async function command(action: string | undefined, opts: OptionValues) {
   for (const actionToRun of actions) {
     await run(
       containerTool,
-      composeArgs(actionToRun, opts.all, opts.rhdh, opts.installer, opts.follow),
+      composeArgs(
+        actionToRun,
+        opts.all,
+        opts.rhdh,
+        opts.installer,
+        opts.follow,
+      ),
       {
         cwd: runtimeDir,
         shell: false,
