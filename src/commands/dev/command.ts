@@ -16,7 +16,7 @@
 
 import { OptionValues } from 'commander';
 import fs from 'fs-extra';
-import path from 'path';
+import path from 'node:path';
 import YAML from 'yaml';
 
 import { execFile, run } from '../../lib/run';
@@ -347,16 +347,23 @@ export function formatRuntimeStatus(services: ComposeService[]): string {
     item?.ExitCode === undefined ? undefined : String(item.ExitCode);
 
   if (state(installer).includes('exited') && exitCode(installer) !== '0') {
-    return `Plugin installation failed${exitCode(installer) ? ` (exit code ${exitCode(installer)})` : ''}. Run \`rhdh-cli plugin dev logs --installer\` for details.`;
+    const installerCode = exitCode(installer);
+    const installerDetail = installerCode
+      ? ` (exit code ${installerCode})`
+      : '';
+    return `Plugin installation failed${installerDetail}. Run \`rhdh-cli plugin dev logs --installer\` for details.`;
   }
   if (state(rhdh).includes('running')) {
     if (state(installer).includes('running')) {
       return 'RHDH Local is starting while dynamic plugins are installed.';
     }
-    return `RHDH Local is running${rhdh?.Health ? ` (${rhdh.Health})` : ''}.`;
+    const healthDetail = rhdh?.Health ? ` (${rhdh.Health})` : '';
+    return `RHDH Local is running${healthDetail}.`;
   }
   if (rhdh) {
-    return `RHDH Local stopped${exitCode(rhdh) ? ` (exit code ${exitCode(rhdh)})` : ''}. Run \`rhdh-cli plugin dev logs --rhdh\` for details.`;
+    const rhdhCode = exitCode(rhdh);
+    const rhdhDetail = rhdhCode ? ` (exit code ${rhdhCode})` : '';
+    return `RHDH Local stopped${rhdhDetail}. Run \`rhdh-cli plugin dev logs --rhdh\` for details.`;
   }
   return 'RHDH Local is not running.';
 }
