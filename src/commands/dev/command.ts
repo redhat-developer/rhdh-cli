@@ -186,10 +186,16 @@ export async function stagePlugin(runtimeDir: string): Promise<void> {
   const localPluginsDir = path.join(runtimeDir, 'local-plugins');
   const destination = path.join(localPluginsDir, pluginName);
 
-  // Guard against a crafted package name (e.g. "..") resolving outside
-  // local-plugins/ and causing fs.remove to delete the runtimeDir.
+  // Guard against crafted package names (e.g. ".." or "@") resolving to a
+  // path at or outside local-plugins/, which would cause fs.remove to delete
+  // the local-plugins/ directory or the runtimeDir itself.
   const relative = path.relative(localPluginsDir, destination);
-  if (relative.startsWith('..') || path.isAbsolute(relative)) {
+  if (
+    !relative ||
+    relative === '.' ||
+    relative.startsWith('..') ||
+    path.isAbsolute(relative)
+  ) {
     throw new Error(
       `Derived plugin directory ${destination} is not inside ${localPluginsDir}. Check the package name in package.json.`,
     );
@@ -394,7 +400,11 @@ export function formatRuntimeStatus(services: ComposeService[]): string {
   const exitCode = (item: ComposeService | undefined) =>
     item?.ExitCode === undefined ? undefined : String(item.ExitCode);
 
-  if (state(installer).includes('exited') && exitCode(installer) !== '0') {
+  if (
+    state(installer).includes('exited') &&
+    exitCode(installer) !== undefined &&
+    exitCode(installer) !== '0'
+  ) {
     const installerCode = exitCode(installer);
     const installerDetail = installerCode
       ? ` (exit code ${installerCode})`
