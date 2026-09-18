@@ -86,8 +86,13 @@ the current plugin into an existing RHDH Local checkout and drives its Compose
 runtime lifecycle.
 
 Each action is a proper Commander subcommand with only the flags that apply to
-it: `start`, `update`, `stop`, `logs`, `status`. The subcommands are registered
-in `src/commands/index.ts` and lazy-load their handlers from `src/commands/dev/`.
+it: `start`, `update`, `restart`, `stop`, `logs`, `status`. The subcommands are
+registered in `src/commands/index.ts` and lazy-load their handlers from
+`src/commands/dev/`.
+
+`restart` stops and restarts the RHDH service only (no plugin re-export or
+re-staging) — use it when changing RHDH Local configuration without touching
+plugin code. `update` re-exports, re-stages, and then restarts the RHDH service.
 
 Key files:
 

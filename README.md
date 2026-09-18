@@ -94,7 +94,7 @@ rhdh-cli plugin dev start --configure --rhdh-local-dir /path/to/rhdh-local
 rhdh-cli plugin dev update
 ```
 
-Use `rhdh-cli plugin dev status` for the interpreted runtime state, `rhdh-cli plugin dev logs` for application logs, and `rhdh-cli plugin dev logs --installer` to diagnose installation failures. Stop the runtime with `rhdh-cli plugin dev stop`; add `--clean` to remove containers and networks while retaining volumes, configuration, and plugin artifacts. The default container tool is `podman`; pass `--container-tool docker` if your environment uses Docker instead.
+Use `rhdh-cli plugin dev status` for the interpreted runtime state, `rhdh-cli plugin dev logs` for application logs, and `rhdh-cli plugin dev logs --installer` to diagnose installation failures. To restart the RHDH service after changing RHDH Local configuration (without re-deploying the plugin), use `rhdh-cli plugin dev restart`. Stop the runtime with `rhdh-cli plugin dev stop`; add `--clean` to remove containers and networks while retaining volumes, configuration, and plugin artifacts. The default container tool is `podman`; pass `--container-tool docker` if your environment uses Docker instead.
 
 ### Contributing
 
@@ -128,6 +128,7 @@ The CLI provides two categories of commands:
 - `plugin export`: Export a Backstage plugin as a dynamic plugin
 - `plugin package`: Package dynamic plugins for distribution
 - `plugin check-versions`: Verify plugin compatibility with RHDH versions
+- `plugin dev`: Export a dynamic plugin and manage its lifecycle against an existing RHDH Local runtime (`start`, `update`, `restart`, `stop`, `logs`, `status`)
 
 ### Intent-Based RHDH Interaction Commands
 

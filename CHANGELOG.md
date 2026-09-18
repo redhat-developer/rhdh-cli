@@ -14,7 +14,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
-- **`plugin dev`:** New `rhdh-cli plugin dev` command (`start`, `update`, `stop`, `logs`, `status`) for exporting a dynamic plugin and managing its lifecycle against an existing [RHDH Local](https://github.com/redhat-developer/rhdh-local) checkout ([RHIDP-16672](https://redhat.atlassian.net/browse/RHIDP-16672), [#215](https://github.com/redhat-developer/rhdh-cli/pull/215)). Use `--rhdh-local-dir <path>` or `RHDH_LOCAL_DIR` to point at the checkout; `--configure` adds the CLI-managed config include on first use. `plugin dev logs` accepts `--follow` to stream output continuously, `--rhdh` for RHDH application logs, and `--installer` for plugin installer logs.
+- **`plugin dev`:** New `rhdh-cli plugin dev` command (`start`, `update`, `restart`, `stop`, `logs`, `status`) for exporting a dynamic plugin and managing its lifecycle against an existing [RHDH Local](https://github.com/redhat-developer/rhdh-local) checkout ([RHIDP-16672](https://redhat.atlassian.net/browse/RHIDP-16672), [#215](https://github.com/redhat-developer/rhdh-cli/pull/215)). Use `--rhdh-local-dir <path>` or `RHDH_LOCAL_DIR` to point at the checkout; `--configure` adds the CLI-managed config include on first use. `plugin dev restart` restarts the RHDH service without re-deploying the plugin, useful when changing RHDH Local configuration. `plugin dev logs` accepts `--follow` to stream output continuously, `--rhdh` for RHDH application logs, and `--installer` for plugin installer logs.
 
 ### Fixed
 

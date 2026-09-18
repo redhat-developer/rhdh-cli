@@ -243,6 +243,12 @@ export function registerPluginCommand(program: Command) {
     )
     .action(lazy(() => import('./dev').then(m => m.stop)));
 
+  devSharedOptions(dev.command('restart'))
+    .description(
+      'Restart the RHDH service to pick up configuration changes without re-deploying the plugin',
+    )
+    .action(lazy(() => import('./dev').then(m => m.restart)));
+
   devSharedOptions(dev.command('logs'))
     .description('Show logs from the RHDH Local runtime')
     .option('--rhdh', 'Show RHDH application logs (default when no flag given)')
