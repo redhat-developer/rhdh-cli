@@ -124,7 +124,6 @@ export async function stagePlugin(runtimeDir: string): Promise<void> {
   // already exists and contains matching symlinks.
   await fs.remove(destination);
   await fs.copy(source, destination, { dereference: false });
-  await fs.chmod(destination, 0o755);
   await updateGeneratedConfig(runtimeDir, `./local-plugins/${pluginName}`);
   Task.log(`Staged dynamic plugin at ${destination}.`);
 }
