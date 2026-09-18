@@ -32,53 +32,51 @@ const requiredRuntimeFiles = [
 ];
 const generatedConfig = 'configs/dynamic-plugins/rhdh-cli.generated.yaml';
 
-export async function command(action: string | undefined, opts: OptionValues) {
+// ── Shared runtime helpers ────────────────────────────────────────────────────
+
+export function resolveRuntimeDir(runtimeDir: string | undefined): string {
+  const resolved = runtimeDir ?? process.env.RHDH_LOCAL_DIR;
+  if (!resolved) {
+    throw new Error(
+      'Specify --rhdh-local-dir <directory> or set RHDH_LOCAL_DIR to an existing RHDH Local checkout.',
+    );
+  }
+  return resolved;
+}
+
+export async function validateRuntime(runtimeDir: string): Promise<string> {
+  const resolved = path.resolve(runtimeDir);
+  const missing = (
+    await Promise.all(
+      requiredRuntimeFiles.map(async file =>
+        (await fs.pathExists(path.join(resolved, file))) ? undefined : file,
+      ),
+    )
+  ).filter((file): file is string => Boolean(file));
+
+  if (missing.length > 0) {
+    throw new Error(
+      `Invalid RHDH Local directory ${resolved}. Missing required files: ${missing.join(', ')}`,
+    );
+  }
+  return resolved;
+}
+
+export function validateContainerTool(containerTool: string): string {
+  if (containerTool !== 'podman' && containerTool !== 'docker') {
+    throw new Error(
+      `Invalid value for --container-tool: ${containerTool}. Allowed values are: podman, docker`,
+    );
+  }
+  return containerTool;
+}
+
+async function resolveAndValidate(opts: OptionValues) {
   const runtimeDir = await validateRuntime(
     resolveRuntimeDir(opts.rhdhLocalDir),
   );
   const containerTool = validateContainerTool(opts.containerTool);
-  const commandAction = action ?? 'start';
-  const actions = actionsToRun(commandAction, opts.clean);
-
-  if (commandAction === 'start' || commandAction === 'update') {
-    await validateProjectFiles();
-    await ensureGeneratedConfigIncluded(runtimeDir, opts.configure);
-    await exportCommand({
-      build: true,
-      install: true,
-    });
-    await stagePlugin(runtimeDir);
-  }
-
-  if (commandAction === 'status') {
-    Task.log(await getRuntimeStatus(containerTool, runtimeDir));
-    return;
-  }
-
-  for (const actionToRun of actions) {
-    await run(
-      containerTool,
-      composeArgs(
-        actionToRun,
-        opts.all,
-        opts.rhdh,
-        opts.installer,
-        opts.follow,
-      ),
-      {
-        cwd: runtimeDir,
-        shell: false,
-      },
-    );
-  }
-  if (actions.includes('clean')) {
-    Task.log(
-      'Stopped the RHDH Local runtime without removing volumes, configuration, or dynamic plugin artifacts.',
-    );
-  }
-  if (commandAction === 'update') {
-    Task.log(await getRuntimeStatus(containerTool, runtimeDir));
-  }
+  return { runtimeDir, containerTool };
 }
 
 async function getRuntimeStatus(
@@ -96,11 +94,62 @@ async function getRuntimeStatus(
   return formatRuntimeStatus(parseComposeStatus(stdout));
 }
 
-export function composeStatusArgs(containerTool: string): string[] {
-  const args = composeArgs('status');
-  if (containerTool === 'docker') args.splice(-2, 0, '--all');
-  return args;
+async function compose(
+  containerTool: string,
+  runtimeDir: string,
+  args: string[],
+) {
+  await run(containerTool, args, { cwd: runtimeDir, shell: false });
 }
+
+// ── Subcommand handlers ───────────────────────────────────────────────────────
+
+export async function start(opts: OptionValues) {
+  const { runtimeDir, containerTool } = await resolveAndValidate(opts);
+  await validateProjectFiles();
+  await ensureGeneratedConfigIncluded(runtimeDir, opts.configure);
+  await exportCommand({ build: true, install: true });
+  await stagePlugin(runtimeDir);
+  await compose(containerTool, runtimeDir, composeArgs('start'));
+}
+
+export async function update(opts: OptionValues) {
+  const { runtimeDir, containerTool } = await resolveAndValidate(opts);
+  await validateProjectFiles();
+  await exportCommand({ build: true, install: true });
+  await stagePlugin(runtimeDir);
+  for (const action of ['install-dynamic-plugins', 'stop-rhdh', 'start-rhdh']) {
+    await compose(containerTool, runtimeDir, composeArgs(action));
+  }
+  Task.log(await getRuntimeStatus(containerTool, runtimeDir));
+}
+
+export async function stop(opts: OptionValues) {
+  const { runtimeDir, containerTool } = await resolveAndValidate(opts);
+  await compose(containerTool, runtimeDir, composeArgs('stop'));
+  if (opts.clean) {
+    await compose(containerTool, runtimeDir, composeArgs('clean'));
+    Task.log(
+      'Stopped the RHDH Local runtime without removing volumes, configuration, or dynamic plugin artifacts.',
+    );
+  }
+}
+
+export async function logs(opts: OptionValues) {
+  const { runtimeDir, containerTool } = await resolveAndValidate(opts);
+  await compose(
+    containerTool,
+    runtimeDir,
+    composeArgs('logs', opts.all, opts.rhdh, opts.installer, opts.follow),
+  );
+}
+
+export async function status(opts: OptionValues) {
+  const { runtimeDir, containerTool } = await resolveAndValidate(opts);
+  Task.log(await getRuntimeStatus(containerTool, runtimeDir));
+}
+
+// ── Plugin staging ────────────────────────────────────────────────────────────
 
 export async function validateProjectFiles(): Promise<void> {
   const packageJson = await fs.readJson(paths.resolveTarget('package.json'));
@@ -205,52 +254,12 @@ export async function ensureGeneratedConfigIncluded(
   Task.log(`Added ${generatedConfig} to ${override}.`);
 }
 
-export function actionsToRun(action: string, clean: boolean): string[] {
-  if (clean && action !== 'stop') {
-    throw new Error('--clean is only supported with plugin dev stop.');
-  }
-  if (clean) return ['stop', 'clean'];
-  if (action === 'update') {
-    return ['install-dynamic-plugins', 'stop-rhdh', 'start-rhdh'];
-  }
-  return [action];
-}
+// ── Compose argument builders ─────────────────────────────────────────────────
 
-export function resolveRuntimeDir(runtimeDir: string | undefined): string {
-  const resolved = runtimeDir ?? process.env.RHDH_LOCAL_DIR;
-  if (!resolved) {
-    throw new Error(
-      'Specify --rhdh-local-dir <directory> or set RHDH_LOCAL_DIR to an existing RHDH Local checkout.',
-    );
-  }
-  return resolved;
-}
-
-export async function validateRuntime(runtimeDir: string): Promise<string> {
-  const resolved = path.resolve(runtimeDir);
-  const missing = (
-    await Promise.all(
-      requiredRuntimeFiles.map(async file =>
-        (await fs.pathExists(path.join(resolved, file))) ? undefined : file,
-      ),
-    )
-  ).filter((file): file is string => Boolean(file));
-
-  if (missing.length > 0) {
-    throw new Error(
-      `Invalid RHDH Local directory ${resolved}. Missing required files: ${missing.join(', ')}`,
-    );
-  }
-  return resolved;
-}
-
-export function validateContainerTool(containerTool: string): string {
-  if (containerTool !== 'podman' && containerTool !== 'docker') {
-    throw new Error(
-      `Invalid value for --container-tool: ${containerTool}. Allowed values are: podman, docker`,
-    );
-  }
-  return containerTool;
+export function composeStatusArgs(containerTool: string): string[] {
+  const args = composeArgs('status');
+  if (containerTool === 'docker') args.splice(-2, 0, '--all');
+  return args;
 }
 
 export function composeArgs(
@@ -293,10 +302,12 @@ export function composeArgs(
       return [...files, 'down'];
     default:
       throw new Error(
-        `Unknown plugin dev action: ${action}. Use start, update, stop, logs, status, or clean.`,
+        `Unknown plugin dev action: ${action}. Use start, update, stop, logs, or status.`,
       );
   }
 }
+
+// ── Compose status parsing and formatting ─────────────────────────────────────
 
 type ComposeService = {
   Service?: string;
