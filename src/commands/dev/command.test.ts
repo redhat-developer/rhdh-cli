@@ -321,19 +321,32 @@ describe('plugin dev', () => {
     }
   });
 
-  it('copies staged plugin without following symlinks', async () => {
+  async function withStagingDirs(
+    packageName: string,
+    fn: (srcDir: string, runtimeDir: string) => Promise<void>,
+  ) {
     const srcDir = await fs.mkdtemp(path.join(os.tmpdir(), 'plugin-dev-src-'));
     const runtimeDir = await fs.mkdtemp(
       path.join(os.tmpdir(), 'plugin-dev-runtime-'),
     );
     (global as any).__pluginDevTestDir = srcDir;
     try {
-      // Simulate a dist-dynamic layout with a .bin symlink
       await fs.writeJson(path.join(srcDir, 'package.json'), {
-        name: '@internal/my-plugin',
+        name: packageName,
         version: '0.1.0',
         backstage: { role: 'backend-plugin' },
       });
+      await fn(srcDir, runtimeDir);
+    } finally {
+      delete (global as any).__pluginDevTestDir;
+      await fs.remove(srcDir);
+      await fs.remove(runtimeDir);
+    }
+  }
+
+  it('copies staged plugin without following symlinks', async () => {
+    await withStagingDirs('@internal/my-plugin', async (srcDir, runtimeDir) => {
+      // Simulate a dist-dynamic layout with a .bin symlink
       await fs.ensureDir(
         path.join(srcDir, 'dist-dynamic', 'node_modules', '.bin'),
       );
@@ -366,31 +379,13 @@ describe('plugin dev', () => {
 
       // Second call (simulating update) must not fail on existing symlink
       await expect(stagePlugin(runtimeDir)).resolves.toBeUndefined();
-    } finally {
-      delete (global as any).__pluginDevTestDir;
-      await fs.remove(srcDir);
-      await fs.remove(runtimeDir);
-    }
+    });
   });
 
   it('rejects a package name that would escape local-plugins/', async () => {
-    const srcDir = await fs.mkdtemp(path.join(os.tmpdir(), 'plugin-dev-src-'));
-    const runtimeDir = await fs.mkdtemp(
-      path.join(os.tmpdir(), 'plugin-dev-runtime-'),
-    );
-    (global as any).__pluginDevTestDir = srcDir;
-    try {
-      await fs.writeJson(path.join(srcDir, 'package.json'), {
-        name: '..',
-        version: '0.1.0',
-        backstage: { role: 'backend-plugin' },
-      });
+    await withStagingDirs('..', async (srcDir, runtimeDir) => {
       await fs.ensureDir(path.join(srcDir, 'dist-dynamic'));
       await expect(stagePlugin(runtimeDir)).rejects.toThrow('not inside');
-    } finally {
-      delete (global as any).__pluginDevTestDir;
-      await fs.remove(srcDir);
-      await fs.remove(runtimeDir);
-    }
+    });
   });
 });
