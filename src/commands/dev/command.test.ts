@@ -167,6 +167,23 @@ describe('plugin dev', () => {
     ).toEqual([{ Service: 'rhdh', State: 'running' }]);
   });
 
+  it('parses Podman Compose JSON array status output', () => {
+    expect(
+      parseComposeStatus(
+        '[{"Service":"rhdh","State":"running"},{"Service":"install-dynamic-plugins","State":"exited","ExitCode":0}]',
+      ),
+    ).toEqual([
+      { Service: 'rhdh', State: 'running' },
+      { Service: 'install-dynamic-plugins', State: 'exited', ExitCode: 0 },
+    ]);
+  });
+
+  it('throws a compose-specific error for malformed JSON array status output', () => {
+    expect(() => parseComposeStatus('[not json')).toThrow(
+      'Unexpected non-JSON array output from compose status',
+    );
+  });
+
   it('rejects unknown actions and container tools', () => {
     expect(() => composeArgs('remove-volumes')).toThrow(
       'Unknown plugin dev action',

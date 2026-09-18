@@ -127,6 +127,13 @@ export async function stop(opts: OptionValues) {
   }
 }
 
+export async function restart(opts: OptionValues) {
+  const { runtimeDir, containerTool } = await resolveAndValidate(opts);
+  await compose(containerTool, runtimeDir, composeArgs('stop-rhdh'));
+  await compose(containerTool, runtimeDir, composeArgs('start-rhdh'));
+  Task.log(await getRuntimeStatus(containerTool, runtimeDir));
+}
+
 export async function logs(opts: OptionValues) {
   const { runtimeDir, containerTool } = await resolveAndValidate(opts);
   await compose(

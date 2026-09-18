@@ -14,4 +14,4 @@
  * limitations under the License.
  */
 
-export { start, update, stop, logs, status } from './command';
+export { start, update, restart, stop, logs, status } from './command';
