@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## Unreleased
 
+### Added
+
+- **`plugin dev`:** New `rhdh-cli plugin dev` command (`start`, `update`, `restart`, `stop`, `logs`, `status`) for exporting a dynamic plugin and managing its lifecycle against an existing [RHDH Local](https://github.com/redhat-developer/rhdh-local) checkout ([RHIDP-16672](https://redhat.atlassian.net/browse/RHIDP-16672), [#215](https://github.com/redhat-developer/rhdh-cli/pull/215)). Use `--rhdh-local-dir <path>` or `RHDH_LOCAL_DIR` to point at the checkout; `--configure` adds the CLI-managed config include on first use. `plugin dev restart` restarts the RHDH service without re-deploying the plugin, useful when changing RHDH Local configuration. `plugin dev logs` accepts `--follow` to stream output continuously, `--rhdh` for RHDH application logs, and `--installer` for plugin installer logs.
+
+### Fixed
+
+- **`plugin new`:** Generated `package.json` now always includes a `version` field (defaults to `0.1.0`). Upstream standalone templates omit it, but `plugin export` and `npm pack` both require a version to produce a valid package tarball.
+- **`plugin export`:** Both backend and frontend export paths now validate that `package.json` contains a `version` field before invoking `npm pack`, and emit a clear error instructing users to add one. Plugins without a `version` field would previously fail silently inside the RHDH Local installer container. **Existing plugins that omit `version` will now fail at export time** — add `"version": "0.1.0"` (or higher) to their `package.json`.
+- **`plugin export`:** `ensureDir` is now called before writing the config schema file, preventing failures when the parent directory does not exist.
+
 ### Changed
 
 - **`plugin new`:** Replace RHDH-owned template files with the portable template assets published by the release-matched `@backstage/cli-module-new` package (`0.1.6` for RHDH 2.1 / Backstage 1.54.6). The RHDH adapter supplies standalone `backstage.json`, Yarn Berry configuration, TypeScript configuration, RHDH export guidance, and dev harnesses. All `@backstage/*` direct dependencies are pinned from the target release manifest; transitive ranges remain upstream-managed.

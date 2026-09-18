@@ -80,6 +80,22 @@ Supported types are `frontend` (a New Frontend System, or NFS, page), `backend` 
 
 ## Development
 
+### Testing a Plugin in RHDH Local
+
+Use `plugin dev` from a generated or existing dynamic plugin project to export it and run it against an existing RHDH Local checkout. The command requires the checkout path on its first use:
+
+```bash
+rhdh-cli plugin dev start --configure --rhdh-local-dir /path/to/rhdh-local
+```
+
+`--configure` adds the CLI-managed plugin configuration include without replacing existing user configuration. Set `RHDH_LOCAL_DIR` to avoid repeating the path. After changing plugin source, refresh the staged plugin and RHDH service with:
+
+```bash
+rhdh-cli plugin dev update
+```
+
+Use `rhdh-cli plugin dev status` for the interpreted runtime state, `rhdh-cli plugin dev logs` for application logs, and `rhdh-cli plugin dev logs --installer` to diagnose installation failures. To restart the RHDH service after changing RHDH Local configuration (without re-deploying the plugin), use `rhdh-cli plugin dev restart`. Stop the runtime with `rhdh-cli plugin dev stop`; add `--clean` to remove containers and networks while retaining volumes, configuration, and plugin artifacts. The default container tool is `podman`; pass `--container-tool docker` if your environment uses Docker instead.
+
 ### Contributing
 
 ### Build and Run Locally
@@ -112,6 +128,7 @@ The CLI provides two categories of commands:
 - `plugin export`: Export a Backstage plugin as a dynamic plugin
 - `plugin package`: Package dynamic plugins for distribution
 - `plugin check-versions`: Verify plugin compatibility with RHDH versions
+- `plugin dev`: Export a dynamic plugin and manage its lifecycle against an existing RHDH Local runtime (`start`, `update`, `restart`, `stop`, `logs`, `status`)
 
 ### Intent-Based RHDH Interaction Commands
 

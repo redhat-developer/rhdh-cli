@@ -206,6 +206,10 @@ async function adaptStandaloneProject(
   const packageJsonPath = path.join(outputDir, 'package.json');
   const packageJson = await fs.readJson(packageJsonPath);
   packageJson.packageManager = profile.packageManager;
+  // Ensure a version field is present. Upstream standalone templates omit it
+  // (they are private packages), but `plugin export` and `npm pack` both
+  // require name + version to produce a valid package tarball.
+  packageJson.version ??= '0.1.0';
   packageJson.devDependencies = {
     ...packageJson.devDependencies,
     ...profile.devDependencies,

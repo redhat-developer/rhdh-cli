@@ -68,6 +68,15 @@ export async function frontend(
 ): Promise<string> {
   const originalPkg = await fs.readJson(paths.resolveTarget('package.json'));
   const { name, files } = originalPkg;
+  if (!originalPkg.version) {
+    throw new Error(
+      `Package ${chalk.cyan(name)} is missing a ${chalk.cyan(
+        'version',
+      )} field. Add a version to its ${chalk.cyan(
+        'package.json',
+      )} before exporting as a dynamic plugin.`,
+    );
+  }
 
   if (opts.clean) {
     await fs.remove(path.join(paths.targetDir, 'dist'));
