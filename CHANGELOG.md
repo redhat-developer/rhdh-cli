@@ -26,6 +26,135 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - Dependency bumps: `follow-redirects` 1.16.0, `vm2` 3.11.5, `ws` 8.20.1, `webpack-dev-server` 5.2.4, and others.
 
+## [Unreleased]
+
+### Added
+
+- **`plugin dev`:** New `rhdh-cli plugin dev` command (`start`, `update`, `restart`, `stop`, `logs`, `status`) for exporting a dynamic plugin and managing its lifecycle against an existing [RHDH Local](https://github.com/redhat-developer/rhdh-local) checkout ([RHIDP-16672](https://redhat.atlassian.net/browse/RHIDP-16672), [#215](https://github.com/redhat-developer/rhdh-cli/pull/215)). Use `--rhdh-local-dir <path>` or `RHDH_LOCAL_DIR` to point at the checkout; `--configure` adds the CLI-managed config include on first use. `plugin dev restart` restarts the RHDH service without re-deploying the plugin, useful when changing RHDH Local configuration. `plugin dev logs` accepts `--follow` to stream output continuously, `--rhdh` for RHDH application logs, and `--installer` for plugin installer logs.
+
+### Fixed
+
+- **`plugin new`:** Generated `package.json` now always includes a `version` field (defaults to `0.1.0`). Upstream standalone templates omit it, but `plugin export` and `npm pack` both require a version to produce a valid package tarball.
+- **`plugin export`:** Both backend and frontend export paths now validate that `package.json` contains a `version` field before invoking `npm pack`, and emit a clear error instructing users to add one. Plugins without a `version` field would previously fail silently inside the RHDH Local installer container. **Existing plugins that omit `version` will now fail at export time** — add `"version": "0.1.0"` (or higher) to their `package.json`.
+- **`plugin export`:** `ensureDir` is now called before writing the config schema file, preventing failures when the parent directory does not exist.
+
+## 2.1.0 - 2026-09-21
+
+### Changed
+
+- **Frontend plugin export:** Improved module federation sharing configuration to optimize bundle sizes and reduce duplicate dependencies across dynamic plugins. A curated list of common dependencies and transitive dependencies are now shared by default, with version requirements respected when appropriate for better runtime performance.
+
+## 2.1.0 (unpublished) - 2026-09-17
+
+### Changed
+
+- **`plugin new`:** Replace RHDH-owned template files with the portable template assets published by the release-matched `@backstage/cli-module-new` package (`0.1.6` for RHDH 2.1 / Backstage 1.54.6). The RHDH adapter supplies standalone `backstage.json`, Yarn Berry configuration, TypeScript configuration, RHDH export guidance, and dev harnesses. All `@backstage/*` direct dependencies are pinned from the target release manifest; transitive ranges remain upstream-managed.
+- **`plugin new` (package name convention):** The default generated `package.json` `name` no longer carries a type suffix. Previously, the RHDH-owned backend template appended `-backend` (producing `@internal/backstage-plugin-<name>-backend`) and the catalog processor module template appended a similar suffix; the upstream `@backstage/cli-module-new` templates use a flat `@internal/backstage-plugin-<name>` for all types. Scripts or CI configurations that reference the old type-suffixed name should update accordingly, or pass `--plugin-package @internal/backstage-plugin-<name>-backend` to restore the previous name.
+
+### Added
+
+- **`plugin new --template <name>`:** Select a generated project type using the upstream portable template name (`frontend-plugin`, `backend-plugin`, `catalog-processor-module`) as an alternative to `--type`. Only templates with end-to-end test coverage are accepted. Passing an unsupported template name produces a clear error listing the accepted values.
+- **`plugin new --module-id <id>`:** Override the module identifier for module-type templates (e.g. `catalog-processor-module`). Defaults to the plugin name when omitted, preserving non-interactive behaviour.
+- **`plugin new --plugin-package <name>`:** Set the generated `package.json` `name` field. Validated against npm package name rules (lowercase, max 214 chars, no whitespace or special characters). Defaults to `@internal/backstage-plugin-<name>`.
+
+### Fixed
+
+- **`plugin new` (frontend):** Generated frontend plugin tests now pass under Node 18+ without modification. The upstream `@backstage/cli-module-new` 0.1.6 template pinned `msw@1.0.0`, whose `setupServer()` does not intercept `globalThis.fetch` used by Backstage's `fetchApiRef` in tests, causing the generated `TodoPage` test to time out. Three RHDH template overlay files patch the generated project: the test is updated to the MSW v2 API (`http`/`HttpResponse`); `setupTests.ts` exposes the Web API globals (`TextEncoder`, `BroadcastChannel`, etc.) missing from Jest 29 + jsdom; and `package.json` gains `jest.testEnvironmentOptions.customExportConditions` so Jest 29 resolves MSW v2's `msw/node` package-exports subpath. These overlays will be removed when RHDH targets `@backstage/cli-module-new` 0.1.7+ (Backstage 1.55.0).
+
+## 2.1.0 (unpublished) - 2026-09-16
+
+### Changed
+
+- **Frontend plugin export:** Frontend plugins now use Backstage standard module federation exclusively. The generated remote assets are written to `dist/`, including `dist/remoteEntry.js`.
+- Removed the frontend export options `--scalprum-config`, `--generate-scalprum-assets`, `--no-generate-scalprum-assets`, `--generate-module-federation-assets`, and `--no-generate-module-federation-assets`. Frontend module-federation assets are now always generated during `plugin export`.
+- Removed the legacy Scalprum frontend bundler and the `plugin build` and `plugin start` commands.
+- Frontend exports warn when legacy `dist-scalprum/`, `plugin-manifest.json`, or `scalprum` package metadata is still present. Legacy content does not provide a fallback; normal NFS build/export failures still fail the export.
+- Migration guidance: Remove the deleted frontend export options from scripts and CI jobs.
+- Migration guidance: Update integrations that read `dist-scalprum/plugin-manifest.json` to use the standard module-federation output under `dist/` and NFS metadata in `backstage.features`.
+- Migration guidance: Remove `dist-scalprum` and related glob entries from frontend plugin `files` fields and clean any checked-in legacy output before exporting with rhdh-cli 2.1.0.
+
+## 2.0.9 (unpublished) - 2026-09-15
+
+### Added
+
+- Add intent-based `catalog`, `api`, `search`, `docs`, and `template` command groups for querying and managing RHDH through Backstage actions. These commands support human-readable and JSON output, multi-instance targeting, structured errors, and entity reference disambiguation ([RHIDP-14129](https://redhat.atlassian.net/browse/RHIDP-14129), [#156](https://github.com/redhat-developer/rhdh-cli/pull/156)).
+
+## 2.0.8 - 2026-09-15
+
+### Fixed
+
+- **`plugin new`:** Add the missing `jest-environment-jsdom` development dependency to generated projects so `yarn test` runs successfully.
+
+## 2.0.7 - 2026-09-14
+
+### Added
+
+- **`plugin new`:** Add `rhdh-cli plugin new <name>` to create standalone, version-pinned frontend, backend, and catalog processor module dynamic plugin projects ([RHIDP-16671](https://redhat.atlassian.net/browse/RHIDP-16671), [RHIDP-16668](https://redhat.atlassian.net/browse/RHIDP-16668), [#202](https://github.com/redhat-developer/rhdh-cli/pull/202)). Generated projects use the selected RHDH release's Backstage manifest and Yarn 4 configuration.
+
+### Fixed
+
+- Update the RHDH 2.1.0, `main`, and `next` compatibility mappings to Backstage 1.54.6.
+- Fall back to the requested RHDH version when remote metadata returns an invalid version value.
+
+## 2.0.6 - 2026-09-11
+
+### Added
+
+- **`plugin upgrade`:** Add `rhdh-cli plugin upgrade <version>` (alias `plugin versions:bump`) command ([RHIDP-16666](https://redhat.atlassian.net/browse/RHIDP-16666)). Automatically aligns all `@backstage/*` package dependencies in `package.json` (`dependencies`, `devDependencies`, `peerDependencies`) and `backstage.json` to the exact manifest versions for a target RHDH release, preserving range specifiers and non-manifest dependencies. Supports `--dry-run`, `--skip-install`, and offline `--manifest-file` options.
+
+## 2.0.5 - 2026-09-04
+
+### Added
+
+- **`plugin check-versions`:** Add `rhdh-cli plugin check-versions` (alias `plugin versions:lint`) command and RHDH-to-Backstage version mapping engine ([RHIDP-16665](https://redhat.atlassian.net/browse/RHIDP-16665), [RHIDP-16667](https://redhat.atlassian.net/browse/RHIDP-16667), [#176](https://github.com/redhat-developer/rhdh-cli/pull/176)). Supports auditing `@backstage/*` dependencies in `package.json` against target RHDH release manifests using a 3-tier resolution engine (remote GitHub build-metadata, embedded static compatibility matrix fallback, and Backstage release manifests).
+
+## 2.0.4 - 2026-08-27
+
+### Added
+
+- Expose the bundled Backstage CLI's intent-based `auth` and `actions` commands through `rhdh-cli` ([#167](https://github.com/redhat-developer/rhdh-cli/pull/167)). The new pass-through commands support logging in to and managing authenticated RHDH instances, as well as listing and executing actions and managing action-discovery sources. Arguments and exit codes are forwarded to the bundled CLI, while command output is rebranded as `rhdh-cli`.
+
+## 2.0.3 - 2026-08-25
+
+### Fixed
+
+- **`plugin package`:** Re-throw errors after logging to ensure proper exit codes ([RHDHBUGS-3556](https://redhat.atlassian.net/browse/RHDHBUGS-3556)). The catch block in the packaging command was swallowing errors after logging them, causing the CLI to exit with code 0 even when packaging failed. This prevented wrapper scripts (like `export-dynamic.sh`) from detecting failures and caused them to attempt pushing non-existent container images. Errors are now re-thrown after logging, ensuring the CLI exits with a non-zero code and failures are properly propagated to calling scripts.
+
+- **`plugin package`:** Work around npm pack failures with very long paths ([RHDHBUGS-3556](https://redhat.atlassian.net/browse/RHDHBUGS-3556)). The `npm pack` command can fail with an internal error ("Exit handler never called!") when run from a directory with a very long absolute path (observed with `search-backend-module-github-discussions` in community-plugins). To avoid this npm bug, the `dist-dynamic` contents are now copied to a temporary directory with a shorter path before running `npm pack`. The temporary directory is cleaned up automatically.
+
+## 2.0.2 - 2026-08-24
+
+### Fixed
+
+- **`plugin package`:** Prevent publishing OCI images with empty plugin registry metadata ([RHDHBUGS-3633](https://redhat.atlassian.net/browse/RHDHBUGS-3633)). The command now fails immediately if any plugin export fails or does not produce the expected `dist-dynamic` directory. Previously, export failures were logged but did not stop the packaging process, and if all exports failed, the command would still create and publish an OCI image with an empty `io.backstage.dynamic-packages` annotation (`[]` encoded as base64), causing the RHDH installer to silently register nothing. This fail-fast behavior matches the `export-dynamic.sh` script used in CI and prevents broken images from being published.
+
+## 2.0.1 - 2026-08-07
+
+### Fixed
+
+- Resolve `workspace:` / `backstage:` protocol specifiers in `peerDependencies` and pin resolved versions in `resolutions` to prevent dependency drift.
+- Trap yarn install failures, surface `/tmp` install logs, and stop on error instead of continuing ([RHDHBUGS-2819](https://redhat.atlassian.net/browse/RHDHBUGS-2819)).
+
+### Changed
+
+- Bump Yarn Berry from 3.8.6 to 4.17.1 and Node baseline to 24 ([#159](https://github.com/redhat-developer/rhdh-cli/pull/159)).
+- Update `@backstage/cli` to 0.35.4.
+
+## 1.11.4 - 2026-07-30
+
+### Fixed
+
+- Propagate monorepo root yarn resolutions to dynamic plugin exports:
+  read resolutions from the monorepo root `package.json` and propagate
+  them to the generated `dist-dynamic/package.json`, filtering out `patch:`
+  resolutions.
+
+## 1.11.3 - 2026-07-20
+
+### Fixed
+
+- Added missing `backstage.features` field to generated `dist-dynamic/package.json` files in case of standard Module Federation asset generation.
+
 ## 1.11.0 - 2026-05-08
 
 ### Changed

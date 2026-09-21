@@ -1,0 +1,61 @@
+{{!--
+  RHDH overlay for the upstream @backstage/cli-module-new 0.1.6 frontend-plugin
+  template (Backstage 1.54.6). The upstream file uses the MSW v1 API
+  (import { rest } from 'msw'; rest.get(..., (_, res, ctx) => res(ctx.json(...)))).
+  MSW v1's setupServer() does not intercept globalThis.fetch (used by
+  Backstage's fetchApiRef in @backstage/frontend-test-utils), causing
+  findByText() to time out on Node 18+.
+
+  This overlay upgrades the generated test to the MSW v2 API
+  (import { http, HttpResponse } from 'msw') which correctly intercepts
+  native Node.js fetch. The msw@^2 dev dependency is injected by the
+  RHDH 2.1 frontend-plugin role overlay in rhdhProfiles.ts.
+
+  When the RHDH release targeting @backstage/cli-module-new 0.1.7+
+  (Backstage 1.55.0) is added to rhdhProfiles.ts, verify whether this
+  overlay is still needed and remove it if the upstream has caught up.
+--}}
+import { screen } from '@testing-library/react';
+import { http, HttpResponse } from 'msw';
+import { setupServer } from 'msw/node';
+import {
+  registerMswTestHooks,
+  renderInTestApp,
+} from '@backstage/frontend-test-utils';
+import { TodoPage } from './TodoPage';
+
+describe('TodoPage', () => {
+  const server = setupServer();
+  registerMswTestHooks(server);
+
+  it('renders todos from the backend', async () => {
+    server.use(
+      http.get('*/api/{{pluginId}}/todos', () =>
+        HttpResponse.json({
+          items: [
+            { id: '1', title: 'Mocked task', createdBy: 'user:default/guest', createdAt: '2025-01-01T00:00:00.000Z' },
+          ],
+        }),
+      ),
+    );
+
+    await renderInTestApp(<TodoPage />);
+
+    expect(await screen.findByText('Mocked task')).toBeInTheDocument();
+  });
+
+  it('falls back to example data when the backend fails', async () => {
+    server.use(
+      http.get('*/api/{{pluginId}}/todos', () =>
+        HttpResponse.json(
+          { message: 'Internal Server Error' },
+          { status: 500 },
+        ),
+      ),
+    );
+
+    await renderInTestApp(<TodoPage />);
+
+    expect(await screen.findByText('Install the backend plugin')).toBeInTheDocument();
+  });
+});

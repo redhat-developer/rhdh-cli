@@ -37,7 +37,7 @@ type Item = {
 const filterPackages = (depName: string) => {
   // reject all core dependencies
   if (depName.startsWith('@backstage/')) {
-    // make an exception for Backstage core plugins (used in plugin wrappers) unless they are common to all Backstage instances
+    // make an exception for Backstage core plugins unless they are common to all Backstage instances
     if (depName.startsWith('@backstage/plugin-')) {
       if (
         depName.startsWith('@backstage/plugin-catalog-') ||

@@ -17,6 +17,17 @@ This new CLI aims to offer more flexibility and ease of use compared to the prev
 > | `npx @janus-idp/cli package package-dynamic-plugins` | `npx @red-hat-developer-hub/cli plugin package` |
 <!-- prettier-ignore-end -->
 
+## Migrating to 2.1.0
+
+Version 2.1.0 is a breaking release for frontend plugin export. Scalprum support has been removed and frontend exports now use Backstage standard module federation and NFS metadata only.
+
+Update frontend plugin scripts and CI jobs as follows:
+
+- Remove `--scalprum-config`, `--generate-scalprum-assets`, `--no-generate-scalprum-assets`, `--generate-module-federation-assets`, and `--no-generate-module-federation-assets` from `rhdh-cli plugin export` invocations. Standard module-federation assets are now generated automatically.
+- Replace consumers of `dist-scalprum/plugin-manifest.json` with the generated assets under `dist/`, including `dist/remoteEntry.js`, and use `backstage.features` for NFS feature metadata.
+- Remove `dist-scalprum` and related glob entries from frontend plugin `files` fields, and delete any checked-in or stale `dist-scalprum` output before exporting. CLI 2.1.0 warns about legacy Scalprum content; it does not provide a Scalprum fallback, so normal NFS build/export failures still fail the export.
+- The legacy `plugin build` and `plugin start` commands are no longer available.
+
 ## `plugin package` requirements
 
 The `plugin package` command stages each `dist-dynamic` plugin with `npm pack` and `tar` (via a short bash script). The following must be available on your `PATH`:
@@ -29,7 +40,63 @@ On Windows, use Git Bash or WSL so these tools are available.
 
 When you build an OCI image with `--tag` (instead of exporting to a directory with `--export-to`), a container build tool must also be on `PATH`. **podman** is the default; you can select **docker** or **buildah** with `--container-tool` (for example `--container-tool docker`). Directory-only exports with `--export-to` do not need a container tool.
 
+## Checking Plugin Versions
+
+Use `plugin check-versions` to compare a plugin's `@backstage/*` dependencies with the Backstage release used by an RHDH version:
+
+```bash
+rhdh-cli plugin check-versions --rhdh-version 2.0.0
+```
+
+Use `--json` for machine-readable output. To target a Backstage version directly, prefix it with `backstage:`, for example `--rhdh-version backstage:1.54.0`.
+
+For air-gapped environments, provide a local release manifest with `--manifest-file`. `--manifest-file` avoids the Backstage manifest download; also set `RHDH_OFFLINE=true` to skip the RHDH GitHub metadata lookup.
+
+When adding support for a new RHDH release, update `RHDH_COMPATIBILITY_MATRIX` in `src/lib/rhdhVersion.ts` with its Backstage version before releasing the corresponding CLI version. This matrix is maintained manually until its release metadata can be automated.
+
+## Upgrading Plugin Versions
+
+Use `plugin upgrade` to update a plugin's `@backstage/*` dependencies to the versions from an RHDH release manifest:
+
+```bash
+rhdh-cli plugin upgrade --rhdh-version 2.0.0
+```
+
+The command also accepts the RHDH version as a positional argument, for example `rhdh-cli plugin upgrade 2.0.0`. Its `plugin versions:bump` alias provides the same behavior.
+
+Use `--dry-run` to preview dependency changes without writing files and `--skip-install` to avoid updating the lockfile after applying changes. Use `--json` for machine-readable output.
+
+For air-gapped environments, provide a local Backstage release manifest with `--manifest-file` and set `RHDH_OFFLINE=true` to skip the RHDH GitHub metadata lookup.
+
+## Creating a Plugin
+
+Use `plugin new` to create a standalone, version-pinned dynamic plugin project:
+
+```bash
+rhdh-cli plugin new my-plugin --type frontend --rhdh-version 2.1.0
+```
+
+Supported types are `frontend` (a New Frontend System, or NFS, page), `backend` (a minimal new-backend-system plugin), and `catalog-processor-module` (a catalog processor module). Frontend and backend projects include a `dev/` harness and `yarn start` for isolated development; catalog processor modules do not because they require a host backend plugin. Use `--name <plugin-name>` as an alternative to the positional name, and `--output <directory>` to select a destination. Use `--plugin-package <package-name>` to set the generated package name; it defaults to `@internal/backstage-plugin-<name>`. The generated project uses the target RHDH release's Backstage manifest for every `@backstage/*` dependency. For air-gapped environments, provide `--manifest-file` and set `RHDH_OFFLINE=true`. Export and package generated plugins with `npx @red-hat-developer-hub/cli`, or through RHDH Dynamic Plugin Factory, rather than adding the CLI as a project dependency.
+
 ## Development
+
+### Testing a Plugin in RHDH Local
+
+Use `plugin dev` from a generated or existing dynamic plugin project to export it and run it against an existing RHDH Local checkout. The command requires the checkout path on its first use:
+
+```bash
+rhdh-cli plugin dev start --configure --rhdh-local-dir /path/to/rhdh-local
+```
+
+`--configure` adds the CLI-managed plugin configuration include without replacing existing user configuration. Set `RHDH_LOCAL_DIR` to avoid repeating the path. After changing plugin source, refresh the staged plugin and RHDH service with:
+
+```bash
+rhdh-cli plugin dev update
+```
+
+Use `rhdh-cli plugin dev status` for the interpreted runtime state, `rhdh-cli plugin dev logs` for application logs, and `rhdh-cli plugin dev logs --installer` to diagnose installation failures. To restart the RHDH service after changing RHDH Local configuration (without re-deploying the plugin), use `rhdh-cli plugin dev restart`. Stop the runtime with `rhdh-cli plugin dev stop`; add `--clean` to remove containers and networks while retaining volumes, configuration, and plugin artifacts. The default container tool is `podman`; pass `--container-tool docker` if your environment uses Docker instead.
+
+The CLI manages a single plugin entry in `configs/dynamic-plugins/rhdh-cli.generated.local.yaml`. Each `start` or `update` run overwrites this file with the current plugin's package path, disabled flag, and pull policy. Extra `pluginConfig` for the plugin (such as app-config keys) belongs in `dynamic-plugins.override.yaml` under a `plugins:` entry for the same package, not in the generated file.
 
 ### Contributing
 
@@ -53,6 +120,71 @@ or when executing from the project root you can also use:
 ```bash
 npx @red-hat-developer-hub/cli
 ```
+
+## Commands
+
+The CLI provides two categories of commands:
+
+### Plugin Development Commands
+
+- `plugin export`: Export a Backstage plugin as a dynamic plugin
+- `plugin package`: Package dynamic plugins for distribution
+- `plugin check-versions`: Verify plugin compatibility with RHDH versions
+- `plugin dev`: Export a dynamic plugin and manage its lifecycle against an existing RHDH Local runtime (`start`, `update`, `restart`, `stop`, `logs`, `status`)
+
+### Intent-Based RHDH Interaction Commands
+
+High-level commands for interacting with RHDH instances:
+
+- `auth`: Log in to, select, inspect, and manage authenticated RHDH instances
+- `actions`: List and execute actions, and manage action-discovery sources
+- `catalog`: List, get, validate, register, and unregister catalog entities
+- `api`: List API entities and retrieve their OpenAPI/AsyncAPI/GraphQL specifications
+- `search`: Search catalog, TechDocs, and template content
+- `docs`: Search TechDocs and, on RHDH instances with optional plugins, list entities, retrieve pages, and view coverage
+- `template`: List, execute, and dry-run software templates
+
+**Quick Examples:**
+
+```bash
+# Authenticate with your RHDH instance
+rhdh-cli auth login --backend-url https://rhdh.example.com
+
+# List production components
+rhdh-cli catalog list --kind Component --filter spec.lifecycle=production
+
+# Search documentation
+rhdh-cli search "deployment guide" --types '["techdocs"]'
+
+# Get API specification
+rhdh-cli api get-spec --name my-api
+
+# Execute a template
+rhdh-cli template execute \
+  --template-ref template:default/nodejs-service \
+  --value name=my-app \
+  --value owner=team-platform
+```
+
+All commands support `--help` for detailed usage and `--output json` for machine-readable output.
+
+**📚 For complete documentation, setup guides, and examples, see:**
+
+- **[Intent-Based CLI Documentation](docs/Intent-Based-CLI.md)** - Complete guide for RHDH interaction commands
+
+### Optional TechDocs Features
+
+**TechDocs content retrieval** (`docs list`, `docs get`, `docs coverage`, `docs build`):
+
+- Requires **TechDocs MCP extras plugin** (`techdocs-mcp-extras`)
+- See the [CLI documentation](docs/Intent-Based-CLI.md#rhdh-instance-configuration) for setup instructions
+
+**TechDocs search** (`docs search`):
+
+- Requires **TechDocs search backend module** (`search-backend-module-techdocs`)
+- Standard Backstage plugin for indexing TechDocs content
+
+All other commands work without these optional plugins.
 
 ### Bumping Backstage Dependencies
 
@@ -86,13 +218,34 @@ Our versioning scheme follows the pattern of `$MAJOR.$MINOR.$PATCH` (e.g., 1.8.0
 
 - **Patch Version ($PATCH)**: The patch version is incremented for new releases of the CLI that contain bug fixes or minor, non-breaking feature enhancements specific to the CLI. The patch version of `rhdh-cli` is not lock-stepped with RHDH's patch releases. For instance, `rhdh-cli` versions `1.8.0` and `1.8.1` are both intended for use with any RHDH `1.8.z` installation. We always recommend using the latest available patch release for your RHDH version.
 
+### Release Process
+
+Releases follow a straightforward manual workflow:
+
+1. **Update `CHANGELOG.md`**: Add a new version heading (e.g., `## 2.0.5 - YYYY-MM-DD`) following [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) format, categorizing changes under `Added`, `Changed`, `Fixed`, etc., with links to relevant Jira issues and pull requests.
+2. **Bump version in `package.json`**: Update the `"version"` field to the target version matching the [Versioning Strategy](#versioning-strategy).
+3. **Submit PR**: Open a pull request titled `chore: bump version to X.Y.Z` and merge it after review and CI checks pass.
+4. **Publish**: Trigger the [Publish Package to NPM](#publishing-to-npm) GitHub Action workflow for the target branch.
+
 ### Publishing to NPM
 
 Publishing is done using [Publish Package to NPM](.github/workflows/publish.yaml) workflow.
 
 **Make sure not to release MINOR or MAJOR version that are not aligned with the corresponding RHDH release.**
 
-This workflow is **not** currently triggered automatically. It needs to be run manually from the [Actions tab](https://github.com/redhat-developer/rhdh-cli/actions/workflows/publish.yaml) in the GitHub repository.
+This workflow is **not** currently triggered automatically. It needs to be run manually from the [Actions tab](https://github.com/redhat-developer/rhdh-cli/actions/workflows/publish.yaml) in the GitHub repository. Always run the workflow from the `main` branch (the "Use workflow from" dropdown) and select the target release branch via the `branch` input parameter. This ensures the latest workflow definition is used.
+
+#### NPM dist-tags
+
+The workflow automatically assigns npm dist-tags based on the selected branch:
+
+| Branch                                   | Dist-tag                          | Example                                                            |
+| ---------------------------------------- | --------------------------------- | ------------------------------------------------------------------ |
+| `main`                                   | `next`                            | `npm install @red-hat-developer-hub/cli@next`                      |
+| Latest GA release branch (auto-detected) | `latest` + branch name            | `npm install @red-hat-developer-hub/cli@latest` or `@release-1.10` |
+| Older release branches                   | Branch name (e.g., `release-1.9`) | `npm install @red-hat-developer-hub/cli@release-1.9`               |
+
+The latest GA branch is auto-detected as the `release-*` branch with the highest semver version. Plugin builders targeting a specific RHDH version should use a semver range (e.g., `~1.10.0`) or the corresponding branch tag rather than `latest`.
 
 ## Reporting Issues
 

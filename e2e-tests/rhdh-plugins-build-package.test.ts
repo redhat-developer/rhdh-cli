@@ -103,16 +103,24 @@ describe('export and package rhdh-plugins scorecard workspace plugin', () => {
       const packageJsonPath = path.join(getFullPluginPath(), 'package.json');
       const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
       const role = packageJson.backstage?.role;
+      const expectedFeatures = expect.objectContaining({
+        '.': '@backstage/FrontendPlugin',
+      });
       if (role === 'frontend-plugin') {
         // eslint-disable-next-line jest/no-conditional-expect
         expect(
           fs.existsSync(
-            path.join(
-              getFullPluginPath(),
-              'dist-dynamic/dist-scalprum/plugin-manifest.json',
-            ),
+            path.join(getFullPluginPath(), 'dist-dynamic/dist/remoteEntry.js'),
           ),
         ).toEqual(true);
+        const distDynamicPkg = JSON.parse(
+          fs.readFileSync(
+            path.join(getFullPluginPath(), 'dist-dynamic/package.json'),
+            'utf-8',
+          ),
+        );
+        // eslint-disable-next-line jest/no-conditional-expect
+        expect(distDynamicPkg.backstage?.features).toEqual(expectedFeatures);
       }
     });
 

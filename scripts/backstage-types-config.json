@@ -5,8 +5,32 @@
       "types": "dist-types/packages/cli-module-build/src/lib/buildFrontend.d.ts"
     },
     {
+      "name": "@backstage/cli-module-build/dist/lib/bundler/bundle.cjs.js",
+      "types": "dist-types/packages/cli-module-build/src/lib/bundler/bundle.d.ts"
+    },
+    {
+      "name": "@backstage/cli-module-build/dist/lib/bundler/types.cjs.js",
+      "types": "dist-types/packages/cli-module-build/src/lib/bundler/types.d.ts"
+    },
+    {
+      "name": "@backstage/cli-module-build/dist/lib/bundler/moduleFederation.cjs.js",
+      "types": "dist-types/packages/cli-module-build/src/lib/bundler/moduleFederation.d.ts"
+    },
+    {
+      "name": "@backstage/cli-module-build/dist/lib/config.cjs.js",
+      "types": "dist-types/packages/cli-module-build/src/lib/config.d.ts"
+    },
+    {
       "name": "@backstage/cli-module-build/dist/lib/buildBackend.cjs.js",
       "types": "dist-types/packages/cli-module-build/src/lib/buildBackend.d.ts"
+    },
+    {
+      "name": "@backstage/cli-module-build/dist/lib/typeDistProject.cjs.js",
+      "types": "dist-types/packages/cli-module-build/src/lib/typeDistProject.d.ts"
+    },
+    {
+      "name": "@backstage/cli-module-build/dist/lib/entryPoints.cjs.js",
+      "types": "dist-types/packages/cli-module-build/src/lib/entryPoints.d.ts"
     }
   ]
 }

@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 const fs = require('fs-extra');
+const os = require('node:os');
 const path = require('path');
 const { execSync } = require('child_process');
 const tar = require('tar');
@@ -10,6 +11,95 @@ const stream = require('stream');
  * Script to automatically generate TypeScript declarations for @backstage/cli
  * based on the version specified in package.json
  */
+
+const CLI_MODULE_BUILD_PREFIX = '@backstage/cli-module-build/dist/';
+
+function typesPathToModuleName(typesPath) {
+  const normalized = typesPath.replaceAll(/\\/g, '/');
+  const match = normalized.match(
+    /dist-types\/packages\/cli-module-build\/src\/(.+)\.d\.ts$/,
+  );
+  if (!match) {
+    throw new Error(`Unexpected types path: ${typesPath}`);
+  }
+  return `${CLI_MODULE_BUILD_PREFIX}${match[1]}.cjs.js`;
+}
+
+function moduleNameToTypesPath(moduleName) {
+  if (!moduleName.startsWith(CLI_MODULE_BUILD_PREFIX)) {
+    throw new Error(`Unexpected module name: ${moduleName}`);
+  }
+  const relativePath = moduleName.slice(
+    CLI_MODULE_BUILD_PREFIX.length,
+    -'.cjs.js'.length,
+  );
+  return `dist-types/packages/cli-module-build/src/${relativePath}.d.ts`;
+}
+
+function rewriteRelativeImports(content, currentTypesPath) {
+  const currentDir = path.dirname(currentTypesPath);
+
+  return content.replace(
+    /from\s+['"](\.[^'"]+)['"]/g,
+    (_match, relativeImport) => {
+      const resolvedTypesPath = path.normalize(
+        path.join(currentDir, `${relativeImport}.d.ts`),
+      );
+      const moduleName = typesPathToModuleName(resolvedTypesPath);
+      return `from '${moduleName}'`;
+    },
+  );
+}
+
+function stripRedundantDeclare(content) {
+  return content.replace(/\bexport declare\b/g, 'export');
+}
+
+function collectCliModuleBuildImports(content) {
+  const imports = new Set();
+  const pattern = new RegExp(
+    `from ['"]${CLI_MODULE_BUILD_PREFIX.replace(
+      /[.*+?^${}()|[\]\\]/g,
+      String.raw`$&`,
+    )}[^'"]+['"]`,
+    'g',
+  );
+
+  for (const match of content.matchAll(pattern)) {
+    imports.add(match[0].slice(6, -1));
+  }
+
+  return imports;
+}
+
+function ensureNewlineAfterImports(content) {
+  const lines = content.split('\n');
+  const result = [];
+
+  for (let i = 0; i < lines.length; i++) {
+    result.push(lines[i]);
+
+    if (!/^\s*import\s/.test(lines[i])) {
+      continue;
+    }
+
+    const nextLine = lines[i + 1];
+    const nextIsImport =
+      nextLine !== undefined && /^\s*import\s/.test(nextLine);
+
+    if (!nextIsImport && nextLine !== undefined && nextLine.trim() !== '') {
+      result.push('');
+    }
+  }
+
+  return result.join('\n');
+}
+
+function formatModuleTypes(content, typesPath) {
+  return ensureNewlineAfterImports(
+    stripRedundantDeclare(rewriteRelativeImports(content, typesPath)),
+  );
+}
 
 async function generateBackstageTypes() {
   console.log('🔄 Generating Backstage CLI types...');
@@ -35,8 +125,9 @@ async function generateBackstageTypes() {
 
   console.log(`📦 Using @backstage/cli version: ${backstageCliVersion}`);
 
-  // Create temporary directory for type extraction
-  const tempDir = path.resolve(rootPath, '.temp-types');
+  // Use system temp dir so Backstage's older Yarn does not inherit this repo's
+  // .yarnrc.yml settings (e.g. approvedGitRepositories, unsupported in Yarn 4.8.x).
+  const tempDir = path.join(os.tmpdir(), 'rhdh-cli-backstage-types');
   const outputDir = path.resolve(rootPath, 'src', 'generated');
   const outputFile = path.resolve(outputDir, 'backstage-cli-types.d.ts');
 
@@ -160,15 +251,52 @@ async function generateBackstageTypes() {
 
 `;
 
-    for (const module of config.modules) {
+    const modulesByName = new Map(
+      config.modules.map(module => [module.name, module]),
+    );
+    const pendingModules = [...config.modules];
+    const processedModules = new Map();
+
+    while (pendingModules.length > 0) {
+      const module = pendingModules.shift();
+      if (processedModules.has(module.name)) {
+        continue;
+      }
+
       const moduleTypesPath = path.resolve(backstageRepoPath, module.types);
       if (!(await fs.pathExists(moduleTypesPath))) {
         throw new Error(`No types found at: ${moduleTypesPath}`);
       }
+
       console.log(`📋 Found types at: ${moduleTypesPath}`);
-      const moduleTypes = await fs.readFile(moduleTypesPath, 'utf8');
+      const moduleTypes = formatModuleTypes(
+        await fs.readFile(moduleTypesPath, 'utf8'),
+        moduleTypesPath,
+      );
+      processedModules.set(module.name, moduleTypes);
+
+      for (const importedModuleName of collectCliModuleBuildImports(
+        moduleTypes,
+      )) {
+        if (
+          modulesByName.has(importedModuleName) ||
+          processedModules.has(importedModuleName)
+        ) {
+          continue;
+        }
+
+        const importedModule = {
+          name: importedModuleName,
+          types: moduleNameToTypesPath(importedModuleName),
+        };
+        modulesByName.set(importedModuleName, importedModule);
+        pendingModules.push(importedModule);
+      }
+    }
+
+    for (const [moduleName, moduleTypes] of processedModules) {
       typesContent += `
-declare module '${module.name}' {
+declare module '${moduleName}' {
 ${moduleTypes
   .split('\n')
   .map(line => `  ${line}`)

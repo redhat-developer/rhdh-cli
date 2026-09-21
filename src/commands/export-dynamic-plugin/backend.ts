@@ -43,6 +43,13 @@ import {
   isValidPluginModule,
 } from './backend-utils';
 
+export async function getMonorepoRootResolutions(): Promise<
+  Record<string, string>
+> {
+  const rootPkgPath = path.join(paths.targetRoot, 'package.json');
+  return (await fs.readJson(rootPkgPath).catch(() => ({}))).resolutions || {};
+}
+
 export async function backend(opts: OptionValues): Promise<string> {
   const targetRelativePath = 'dist-dynamic';
   const target = path.join(paths.targetDir, targetRelativePath);
@@ -61,6 +68,15 @@ export async function backend(opts: OptionValues): Promise<string> {
       )} field set to ${chalk.cyan('true')}`,
     );
   }
+  if (!pkg.version) {
+    throw new Error(
+      `Package ${chalk.cyan(pkg.name)} is missing a ${chalk.cyan(
+        'version',
+      )} field. Add a version to its ${chalk.cyan(
+        'package.json',
+      )} before exporting as a dynamic plugin.`,
+    );
+  }
 
   const derivedPackageName = `${pkg.name}-dynamic`;
   const packagesToEmbed = (opts.embedPackage || []) as string[];
@@ -68,6 +84,8 @@ export async function backend(opts: OptionValues): Promise<string> {
   const suppressNative = (opts.suppressNativePackage || []) as string[];
   const ignoreVersionCheck = (opts.ignoreVersionCheck || []) as string[];
   const monoRepoPackages = await getPackages(paths.targetDir);
+
+  const rootResolutions = await getMonorepoRootResolutions();
   const embeddedResolvedPackages = await searchEmbedded(
     pkg,
     packagesToEmbed,
@@ -196,7 +214,7 @@ throw new Error(
     }
 
     // Remove the `node_modules` sub-folder of the embedded package,
-    // if it has been copied (in the case typical case of wrappers).
+    // if it has been copied.
     if (fs.pathExistsSync(path.join(embeddedDestDir, 'node_modules'))) {
       fs.rmSync(path.join(embeddedDestDir, 'node_modules'), {
         force: true,
@@ -291,6 +309,7 @@ throw new Error(
       // which are related to the packaging of the original static package.
       scripts: {},
     },
+    rootResolutions,
     additionalResolutions: {
       ...embeddedDependenciesResolutions,
       ...suppressNative
@@ -772,6 +791,7 @@ export function customizeForDynamicUse(options: {
       })
     | undefined;
   additionalOverrides?: { [key: string]: any } | undefined;
+  rootResolutions?: Record<string, string> | undefined;
   additionalResolutions?: { [key: string]: any } | undefined;
   after?: ((pkg: BackstagePackageJson) => void) | undefined;
 }): (dynamicPkgPath: string) => Promise<void> {
@@ -945,6 +965,24 @@ export function customizeForDynamicUse(options: {
     // to prevent npm version drift during yarn install --no-immutable.
     // Existing resolutions and additionalResolutions (embedded file: refs) take precedence.
     const resolutions = (pkgToCustomize as any).resolutions || {};
+
+    // Skip patch: resolutions — the .yarn/patches/ files won't exist in the
+    // dist-dynamic directory so those entries can't be applied. Propagating
+    // only plain version resolutions avoids asymmetry when the workspace is
+    // scrubbed (--remove-patches deletes patch: entries between loops).
+    const filteredRootResolutions: Record<string, string> = {};
+    if (options.rootResolutions) {
+      for (const [key, value] of Object.entries(options.rootResolutions)) {
+        if (value.startsWith('patch:')) continue;
+        filteredRootResolutions[key] = value;
+      }
+    }
+    const rootResKeys = Object.keys(filteredRootResolutions);
+    if (rootResKeys.length > 0) {
+      Task.log(
+        `  Propagating ${rootResKeys.length} root resolution(s) to dist-dynamic: ${rootResKeys.join(', ')}`,
+      );
+    }
     (pkgToCustomize as any).resolutions = {
       // The following lines are a workaround for the fact that the @aws-sdk/util-utf8-browser package
       // is not compatible with the NPM 9+, so that `npm pack` would not grab the Javascript files.
@@ -952,6 +990,7 @@ export function customizeForDynamicUse(options: {
       //
       // See https://github.com/aws/aws-sdk-js-v3/issues/5305.
       '@aws-sdk/util-utf8-browser': 'npm:@smithy/util-utf8@~2',
+      ...filteredRootResolutions,
       ...pinnedResolutions,
       ...resolutions,
       ...(options.additionalResolutions || {}),

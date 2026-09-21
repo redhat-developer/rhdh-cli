@@ -99,13 +99,14 @@ export async function command(opts: OptionValues): Promise<void> {
         },
       ];
   // run export-dynamic on each plugin package
+  // Fail immediately if any export fails (RHDHBUGS-3633)
   for (const pluginPkg of packages) {
     const { packageDirectory, packageFilePath, packageJson } = pluginPkg;
-    if (
-      !fs.existsSync(path.join(packageDirectory, 'dist-dynamic')) ||
-      forceExport
-    ) {
+    const distDynamicPath = path.join(packageDirectory, 'dist-dynamic');
+
+    if (!fs.existsSync(distDynamicPath) || forceExport) {
       if (
+        packageJson.scripts &&
         Object.keys(packageJson.scripts as { [key: string]: string }).find(
           script => script === 'export-dynamic',
         )
@@ -113,27 +114,35 @@ export async function command(opts: OptionValues): Promise<void> {
         Task.log(
           `Running existing export-dynamic script on plugin package ${packageFilePath}`,
         );
-        try {
-          await Task.forCommand(`yarn export-dynamic`, {
-            cwd: packageDirectory,
-          });
-        } catch (err) {
-          Task.log(
-            `Encountered an error running 'yarn export-dynamic' on plugin package ${packageFilePath}, this plugin will not be packaged.  The error was ${err}`,
+        await Task.forCommand(`yarn export-dynamic`, {
+          cwd: packageDirectory,
+        });
+
+        // Verify export created dist-dynamic directory
+        if (!fs.existsSync(distDynamicPath)) {
+          Task.error(
+            `Export completed but did not create dist-dynamic directory at ${packageDirectory}`,
+          );
+          throw new Error(
+            `Plugin export for ${packageFilePath} did not produce expected dist-dynamic directory`,
           );
         }
       } else {
         Task.log(
           `Using generated command to export plugin package ${packageFilePath}`,
         );
-        try {
-          await Task.forCommand(
-            `${process.execPath} ${process.argv[1]} plugin export`,
-            { cwd: packageDirectory },
+        await Task.forCommand(
+          `${process.execPath} ${process.argv[1]} plugin export`,
+          { cwd: packageDirectory },
+        );
+
+        // Verify export created dist-dynamic directory
+        if (!fs.existsSync(distDynamicPath)) {
+          Task.error(
+            `Export completed but did not create dist-dynamic directory at ${packageDirectory}`,
           );
-        } catch (err) {
-          Task.log(
-            `Encountered an error running the generated export command on plugin package ${packageFilePath}, this plugin will not be packaged.  The error was ${err}`,
+          throw new Error(
+            `Plugin export for ${packageFilePath} did not produce expected dist-dynamic directory`,
           );
         }
       }
@@ -151,6 +160,7 @@ export async function command(opts: OptionValues): Promise<void> {
   const pluginConfigs: Record<string, string> = {};
   try {
     // Stage each dist-dynamic tree via npm pack + tar (see RHDHBUGS-1968) and metadata for the registry
+    // All packages are guaranteed to have successfully exported due to fail-fast behavior above
     for (const pluginPkg of packages) {
       const { packageDirectory, packageFilePath } = pluginPkg;
       const distDynamicDirectory = path.join(packageDirectory, 'dist-dynamic');
@@ -238,6 +248,17 @@ export async function command(opts: OptionValues): Promise<void> {
         fs.copySync(source, destination, { overwrite: true });
       });
     } else {
+      // Validate that we have at least one plugin to package (RHDHBUGS-3633)
+      if (pluginRegistryMetadata.length === 0) {
+        Task.error(
+          'No plugins were successfully packaged. Cannot create an empty container image. ' +
+            'Check the export logs above for errors.',
+        );
+        throw new Error(
+          'All plugin exports failed, refusing to create empty container image',
+        );
+      }
+
       // collect flags for the container build command
       const flags = [
         `--annotation io.backstage.dynamic-packages='${Buffer.from(JSON.stringify(pluginRegistryMetadata)).toString('base64')}'`,
@@ -296,6 +317,7 @@ COPY . .
     }
   } catch (e) {
     Task.error(`Error encountered while packaging dynamic plugins: ${e}`);
+    throw e;
   } finally {
     try {
       if (tmpDir && !preserveTempDir) {
@@ -347,9 +369,16 @@ async function stageDistDynamicViaNpmPack(
     `npm-pack-output-${process.pid}-${Date.now()}.log`,
   );
 
+  // Work around npm pack failures with very long paths (RHDHBUGS-3556):
+  // Copy dist-dynamic to a temp directory with a shorter path before running npm pack.
+  const tempDistDynamic = fs.mkdtempSync(path.join(packScratchParent, 'dist-'));
+
   try {
     fs.rmSync(targetDirectory, { recursive: true, force: true });
     fs.mkdirSync(targetDirectory, { recursive: true });
+
+    // Copy dist-dynamic contents to temp directory with shorter path
+    fs.copySync(distDynamicDirectory, tempDistDynamic);
 
     const logFd = openSync(packLogPath, 'w');
     try {
@@ -359,7 +388,7 @@ async function stageDistDynamicViaNpmPack(
         'bash', // NOSONAR typescript:S4036
         ['-lc', npmPackExtractScript(packdir, targetDirectory)],
         {
-          cwd: distDynamicDirectory,
+          cwd: tempDistDynamic,
           stdio: ['ignore', logFd, logFd],
           shell: false,
         },
@@ -382,6 +411,7 @@ async function stageDistDynamicViaNpmPack(
     throw err;
   } finally {
     fs.rmSync(packdir, { recursive: true, force: true });
+    fs.rmSync(tempDistDynamic, { recursive: true, force: true });
   }
 }
 
