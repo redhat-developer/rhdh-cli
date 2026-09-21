@@ -4,29 +4,9 @@ All notable changes to `@red-hat-developer-hub/cli` are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). The major and minor version are synchronized with the corresponding RHDH release (see [Versioning Strategy](README.md#versioning-strategy)).
 
-## 1.11.2 - 2026-07-17
-
-### Changed
-
-- **Backstage dependencies** bumped to **Backstage 1.52.0**. `@backstage/cli` updated to **0.36.3**.
-- **Generated type declarations** updated for the new Backstage version.
-- **Backstage bump process** documented in `README.md`.
-
-### Added
-
-- **`backstage:bump` script** in `package.json` to automate future Backstage dependency upgrades with tilde pinning (exact for `@backstage/cli*` packages) and deduplication.
-
-## 1.11.1 - 2026-05-20
-
-### Fixed
-
-- **`plugin package`:** each `dist-dynamic` plugin is staged with **`npm pack`** and **`tar`** (strip the `package/` root) instead of a recursive filesystem copy. This matches npm publish contents, omits `node_modules/.bin` entries that could point outside the image (see [RHDHBUGS-1968](https://redhat.atlassian.net/browse/RHDHBUGS-1968)), and avoids spurious "link outside of the archive" warnings when dynamic plugins are installed from OCI. **Requires `bash`, `npm` (7+ for `--pack-destination`), and `tar` on `PATH`** (for example Git Bash on Windows).
-
-### Chore
-
-- Dependency bumps: `follow-redirects` 1.16.0, `vm2` 3.11.5, `ws` 8.20.1, `webpack-dev-server` 5.2.4, and others.
-
 ## [Unreleased]
+
+## 2.1.1 - 2026-09-21
 
 ### Added
 
@@ -40,61 +20,35 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## 2.1.0 - 2026-09-21
 
-### Changed
-
-- **Frontend plugin export:** Improved module federation sharing configuration to optimize bundle sizes and reduce duplicate dependencies across dynamic plugins. A curated list of common dependencies and transitive dependencies are now shared by default, with version requirements respected when appropriate for better runtime performance.
-
-## 2.1.0 (unpublished) - 2026-09-17
-
-### Changed
-
-- **`plugin new`:** Replace RHDH-owned template files with the portable template assets published by the release-matched `@backstage/cli-module-new` package (`0.1.6` for RHDH 2.1 / Backstage 1.54.6). The RHDH adapter supplies standalone `backstage.json`, Yarn Berry configuration, TypeScript configuration, RHDH export guidance, and dev harnesses. All `@backstage/*` direct dependencies are pinned from the target release manifest; transitive ranges remain upstream-managed.
-- **`plugin new` (package name convention):** The default generated `package.json` `name` no longer carries a type suffix. Previously, the RHDH-owned backend template appended `-backend` (producing `@internal/backstage-plugin-<name>-backend`) and the catalog processor module template appended a similar suffix; the upstream `@backstage/cli-module-new` templates use a flat `@internal/backstage-plugin-<name>` for all types. Scripts or CI configurations that reference the old type-suffixed name should update accordingly, or pass `--plugin-package @internal/backstage-plugin-<name>-backend` to restore the previous name.
-
 ### Added
 
+- **`plugin new`:** Add `rhdh-cli plugin new <name>` to create standalone, version-pinned frontend, backend, and catalog processor module dynamic plugin projects. The command renders portable template assets from the release-matched `@backstage/cli-module-new` package (`0.1.6` for RHDH 2.1 / Backstage 1.54.6). The RHDH adapter supplies standalone `backstage.json`, Yarn Berry configuration, TypeScript configuration, RHDH export guidance, and dev harnesses. All `@backstage/*` direct dependencies are pinned from the target release manifest; transitive ranges remain upstream-managed ([RHIDP-16671](https://redhat.atlassian.net/browse/RHIDP-16671), [RHIDP-16668](https://redhat.atlassian.net/browse/RHIDP-16668), [#202](https://github.com/redhat-developer/rhdh-cli/pull/202), [#208](https://github.com/redhat-developer/rhdh-cli/pull/208)).
 - **`plugin new --template <name>`:** Select a generated project type using the upstream portable template name (`frontend-plugin`, `backend-plugin`, `catalog-processor-module`) as an alternative to `--type`. Only templates with end-to-end test coverage are accepted. Passing an unsupported template name produces a clear error listing the accepted values.
 - **`plugin new --module-id <id>`:** Override the module identifier for module-type templates (e.g. `catalog-processor-module`). Defaults to the plugin name when omitted, preserving non-interactive behaviour.
 - **`plugin new --plugin-package <name>`:** Set the generated `package.json` `name` field. Validated against npm package name rules (lowercase, max 214 chars, no whitespace or special characters). Defaults to `@internal/backstage-plugin-<name>`.
-
-### Fixed
-
-- **`plugin new` (frontend):** Generated frontend plugin tests now pass under Node 18+ without modification. The upstream `@backstage/cli-module-new` 0.1.6 template pinned `msw@1.0.0`, whose `setupServer()` does not intercept `globalThis.fetch` used by Backstage's `fetchApiRef` in tests, causing the generated `TodoPage` test to time out. Three RHDH template overlay files patch the generated project: the test is updated to the MSW v2 API (`http`/`HttpResponse`); `setupTests.ts` exposes the Web API globals (`TextEncoder`, `BroadcastChannel`, etc.) missing from Jest 29 + jsdom; and `package.json` gains `jest.testEnvironmentOptions.customExportConditions` so Jest 29 resolves MSW v2's `msw/node` package-exports subpath. These overlays will be removed when RHDH targets `@backstage/cli-module-new` 0.1.7+ (Backstage 1.55.0).
-
-## 2.1.0 (unpublished) - 2026-09-16
+- Add intent-based `catalog`, `api`, `search`, `docs`, and `template` command groups for querying and managing RHDH through Backstage actions. These commands support human-readable and JSON output, multi-instance targeting, structured errors, and entity reference disambiguation ([RHIDP-14129](https://redhat.atlassian.net/browse/RHIDP-14129), [#156](https://github.com/redhat-developer/rhdh-cli/pull/156)).
 
 ### Changed
 
-- **Frontend plugin export:** Frontend plugins now use Backstage standard module federation exclusively. The generated remote assets are written to `dist/`, including `dist/remoteEntry.js`.
-- Removed the frontend export options `--scalprum-config`, `--generate-scalprum-assets`, `--no-generate-scalprum-assets`, `--generate-module-federation-assets`, and `--no-generate-module-federation-assets`. Frontend module-federation assets are now always generated during `plugin export`.
-- Removed the legacy Scalprum frontend bundler and the `plugin build` and `plugin start` commands.
-- Frontend exports warn when legacy `dist-scalprum/`, `plugin-manifest.json`, or `scalprum` package metadata is still present. Legacy content does not provide a fallback; normal NFS build/export failures still fail the export.
-- Migration guidance: Remove the deleted frontend export options from scripts and CI jobs.
-- Migration guidance: Update integrations that read `dist-scalprum/plugin-manifest.json` to use the standard module-federation output under `dist/` and NFS metadata in `backstage.features`.
-- Migration guidance: Remove `dist-scalprum` and related glob entries from frontend plugin `files` fields and clean any checked-in legacy output before exporting with rhdh-cli 2.1.0.
+- **Frontend plugin export:** Improved module federation sharing configuration to optimize bundle sizes and reduce duplicate dependencies across dynamic plugins. A curated list of common dependencies and transitive dependencies are now shared by default, with version requirements respected when appropriate for better runtime performance ([#216](https://github.com/redhat-developer/rhdh-cli/pull/216)).
+- **Frontend plugin export:** Frontend plugins now use Backstage standard module federation exclusively. The generated remote assets are written to `dist/`, including `dist/remoteEntry.js`. Removed the frontend export options `--scalprum-config`, `--generate-scalprum-assets`, `--no-generate-scalprum-assets`, `--generate-module-federation-assets`, and `--no-generate-module-federation-assets`. Frontend module-federation assets are now always generated during `plugin export`. Frontend exports warn when legacy `dist-scalprum/`, `plugin-manifest.json`, or `scalprum` package metadata is still present. The legacy `plugin build` and `plugin start` commands have been removed.
+  - Migration guidance: Remove the deleted frontend export options from scripts and CI jobs.
+  - Migration guidance: Update integrations that read `dist-scalprum/plugin-manifest.json` to use the standard module-federation output under `dist/` and NFS metadata in `backstage.features`.
+  - Migration guidance: Remove `dist-scalprum` and related glob entries from frontend plugin `files` fields and clean any checked-in legacy output before exporting with rhdh-cli 2.1.0 ([#182](https://github.com/redhat-developer/rhdh-cli/pull/182)).
+- **`plugin new` (package name convention):** The default generated `package.json` `name` no longer carries a type suffix. Previously, the RHDH-owned backend template appended `-backend` (producing `@internal/backstage-plugin-<name>-backend`) and the catalog processor module template appended a similar suffix; the upstream `@backstage/cli-module-new` templates use a flat `@internal/backstage-plugin-<name>` for all types. Scripts or CI configurations that reference the old type-suffixed name should update accordingly, or pass `--plugin-package @internal/backstage-plugin-<name>-backend` to restore the previous name.
 
-## 2.0.9 (unpublished) - 2026-09-15
+### Fixed
 
-### Added
-
-- Add intent-based `catalog`, `api`, `search`, `docs`, and `template` command groups for querying and managing RHDH through Backstage actions. These commands support human-readable and JSON output, multi-instance targeting, structured errors, and entity reference disambiguation ([RHIDP-14129](https://redhat.atlassian.net/browse/RHIDP-14129), [#156](https://github.com/redhat-developer/rhdh-cli/pull/156)).
+- **`plugin new`:** Add the missing `jest-environment-jsdom` development dependency to generated projects so `yarn test` runs successfully ([#204](https://github.com/redhat-developer/rhdh-cli/pull/204)).
+- **`plugin new` (frontend):** Generated frontend plugin tests now pass under Node 18+ without modification. The upstream `@backstage/cli-module-new` 0.1.6 template pinned `msw@1.0.0`, whose `setupServer()` does not intercept `globalThis.fetch` used by Backstage's `fetchApiRef` in tests, causing the generated `TodoPage` test to time out. Three RHDH template overlay files patch the generated project: the test is updated to the MSW v2 API (`http`/`HttpResponse`); `setupTests.ts` exposes the Web API globals (`TextEncoder`, `BroadcastChannel`, etc.) missing from Jest 29 + jsdom; and `package.json` gains `jest.testEnvironmentOptions.customExportConditions` so Jest 29 resolves MSW v2's `msw/node` package-exports subpath. These overlays will be removed when RHDH targets `@backstage/cli-module-new` 0.1.7+ (Backstage 1.55.0).
+- Update the RHDH 2.1.0, `main`, and `next` compatibility mappings to Backstage 1.54.6.
+- Fall back to the requested RHDH version when remote metadata returns an invalid version value.
 
 ## 2.0.8 - 2026-09-15
 
 ### Fixed
 
 - **`plugin new`:** Add the missing `jest-environment-jsdom` development dependency to generated projects so `yarn test` runs successfully.
-
-## 2.0.7 - 2026-09-14
-
-### Added
-
-- **`plugin new`:** Add `rhdh-cli plugin new <name>` to create standalone, version-pinned frontend, backend, and catalog processor module dynamic plugin projects ([RHIDP-16671](https://redhat.atlassian.net/browse/RHIDP-16671), [RHIDP-16668](https://redhat.atlassian.net/browse/RHIDP-16668), [#202](https://github.com/redhat-developer/rhdh-cli/pull/202)). Generated projects use the selected RHDH release's Backstage manifest and Yarn 4 configuration.
-
-### Fixed
-
-- Update the RHDH 2.1.0, `main`, and `next` compatibility mappings to Backstage 1.54.6.
-- Fall back to the requested RHDH version when remote metadata returns an invalid version value.
 
 ## 2.0.6 - 2026-09-11
 
@@ -155,6 +109,28 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - Added missing `backstage.features` field to generated `dist-dynamic/package.json` files in case of standard Module Federation asset generation.
 
+## 1.11.2 - 2026-07-17
+
+### Changed
+
+- **Backstage dependencies** bumped to **Backstage 1.52.0**. `@backstage/cli` updated to **0.36.3**.
+- **Generated type declarations** updated for the new Backstage version.
+- **Backstage bump process** documented in `README.md`.
+
+### Added
+
+- **`backstage:bump` script** in `package.json` to automate future Backstage dependency upgrades with tilde pinning (exact for `@backstage/cli*` packages) and deduplication.
+
+## 1.11.1 - 2026-05-20
+
+### Fixed
+
+- **`plugin package`:** each `dist-dynamic` plugin is staged with **`npm pack`** and **`tar`** (strip the `package/` root) instead of a recursive filesystem copy. This matches npm publish contents, omits `node_modules/.bin` entries that could point outside the image (see [RHDHBUGS-1968](https://redhat.atlassian.net/browse/RHDHBUGS-1968)), and avoids spurious "link outside of the archive" warnings when dynamic plugins are installed from OCI. **Requires `bash`, `npm` (7+ for `--pack-destination`), and `tar` on `PATH`** (for example Git Bash on Windows).
+
+### Chore
+
+- Dependency bumps: `follow-redirects` 1.16.0, `vm2` 3.11.5, `ws` 8.20.1, `webpack-dev-server` 5.2.4, and others.
+
 ## 1.11.0 - 2026-05-08
 
 ### Changed
@@ -176,7 +152,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
-- **`plugin package`:** each `dist-dynamic` plugin is staged with **`npm pack`** and **`tar`** (strip the `package/` root) instead of a recursive filesystem copy. This matches npm publish contents, omits `node_modules/.bin` entries that could point outside the image (see [RHDHBUGS-1968](https://redhat.atlassian.net/browse/RHDHBUGS-1968)), and avoids spurious “link outside of the archive” warnings when dynamic plugins are installed from OCI. **Requires `bash`, `npm` (7+ for `--pack-destination`), and `tar` on `PATH`** (for example Git Bash on Windows).
+- **`plugin package`:** each `dist-dynamic` plugin is staged with **`npm pack`** and **`tar`** (strip the `package/` root) instead of a recursive filesystem copy. This matches npm publish contents, omits `node_modules/.bin` entries that could point outside the image (see [RHDHBUGS-1968](https://redhat.atlassian.net/browse/RHDHBUGS-1968)), and avoids spurious "link outside of the archive" warnings when dynamic plugins are installed from OCI. **Requires `bash`, `npm` (7+ for `--pack-destination`), and `tar` on `PATH`** (for example Git Bash on Windows).
 
 ## 1.10.6 - 2026-04-28
 
@@ -227,7 +203,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Changed
 
 - **`@backstage/cli`** updated to **0.35.4** (from 0.34.x).
-- **ESLint** pinned to **8.57.1** and dev tooling aligned with Backstage’s lint expectations (for example `@backstage/eslint-plugin`, `@spotify/eslint-config-*`, `@typescript-eslint/*`, Jest-related ESLint plugins).
+- **ESLint** pinned to **8.57.1** and dev tooling aligned with Backstage's lint expectations (for example `@backstage/eslint-plugin`, `@spotify/eslint-config-*`, `@typescript-eslint/*`, Jest-related ESLint plugins).
 - **`jest-environment-jsdom`** added for tests that need a DOM.
 
 ### Added
