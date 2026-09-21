@@ -4,13 +4,7 @@ All notable changes to `@red-hat-developer-hub/cli` are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## 2.1.0 - 2026-09-21
-
-### Changed
-
-- **Frontend plugin export:** Improved module federation sharing configuration to optimize bundle sizes and reduce duplicate dependencies across dynamic plugins. A curated list of common dependencies and transitive dependencies are now shared by default, with version requirements respected when appropriate for better runtime performance.
-
-## 2.1.0 (unpublished) - 2026-09-17
+## [Unreleased]
 
 ### Added
 
@@ -21,6 +15,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - **`plugin new`:** Generated `package.json` now always includes a `version` field (defaults to `0.1.0`). Upstream standalone templates omit it, but `plugin export` and `npm pack` both require a version to produce a valid package tarball.
 - **`plugin export`:** Both backend and frontend export paths now validate that `package.json` contains a `version` field before invoking `npm pack`, and emit a clear error instructing users to add one. Plugins without a `version` field would previously fail silently inside the RHDH Local installer container. **Existing plugins that omit `version` will now fail at export time** — add `"version": "0.1.0"` (or higher) to their `package.json`.
 - **`plugin export`:** `ensureDir` is now called before writing the config schema file, preventing failures when the parent directory does not exist.
+
+## 2.1.0 - 2026-09-21
+
+### Changed
+
+- **Frontend plugin export:** Improved module federation sharing configuration to optimize bundle sizes and reduce duplicate dependencies across dynamic plugins. A curated list of common dependencies and transitive dependencies are now shared by default, with version requirements respected when appropriate for better runtime performance.
+
+## 2.1.0 (unpublished) - 2026-09-17
 
 ### Changed
 
