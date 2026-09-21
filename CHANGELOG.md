@@ -4,7 +4,13 @@ All notable changes to `@red-hat-developer-hub/cli` are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## Unreleased
+## 2.1.0 - 2026-09-21
+
+### Changed
+
+- **Frontend plugin export:** Improved module federation sharing configuration to optimize bundle sizes and reduce duplicate dependencies across dynamic plugins. A curated list of common dependencies and transitive dependencies are now shared by default, with version requirements respected when appropriate for better runtime performance.
+
+## 2.1.0 (unpusblished) - 2026-09-17
 
 ### Changed
 
@@ -21,7 +27,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - **`plugin new` (frontend):** Generated frontend plugin tests now pass under Node 18+ without modification. The upstream `@backstage/cli-module-new` 0.1.6 template pinned `msw@1.0.0`, whose `setupServer()` does not intercept `globalThis.fetch` used by Backstage's `fetchApiRef` in tests, causing the generated `TodoPage` test to time out. Three RHDH template overlay files patch the generated project: the test is updated to the MSW v2 API (`http`/`HttpResponse`); `setupTests.ts` exposes the Web API globals (`TextEncoder`, `BroadcastChannel`, etc.) missing from Jest 29 + jsdom; and `package.json` gains `jest.testEnvironmentOptions.customExportConditions` so Jest 29 resolves MSW v2's `msw/node` package-exports subpath. These overlays will be removed when RHDH targets `@backstage/cli-module-new` 0.1.7+ (Backstage 1.55.0).
 
-## 2.1.0 - 2026-09-16
+## 2.1.0 (unpublished) - 2026-09-16
 
 ### Changed
 
@@ -33,7 +39,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Migration guidance: Update integrations that read `dist-scalprum/plugin-manifest.json` to use the standard module-federation output under `dist/` and NFS metadata in `backstage.features`.
 - Migration guidance: Remove `dist-scalprum` and related glob entries from frontend plugin `files` fields and clean any checked-in legacy output before exporting with rhdh-cli 2.1.0.
 
-## 2.0.9 - 2026-09-15
+## 2.0.9 (unpublished) - 2026-09-15
 
 ### Added
 
