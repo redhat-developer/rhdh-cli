@@ -30,7 +30,7 @@ const requiredRuntimeFiles = [
   'prepare-and-install-dynamic-plugins.sh',
   'wait-for-plugins-and-start.sh',
 ];
-const generatedConfig = 'configs/dynamic-plugins/rhdh-cli.generated.yaml';
+const generatedConfig = 'configs/dynamic-plugins/rhdh-cli.generated.local.yaml';
 
 export function resolveRuntimeDir(runtimeDir: string | undefined): string {
   const resolved = runtimeDir ?? process.env.RHDH_LOCAL_DIR;
@@ -60,10 +60,20 @@ export async function validateRuntime(runtimeDir: string): Promise<string> {
   return resolved;
 }
 
-export function validateContainerTool(containerTool: string): string {
+export async function validateContainerTool(
+  containerTool: string,
+): Promise<string> {
   if (containerTool !== 'podman' && containerTool !== 'docker') {
     throw new Error(
       `Invalid value for --container-tool: ${containerTool}. Allowed values are: podman, docker`,
+    );
+  }
+  // Verify the tool is actually on PATH before attempting any compose operation.
+  try {
+    await Task.forCommand(`${containerTool} --version`);
+  } catch {
+    throw new Error(
+      `Unable to find ${containerTool} on PATH. Make sure ${containerTool} is installed and available, or pass --container-tool docker if you use Docker instead.`,
     );
   }
   return containerTool;
@@ -73,7 +83,7 @@ async function resolveAndValidate(opts: OptionValues) {
   const runtimeDir = await validateRuntime(
     resolveRuntimeDir(opts.rhdhLocalDir),
   );
-  const containerTool = validateContainerTool(opts.containerTool);
+  const containerTool = await validateContainerTool(opts.containerTool);
   return { runtimeDir, containerTool };
 }
 
@@ -107,11 +117,16 @@ export async function start(opts: OptionValues) {
   await exportCommand({ build: true, install: true });
   await stagePlugin(runtimeDir);
   await compose(containerTool, runtimeDir, composeArgs('start'));
+  Task.log(await getRuntimeStatus(containerTool, runtimeDir));
 }
 
 export async function update(opts: OptionValues) {
   const { runtimeDir, containerTool } = await resolveAndValidate(opts);
   await validateProjectFiles();
+  // Fail fast if the generated config include is missing — without it, an
+  // update re-stages the plugin but RHDH never loads it. Use configure: false
+  // so we surface the --configure hint rather than silently writing the file.
+  await ensureGeneratedConfigIncluded(runtimeDir, false);
   await exportCommand({ build: true, install: true });
   await stagePlugin(runtimeDir);
   for (const action of ['install-dynamic-plugins', 'stop-rhdh', 'start-rhdh']) {

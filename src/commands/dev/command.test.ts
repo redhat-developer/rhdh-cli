@@ -19,6 +19,27 @@ jest.mock('../../lib/paths', () => ({
   },
 }));
 
+jest.mock('../../lib/tasks', () => {
+  const original = jest.requireActual('../../lib/tasks');
+  return {
+    ...original,
+    Task: {
+      ...original.Task,
+      log: jest.fn(),
+      forCommand: jest.fn(),
+    },
+  };
+});
+
+jest.mock('../../lib/run', () => ({
+  execFile: jest.fn(),
+  run: jest.fn(),
+}));
+
+jest.mock('../export-dynamic-plugin', () => ({
+  command: jest.fn(),
+}));
+
 import {
   composeArgs,
   composeStatusArgs,
@@ -32,7 +53,12 @@ import {
   validateRuntime,
   ensureGeneratedConfigIncluded,
   updateGeneratedConfig,
+  stop,
+  status,
 } from './command';
+import { Task } from '../../lib/tasks';
+import { run, execFile } from '../../lib/run';
+import { ExitCodeError } from '../../lib/errors';
 
 describe('plugin dev', () => {
   it('builds Compose commands with the RHDH Local dynamic plugin override', () => {
@@ -194,11 +220,30 @@ describe('plugin dev', () => {
     );
   });
 
-  it('rejects unknown actions and container tools', () => {
+  it('rejects unknown actions', () => {
     expect(() => composeArgs('remove-volumes')).toThrow(
       'Unknown plugin dev action',
     );
-    expect(() => validateContainerTool('buildah')).toThrow('Allowed values');
+  });
+
+  it('rejects an invalid container tool value', async () => {
+    await expect(validateContainerTool('buildah')).rejects.toThrow(
+      'Allowed values',
+    );
+  });
+
+  it('rejects a container tool that is not on PATH', async () => {
+    const taskMock = Task as jest.Mocked<typeof Task>;
+    taskMock.forCommand.mockRejectedValueOnce(new Error('command not found'));
+    await expect(validateContainerTool('docker')).rejects.toThrow(
+      'Unable to find docker on PATH',
+    );
+  });
+
+  it('accepts a container tool that is on PATH', async () => {
+    const taskMock = Task as jest.Mocked<typeof Task>;
+    taskMock.forCommand.mockResolvedValueOnce(undefined);
+    await expect(validateContainerTool('podman')).resolves.toBe('podman');
   });
 
   it('uses the command option before RHDH_LOCAL_DIR', () => {
@@ -216,6 +261,52 @@ describe('plugin dev', () => {
         process.env.RHDH_LOCAL_DIR = previous;
       }
     }
+  });
+
+  describe('lifecycle handlers with mocked child processes', () => {
+    let runtimeDir: string;
+    const mockRun = run as jest.MockedFunction<typeof run>;
+    const mockExecFile = execFile as jest.MockedFunction<typeof execFile>;
+    const mockTask = Task as jest.Mocked<typeof Task>;
+
+    beforeEach(async () => {
+      runtimeDir = await fs.mkdtemp(
+        path.join(os.tmpdir(), 'plugin-dev-runtime-'),
+      );
+      // Create the required runtime files so validateRuntime passes
+      for (const f of [
+        'compose.yaml',
+        'compose-dynamic-plugins-root.yaml',
+        'prepare-and-install-dynamic-plugins.sh',
+        'wait-for-plugins-and-start.sh',
+      ]) {
+        await fs.writeFile(path.join(runtimeDir, f), '');
+      }
+      mockRun.mockReset();
+      mockExecFile.mockReset();
+      mockTask.forCommand.mockResolvedValue(undefined);
+      mockTask.log.mockReset();
+    });
+
+    afterEach(async () => {
+      await fs.remove(runtimeDir);
+    });
+
+    it('stop rejects when the compose child process fails', async () => {
+      const err = new ExitCodeError(1, 'podman compose stop');
+      mockRun.mockRejectedValueOnce(err);
+      await expect(
+        stop({ rhdhLocalDir: runtimeDir, containerTool: 'podman' }),
+      ).rejects.toThrow(ExitCodeError);
+    });
+
+    it('status rejects when the compose child process fails', async () => {
+      const err = new ExitCodeError(1, 'podman compose ps');
+      mockExecFile.mockRejectedValueOnce(err);
+      await expect(
+        status({ rhdhLocalDir: runtimeDir, containerTool: 'podman' }),
+      ).rejects.toThrow(ExitCodeError);
+    });
   });
 
   it('reports the RHDH Local files missing from an incompatible directory', async () => {
@@ -245,7 +336,7 @@ describe('plugin dev', () => {
     ).rejects.toThrow('rerun with --configure');
     await ensureGeneratedConfigIncluded(directory, true);
     await expect(fs.readFile(override, 'utf8')).resolves.toContain(
-      'rhdh-cli.generated.yaml',
+      'rhdh-cli.generated.local.yaml',
     );
     await fs.remove(directory);
   });
@@ -256,7 +347,7 @@ describe('plugin dev', () => {
     );
     const config = path.join(
       directory,
-      'configs/dynamic-plugins/rhdh-cli.generated.yaml',
+      'configs/dynamic-plugins/rhdh-cli.generated.local.yaml',
     );
 
     await updateGeneratedConfig(directory, './local-plugins/example');

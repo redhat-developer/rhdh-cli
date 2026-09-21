@@ -96,23 +96,27 @@ plugin code. `update` re-exports, re-stages, and then restarts the RHDH service.
 
 Key files:
 
-- `command.ts` — per-subcommand handlers (`start`, `update`, `stop`, `logs`,
-  `status`) plus all shared helpers: runtime validation, config management,
-  plugin staging, Compose argument builders, and status formatting.
-- `index.ts` — re-exports the five handlers for lazy-loading via
+- `command.ts` — per-subcommand handlers (`start`, `update`, `restart`, `stop`,
+  `logs`, `status`) plus all shared helpers: runtime validation, config
+  management, plugin staging, Compose argument builders, and status formatting.
+- `index.ts` — re-exports the six handlers for lazy-loading via
   `src/commands/index.ts`.
 
 **Runtime contract:** `plugin dev` requires an explicit RHDH Local checkout via
 `--rhdh-local-dir <path>` or the `RHDH_LOCAL_DIR` environment variable. It
 validates the presence of `compose.yaml`, `compose-dynamic-plugins-root.yaml`,
 `prepare-and-install-dynamic-plugins.sh`, and `wait-for-plugins-and-start.sh`.
-It never mutates the checkout's Git state or user-owned configuration files.
+It never touches Git-tracked files in the checkout and does not modify
+user-owned configuration files (the `--configure` flag appends one include to
+`dynamic-plugins.override.yaml`, but that file is gitignored in RHDH Local).
 
 **Staging contract:** Plugins are staged to `local-plugins/<package-name>/`
 inside the RHDH Local checkout. The RHDH Local installer picks them up via
 `npm pack` from that path. The CLI writes its plugin entry to
-`configs/dynamic-plugins/rhdh-cli.generated.yaml`; `--configure` adds that
-file to `dynamic-plugins.override.yaml`'s `includes` list on first use.
+`configs/dynamic-plugins/rhdh-cli.generated.local.yaml`; `--configure` adds
+that file to `dynamic-plugins.override.yaml`'s `includes` list on first use.
+`rhdh-cli.generated.local.yaml` matches the `*.local.yaml` gitignore pattern in
+RHDH Local and will not appear in `git status` after a successful `start`.
 
 **Pre-flight check:** `start` and `update` call `validateProjectFiles()` before
 invoking `plugin export`. For backend plugins this checks that `dist-types/`
