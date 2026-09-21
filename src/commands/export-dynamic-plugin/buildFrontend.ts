@@ -14,6 +14,10 @@
  * limitations under the License.
  */
 
+// Code copied from @backstage/cli-module-build/src/lib/buildFrontend.ts
+// in order to include additional shared dependencies
+// when calling buildBundle.
+
 import fs from 'fs-extra';
 import { resolve as resolvePath } from 'node:path';
 import { buildBundle } from '@backstage/cli-module-build/dist/lib/bundler/bundle.cjs.js';

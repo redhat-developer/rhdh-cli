@@ -10,7 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - **Frontend plugin export:** Improved module federation sharing configuration to optimize bundle sizes and reduce duplicate dependencies across dynamic plugins. A curated list of common dependencies and transitive dependencies are now shared by default, with version requirements respected when appropriate for better runtime performance.
 
-## 2.1.0 (unpusblished) - 2026-09-17
+## 2.1.0 (unpublished) - 2026-09-17
 
 ### Changed
 
