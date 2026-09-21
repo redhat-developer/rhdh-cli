@@ -62,6 +62,7 @@ export async function command(opts: OptionValues): Promise<void> {
 
   const configSchema = await getConfigSchema(rawPkg.name);
   for (const configSchemaPath of configSchemaPaths) {
+    await fs.ensureDir(path.dirname(paths.resolveTarget(configSchemaPath)));
     await fs.writeJson(paths.resolveTarget(configSchemaPath), configSchema, {
       encoding: 'utf8',
       spaces: 2,

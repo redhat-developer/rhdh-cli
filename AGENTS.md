@@ -11,6 +11,18 @@
 - Type check single file: not supported — `tsconfig.json` extends Backstage's base config, so `tsc` must run project-wide; use `yarn tsc` and check for errors in the target file
 - Prettier check: `yarn prettier:check` (fix: `yarn prettier:fix`)
 
+## Pre-push Checklist
+
+Run these before every commit that will be pushed to a PR branch:
+
+```bash
+yarn lint:check && yarn prettier:check && yarn tsc
+```
+
+Fix any issues with `yarn lint:fix` and `yarn prettier:fix` before committing.
+SonarCloud runs on every push; address any new issues (typescript:S7772 `node:`
+import prefix, typescript:S4624 nested template literals) before they accumulate.
+
 ## Key Conventions
 
 - CLI command groups are co-located under `src/commands/intent-based-actions/`;
@@ -18,6 +30,14 @@
 - Keep human/JSON rendering in `format.ts`, Backstage action invocation in
   `client.ts`, and command-level error presentation in `intent-errors.ts`.
 - Add or update the co-located `*.test.ts` file when changing command behavior.
+- **Use Commander subcommands, not positional arguments, when a command group
+  has distinct actions with different option sets.** Positional arguments
+  (e.g. `plugin dev [action]`) hide the available actions from `--help` and
+  force every option to be shared across all actions, making some combinations
+  nonsensical (e.g. `plugin dev status --configure`). Register each action as
+  its own `.command('action')` with only the flags that apply to it. See
+  `plugin dev` in `src/commands/index.ts` and `src/commands/dev/` for the
+  reference implementation.
 
 ## Architecture
 
@@ -58,6 +78,55 @@ Handlebars comment explaining which upstream version it patches and the
 condition under which it can be removed. When upgrading `@backstage/cli-module-new`
 to a new version (i.e. adding a new RHDH release profile), audit every file
 in `templates/plugin-new/` and remove overlays whose upstream has caught up.
+
+### `plugin dev` — local runtime command
+
+`src/commands/dev/` owns the `rhdh-cli plugin dev` subcommand group. It exports
+the current plugin into an existing RHDH Local checkout and drives its Compose
+runtime lifecycle.
+
+Each action is a proper Commander subcommand with only the flags that apply to
+it: `start`, `update`, `restart`, `stop`, `logs`, `status`. The subcommands are
+registered in `src/commands/index.ts` and lazy-load their handlers from
+`src/commands/dev/`.
+
+`restart` stops and restarts the RHDH service only (no plugin re-export or
+re-staging) — use it when changing RHDH Local configuration without touching
+plugin code. `update` re-exports, re-stages, and then restarts the RHDH service.
+
+Key files:
+
+- `command.ts` — per-subcommand handlers (`start`, `update`, `restart`, `stop`,
+  `logs`, `status`) plus all shared helpers: runtime validation, config
+  management, plugin staging, Compose argument builders, and status formatting.
+- `index.ts` — re-exports the six handlers for lazy-loading via
+  `src/commands/index.ts`.
+
+**Runtime contract:** `plugin dev` requires an explicit RHDH Local checkout via
+`--rhdh-local-dir <path>` or the `RHDH_LOCAL_DIR` environment variable. It
+validates the presence of `compose.yaml`, `compose-dynamic-plugins-root.yaml`,
+`prepare-and-install-dynamic-plugins.sh`, and `wait-for-plugins-and-start.sh`.
+It never touches Git-tracked files in the checkout and does not modify
+user-owned configuration files (the `--configure` flag appends one include to
+`dynamic-plugins.override.yaml`, but that file is gitignored in RHDH Local).
+
+**Staging contract:** Plugins are staged to `local-plugins/<package-name>/`
+inside the RHDH Local checkout. The RHDH Local installer picks them up via
+`npm pack` from that path. The CLI writes its plugin entry to
+`configs/dynamic-plugins/rhdh-cli.generated.local.yaml`; `--configure` adds
+that file to `dynamic-plugins.override.yaml`'s `includes` list on first use.
+`rhdh-cli.generated.local.yaml` matches the `*.local.yaml` gitignore pattern in
+RHDH Local and will not appear in `git status` after a successful `start`.
+
+**Pre-flight check:** `start` and `update` call `validateProjectFiles()` before
+invoking `plugin export`. For backend plugins this checks that `dist-types/`
+exists, failing fast with a clear `yarn tsc` instruction rather than letting
+`yarn build` fail deep in the export process.
+
+**Symlink handling:** `stagePlugin` uses `fs.remove` + `fs.copy` with
+`dereference: false` so relative symlinks in `node_modules/.bin/` are preserved
+as symlinks in the staged copy rather than followed, which would cause a
+self-copy error on repeated `update` runs.
 
 ## Pattern References
 
