@@ -68,6 +68,15 @@ export async function backend(opts: OptionValues): Promise<string> {
       )} field set to ${chalk.cyan('true')}`,
     );
   }
+  if (!pkg.version) {
+    throw new Error(
+      `Package ${chalk.cyan(pkg.name)} is missing a ${chalk.cyan(
+        'version',
+      )} field. Add a version to its ${chalk.cyan(
+        'package.json',
+      )} before exporting as a dynamic plugin.`,
+    );
+  }
 
   const derivedPackageName = `${pkg.name}-dynamic`;
   const packagesToEmbed = (opts.embedPackage || []) as string[];

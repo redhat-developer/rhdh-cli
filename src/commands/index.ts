@@ -18,7 +18,7 @@ import { assertError } from '@backstage/errors';
 
 import { Command } from 'commander';
 
-import { exitWithError } from '../lib/errors';
+import { ExitCodeError, exitWithError } from '../lib/errors';
 import { registerIntentCommands } from './intent-based-actions';
 
 export function registerPluginCommand(program: Command) {
@@ -78,26 +78,10 @@ export function registerPluginCommand(program: Command) {
       'Provides the dynamic plugins root folder when the dynamic plugins content should be copied when using the `--dev` argument.',
     )
     .option(
-      '--scalprum-config <file>',
-      'Allows retrieving scalprum configuration from an external JSON file, instead of using a `scalprum` field of the `package.json`. Frontend plugins only.',
-    )
-    .option(
       '--track-dynamic-manifest-and-lock-file',
       'Adds the `package.json` and `yarn.lock` files, generated in the `dist-dynamic` folder of backend plugins, to source control. By default the whole `dist-dynamic` folder id git-ignored.',
       false,
     )
-    .option(
-      '--generate-scalprum-assets',
-      'Generate the dynamic frontend plugin assets through Scalprum in the `dist-scalprum` folder.',
-      true,
-    )
-    .option('--no-generate-scalprum-assets', '', false)
-    .option(
-      '--generate-module-federation-assets',
-      'Generate the dynamic frontend plugin assets through standard module federation in the `dist` folder.',
-      true,
-    )
-    .option('--no-generate-module-federation-assets', '', false)
     .action(lazy(() => import('./export-dynamic-plugin').then(m => m.command)));
 
   command
@@ -146,7 +130,138 @@ export function registerPluginCommand(program: Command) {
     .action(
       lazy(() => import('./package-dynamic-plugins').then(m => m.command)),
     );
+
+  command
+    .command('check-versions')
+    .description(
+      'Check dynamic plugin dependencies in package.json against target RHDH release Backstage manifest',
+    )
+    .option(
+      '--rhdh-version <version>',
+      'Target RHDH version to check compatibility against (e.g. 2.0.0, 1.9, latest, backstage:1.54.0)',
+    )
+    .option(
+      '--manifest-file <path>',
+      'Path to a local Backstage release manifest JSON file (required for air-gapped use)',
+    )
+    .option('--json', 'Output results as JSON')
+    .action(lazy(() => import('./check-versions').then(m => m.command)));
+
+  command
+    .command('upgrade [rhdhVersion]')
+    .alias('versions:bump')
+    .description(
+      'Upgrade dynamic plugin dependencies in package.json to match a target RHDH release',
+    )
+    .option(
+      '--rhdh-version <version>',
+      'Target RHDH version to upgrade compatibility to (e.g. 2.0.0, 1.9, latest, backstage:1.54.0)',
+    )
+    .option(
+      '--dry-run',
+      'Display planned dependency updates without modifying files on disk',
+    )
+    .option(
+      '--skip-install',
+      'Do not run package manager install after updating dependencies',
+    )
+    .option(
+      '--manifest-file <path>',
+      'Path to local Backstage release manifest JSON file (for offline usage)',
+    )
+    .option('--json', 'Output upgrade results as JSON')
+    .action(lazy(() => import('./upgrade').then(m => m.command)));
+
+  command
+    .command('new [name]')
+    .description('Create a standalone RHDH dynamic plugin project')
+    .option('--name <plugin-name>', 'Plugin name (alternative to the argument)')
+    .option(
+      '--type <frontend|backend|catalog-processor-module>',
+      'Type of RHDH dynamic plugin project to create',
+    )
+    .option(
+      '--template <template-name>',
+      'Upstream template name (frontend-plugin, backend-plugin, catalog-processor-module); overrides --type',
+    )
+    .option(
+      '--module-id <module-id>',
+      'Module identifier for module-type templates (defaults to the plugin name)',
+    )
+    .option(
+      '--plugin-package <package-name>',
+      'Generated package name (defaults to @internal/backstage-plugin-<name>)',
+    )
+    .option('--rhdh-version <version>', 'Target RHDH version')
+    .option(
+      '--output <directory>',
+      'Output directory (defaults to the plugin name)',
+    )
+    .option(
+      '--manifest-file <path>',
+      'Path to a local Backstage release manifest JSON file',
+    )
+    .action(lazy(() => import('./new').then(m => m.command)));
+
+  const dev = command
+    .command('dev')
+    .description('Run a dynamic plugin against an existing RHDH Local runtime');
+
+  const devSharedOptions = (cmd: Command) =>
+    cmd
+      .option(
+        '--rhdh-local-dir <directory>',
+        'Path to an existing RHDH Local checkout (defaults to RHDH_LOCAL_DIR)',
+      )
+      .option(
+        '--container-tool <tool>',
+        'Container tool to use: podman or docker',
+        'podman',
+      );
+
+  devSharedOptions(dev.command('start'))
+    .description(
+      'Export the plugin, stage it, and bring up the RHDH Local runtime',
+    )
+    .option(
+      '--configure',
+      'Add the CLI-managed plugin configuration include to RHDH Local on first use',
+    )
+    .action(lazy(() => import('./dev').then(m => m.start)));
+
+  devSharedOptions(dev.command('update'))
+    .description(
+      'Re-export and re-stage the plugin, then restart the RHDH service',
+    )
+    .action(lazy(() => import('./dev').then(m => m.update)));
+
+  devSharedOptions(dev.command('stop'))
+    .description('Stop the RHDH Local runtime')
+    .option(
+      '--clean',
+      'Also remove runtime containers and networks (volumes and config are preserved)',
+    )
+    .action(lazy(() => import('./dev').then(m => m.stop)));
+
+  devSharedOptions(dev.command('restart'))
+    .description(
+      'Restart the RHDH service to pick up configuration changes without re-deploying the plugin',
+    )
+    .action(lazy(() => import('./dev').then(m => m.restart)));
+
+  devSharedOptions(dev.command('logs'))
+    .description('Show logs from the RHDH Local runtime')
+    .option('--rhdh', 'Show RHDH application logs (default when no flag given)')
+    .option('--installer', 'Show dynamic plugin installer logs')
+    .option('--all', 'Show logs from every Compose service')
+    .option('--follow', 'Follow (stream) log output')
+    .action(lazy(() => import('./dev').then(m => m.logs)));
+
+  devSharedOptions(dev.command('status'))
+    .description('Show the current state of the RHDH Local runtime')
+    .action(lazy(() => import('./dev').then(m => m.status)));
 }
+
 export function registerCommands(program: Command) {
   registerPluginCommand(program);
   registerIntentCommands(program);
@@ -164,6 +279,9 @@ function lazy(
       process.exit(0);
     } catch (error) {
       assertError(error);
+      if (error instanceof ExitCodeError) {
+        process.exit(error.code);
+      }
       exitWithError(error);
     }
   };

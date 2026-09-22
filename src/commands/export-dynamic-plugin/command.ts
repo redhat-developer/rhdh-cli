@@ -49,18 +49,10 @@ export async function command(opts: OptionValues): Promise<void> {
     ];
   } else if (role === 'frontend-plugin' || role === 'frontend-plugin-module') {
     targetPath = await frontend(roleInfo, opts);
-    configSchemaPaths = [];
-    if (fs.existsSync(path.join(targetPath, 'dist-scalprum'))) {
-      configSchemaPaths.push(
-        path.join(targetPath, 'dist-scalprum/configSchema.json'),
-      );
-    }
-    if (fs.existsSync(path.join(targetPath, 'dist'))) {
-      configSchemaPaths.push(path.join(targetPath, 'dist/.config-schema.json'));
-    }
+    configSchemaPaths = [path.join(targetPath, 'dist/.config-schema.json')];
   } else {
     throw new Error(
-      'Only packages with the "backend-plugin", "backend-plugin-module" or "frontend-plugin" roles can be exported as dynamic backend plugins',
+      'Only packages with the "backend-plugin", "backend-plugin-module", "frontend-plugin" or "frontend-plugin-module" roles can be exported as dynamic plugins',
     );
   }
 
@@ -70,6 +62,7 @@ export async function command(opts: OptionValues): Promise<void> {
 
   const configSchema = await getConfigSchema(rawPkg.name);
   for (const configSchemaPath of configSchemaPaths) {
+    await fs.ensureDir(path.dirname(paths.resolveTarget(configSchemaPath)));
     await fs.writeJson(paths.resolveTarget(configSchemaPath), configSchema, {
       encoding: 'utf8',
       spaces: 2,

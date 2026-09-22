@@ -5,6 +5,9 @@
 # See https://fullsend.sh/docs/guides/infrastructure/layered-config-reference
 version: '1'
 runtime: claude
+agents:
+  - name: review
+    source: harness/review.yaml
 roles:
   - triage
   - coder
