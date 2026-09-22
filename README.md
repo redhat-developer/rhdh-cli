@@ -100,6 +100,8 @@ The CLI manages a single plugin entry in `configs/dynamic-plugins/rhdh-cli.gener
 
 ### Contributing
 
+See [CONTRIBUTING.md](CONTRIBUTING.md) for local development setup, coding guidelines, changelog discipline, versioning strategy, and the release process.
+
 ### Build and Run Locally
 
 To build the project locally:
@@ -186,66 +188,9 @@ All commands support `--help` for detailed usage and `--output json` for machine
 
 All other commands work without these optional plugins.
 
-### Bumping Backstage Dependencies
+### Versioning Strategy and Release Process
 
-To update the `@backstage/*` dependencies to a new Backstage release:
-
-1. Update the `--release` version in the `backstage:bump` script in `package.json` to the target Backstage release version.
-2. Check the `resolutions` section in `package.json` and update any pinned versions if needed.
-3. Run the bump:
-
-```bash
-yarn backstage:bump
-```
-
-This will update all `@backstage/*` packages, pin them with `~` (tilde) ranges, keep `@backstage/cli*` packages at exact versions, and run `yarn install && yarn dedupe`.
-
-After bumping, verify the build and tests still pass:
-
-```bash
-yarn build
-yarn tsc
-yarn test
-```
-
-### Versioning Strategy
-
-The versioning for rhdh-cli is designed to be straightforward and align directly with the main Red Hat Developer Hub (RHDH) product, ensuring a clear compatibility path for developers.
-
-Our versioning scheme follows the pattern of `$MAJOR.$MINOR.$PATCH` (e.g., 1.8.0).
-
-- **Major and Minor Version ($MAJOR.$MINOR)**: This part of the version is synchronized with the corresponding RHDH release. For example, if you are working with RHDH `1.8.z`, you should use a version of `rhdh-cli` from the `1.8.z` series. This direct alignment removes ambiguity and the need to maintain a separate compatibility matrix.
-
-- **Patch Version ($PATCH)**: The patch version is incremented for new releases of the CLI that contain bug fixes or minor, non-breaking feature enhancements specific to the CLI. The patch version of `rhdh-cli` is not lock-stepped with RHDH's patch releases. For instance, `rhdh-cli` versions `1.8.0` and `1.8.1` are both intended for use with any RHDH `1.8.z` installation. We always recommend using the latest available patch release for your RHDH version.
-
-### Release Process
-
-Releases follow a straightforward manual workflow:
-
-1. **Update `CHANGELOG.md`**: Add a new version heading (e.g., `## 2.0.5 - YYYY-MM-DD`) following [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) format, categorizing changes under `Added`, `Changed`, `Fixed`, etc., with links to relevant Jira issues and pull requests.
-2. **Bump version in `package.json`**: Update the `"version"` field to the target version matching the [Versioning Strategy](#versioning-strategy).
-3. **Submit PR**: Open a pull request titled `chore: bump version to X.Y.Z` and merge it after review and CI checks pass.
-4. **Publish**: Trigger the [Publish Package to NPM](#publishing-to-npm) GitHub Action workflow for the target branch.
-
-### Publishing to NPM
-
-Publishing is done using [Publish Package to NPM](.github/workflows/publish.yaml) workflow.
-
-**Make sure not to release MINOR or MAJOR version that are not aligned with the corresponding RHDH release.**
-
-This workflow is **not** currently triggered automatically. It needs to be run manually from the [Actions tab](https://github.com/redhat-developer/rhdh-cli/actions/workflows/publish.yaml) in the GitHub repository. Always run the workflow from the `main` branch (the "Use workflow from" dropdown) and select the target release branch via the `branch` input parameter. This ensures the latest workflow definition is used.
-
-#### NPM dist-tags
-
-The workflow automatically assigns npm dist-tags based on the selected branch:
-
-| Branch                                   | Dist-tag                          | Example                                                            |
-| ---------------------------------------- | --------------------------------- | ------------------------------------------------------------------ |
-| `main`                                   | `next`                            | `npm install @red-hat-developer-hub/cli@next`                      |
-| Latest GA release branch (auto-detected) | `latest` + branch name            | `npm install @red-hat-developer-hub/cli@latest` or `@release-1.10` |
-| Older release branches                   | Branch name (e.g., `release-1.9`) | `npm install @red-hat-developer-hub/cli@release-1.9`               |
-
-The latest GA branch is auto-detected as the `release-*` branch with the highest semver version. Plugin builders targeting a specific RHDH version should use a semver range (e.g., `~1.10.0`) or the corresponding branch tag rather than `latest`.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the versioning strategy, changelog discipline, and step-by-step release process including how to trigger the npm publish workflow.
 
 ## Reporting Issues
 
