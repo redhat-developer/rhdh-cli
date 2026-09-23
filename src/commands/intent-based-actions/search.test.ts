@@ -13,26 +13,28 @@ const mockHandleCommandError = handleCommandError as jest.MockedFunction<
   typeof handleCommandError
 >;
 
+async function parseSearch(...args: string[]) {
+  const program = new Command();
+  registerSearchCommands(program);
+  await program.parseAsync(['node', 'test', 'search', ...args]);
+}
+
 describe('search', () => {
   beforeEach(() => {
     jest.clearAllMocks();
   });
 
-  it('passes term + filter/types to runSearchAction', async () => {
-    const program = new Command();
-    registerSearchCommands(program);
-
-    await program.parseAsync([
-      'node',
-      'test',
-      'search',
+  it('passes term, filters, types, and output mode to runSearchAction', async () => {
+    await parseSearch(
       'my',
       'service',
       '--types',
       'techdocs,software-catalog',
       '--filter',
       'kind=Component',
-    ]);
+      '--output',
+      'json',
+    );
 
     expect(mockRunSearchAction).toHaveBeenCalledWith(
       'my service',
@@ -43,58 +45,21 @@ describe('search', () => {
         pageCursor: undefined,
         instance: undefined,
       },
-      'human',
+      'json',
       'rhdh-cli search "deployment guide" --filter kind=Component',
     );
   });
 
-  it('calls handleCommandError when the search term is empty', async () => {
-    const program = new Command();
-    registerSearchCommands(program);
-
-    await program.parseAsync(['node', 'test', 'search', '']);
-
+  it('rejects an empty term and an invalid --filter', async () => {
+    await parseSearch('');
     expect(mockHandleCommandError).toHaveBeenCalledWith(
       expect.objectContaining({ message: 'Search term is required' }),
       'human',
       { suggestion: 'rhdh-cli search "my service"' },
     );
-  });
 
-  it('uses json mode for --output json', async () => {
-    const program = new Command();
-    registerSearchCommands(program);
-
-    await program.parseAsync([
-      'node',
-      'test',
-      'search',
-      'rhdh',
-      '--output',
-      'json',
-    ]);
-
-    expect(mockRunSearchAction).toHaveBeenCalledWith(
-      'rhdh',
-      expect.any(Object),
-      'json',
-      'rhdh-cli search "deployment guide" --filter kind=Component',
-    );
-  });
-
-  it('calls handleCommandError for an invalid --filter missing =', async () => {
-    const program = new Command();
-    registerSearchCommands(program);
-
-    await program.parseAsync([
-      'node',
-      'test',
-      'search',
-      'rhdh',
-      '--filter',
-      'kind',
-    ]);
-
+    jest.clearAllMocks();
+    await parseSearch('rhdh', '--filter', 'kind');
     expect(mockHandleCommandError).toHaveBeenCalledWith(
       expect.objectContaining({
         message: expect.stringContaining('Invalid "key=value" pair'),

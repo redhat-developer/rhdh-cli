@@ -23,21 +23,19 @@ const mockHandleCommandError = handleCommandError as jest.MockedFunction<
   typeof handleCommandError
 >;
 
-function captureStdout() {
-  return jest.spyOn(process.stdout, 'write').mockImplementation(() => true);
+async function parseApi(...args: string[]) {
+  const program = new Command();
+  registerApiCommands(program);
+  await program.parseAsync(['node', 'test', 'api', ...args]);
 }
 
-describe('api list', () => {
+describe('api', () => {
   beforeEach(() => {
     jest.clearAllMocks();
   });
 
-  it('queries kind API', async () => {
-    const program = new Command();
-    registerApiCommands(program);
-
-    await program.parseAsync(['node', 'test', 'api', 'list']);
-
+  it('lists API entities and applies optional --type', async () => {
+    await parseApi('list');
     expect(mockRunEntityListAction).toHaveBeenCalledWith(
       'catalog:query-catalog-entities',
       {
@@ -48,21 +46,9 @@ describe('api list', () => {
       'human',
       'rhdh-cli api list',
     );
-  });
 
-  it('includes optional --type in the query', async () => {
-    const program = new Command();
-    registerApiCommands(program);
-
-    await program.parseAsync([
-      'node',
-      'test',
-      'api',
-      'list',
-      '--type',
-      'openapi',
-    ]);
-
+    jest.clearAllMocks();
+    await parseApi('list', '--type', 'openapi');
     expect(mockRunEntityListAction).toHaveBeenCalledWith(
       'catalog:query-catalog-entities',
       {
@@ -74,14 +60,8 @@ describe('api list', () => {
       'rhdh-cli api list',
     );
   });
-});
 
-describe('api get-spec', () => {
-  beforeEach(() => {
-    jest.clearAllMocks();
-  });
-
-  it('resolves the entity and writes the human definition', async () => {
+  it('get-spec resolves the entity and writes definition or errors', async () => {
     mockResolveEntityWithAmbiguityCheck.mockResolvedValue({
       entityRef: 'api:default/petstore',
       kind: 'API',
@@ -93,18 +73,12 @@ describe('api get-spec', () => {
         spec: { type: 'openapi', definition: 'openapi: 3.0.0' },
       }),
     );
-    const writeSpy = captureStdout();
-    const program = new Command();
-    registerApiCommands(program);
 
-    await program.parseAsync([
-      'node',
-      'test',
-      'api',
-      'get-spec',
-      'petstore',
-    ]);
+    const writeSpy = jest
+      .spyOn(process.stdout, 'write')
+      .mockImplementation(() => true);
 
+    await parseApi('get-spec', 'petstore');
     expect(mockResolveEntityWithAmbiguityCheck).toHaveBeenCalledWith(
       'petstore',
       expect.objectContaining({ defaultKind: 'api' }),
@@ -116,45 +90,16 @@ describe('api get-spec', () => {
       instance: undefined,
     });
     expect(writeSpy).toHaveBeenCalledWith('openapi: 3.0.0\n');
-    writeSpy.mockRestore();
-  });
 
-  it('writes structured json when --output json', async () => {
-    mockResolveEntityWithAmbiguityCheck.mockResolvedValue({
-      entityRef: 'api:default/petstore',
-      kind: 'API',
-      namespace: 'default',
-      name: 'petstore',
-    });
-    mockExecAction.mockReturnValue(
-      JSON.stringify({
-        spec: { type: 'openapi', definition: 'openapi: 3.0.0' },
-      }),
-    );
-    const writeSpy = captureStdout();
-    const program = new Command();
-    registerApiCommands(program);
-
-    await program.parseAsync([
-      'node',
-      'test',
-      'api',
-      'get-spec',
-      'petstore',
-      '--output',
-      'json',
-    ]);
-
-    const output = writeSpy.mock.calls[0][0] as string;
-    expect(JSON.parse(output)).toEqual({
+    writeSpy.mockClear();
+    await parseApi('get-spec', 'petstore', '--output', 'json');
+    expect(JSON.parse(writeSpy.mock.calls[0][0] as string)).toEqual({
       name: 'petstore',
       type: 'openapi',
       definition: 'openapi: 3.0.0',
     });
     writeSpy.mockRestore();
-  });
 
-  it('calls handleCommandError when spec.definition is missing', async () => {
     mockResolveEntityWithAmbiguityCheck.mockResolvedValue({
       entityRef: 'api:default/empty',
       kind: 'API',
@@ -164,11 +109,7 @@ describe('api get-spec', () => {
     mockExecAction.mockReturnValue(
       JSON.stringify({ spec: { type: 'openapi' } }),
     );
-    const program = new Command();
-    registerApiCommands(program);
-
-    await program.parseAsync(['node', 'test', 'api', 'get-spec', 'empty']);
-
+    await parseApi('get-spec', 'empty');
     expect(mockHandleCommandError).toHaveBeenCalledWith(
       expect.objectContaining({
         message: 'API "empty" has no spec.definition',

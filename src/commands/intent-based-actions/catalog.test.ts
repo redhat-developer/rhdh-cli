@@ -24,58 +24,41 @@ const mockHandleCommandError = handleCommandError as jest.MockedFunction<
   typeof handleCommandError
 >;
 
-describe('catalog list', () => {
+const HUMAN_FIELDS = JSON.stringify([
+  'metadata.name',
+  'kind',
+  'metadata.namespace',
+  'spec.type',
+]);
+
+async function parseCatalog(...args: string[]) {
+  const program = new Command();
+  registerCatalogCommands(program);
+  await program.parseAsync(['node', 'test', 'catalog', ...args]);
+}
+
+describe('catalog', () => {
   beforeEach(() => {
     jest.clearAllMocks();
   });
 
-  it('requests only the default table fields in human output', async () => {
-    const program = new Command();
-    registerCatalogCommands(program);
-
-    await program.parseAsync([
-      'node',
-      'test',
-      'catalog',
-      'list',
-      '--kind',
-      'template',
-    ]);
-
+  it('list selects default fields for human output and omits them for json', async () => {
+    await parseCatalog('list', '--kind', 'template');
     expect(mockRunEntityListAction).toHaveBeenCalledWith(
       'catalog:query-catalog-entities',
       {
         instance: undefined,
         limit: undefined,
         query: JSON.stringify({ kind: 'template' }),
-        fields: JSON.stringify([
-          'metadata.name',
-          'kind',
-          'metadata.namespace',
-          'spec.type',
-        ]),
+        fields: HUMAN_FIELDS,
       },
       'human',
       'rhdh-cli catalog list --kind Component',
       undefined,
     );
-  });
 
-  it('omits default human fields for --output json', async () => {
-    const program = new Command();
-    registerCatalogCommands(program);
-
-    await program.parseAsync([
-      'node',
-      'test',
-      'catalog',
-      'list',
-      '--kind',
-      'Component',
-      '--output',
-      'json',
-    ]);
-
+    jest.clearAllMocks();
+    await parseCatalog('list', '--kind', 'Component', '--output', 'json');
     expect(mockRunEntityListAction).toHaveBeenCalledWith(
       'catalog:query-catalog-entities',
       {
@@ -89,38 +72,20 @@ describe('catalog list', () => {
       undefined,
     );
   });
-});
 
-describe('catalog get', () => {
-  beforeEach(() => {
-    jest.clearAllMocks();
-  });
-
-  it('resolves the entity and calls runRawAction', async () => {
+  it('get resolves the entity and calls runRawAction', async () => {
     mockResolveEntityWithAmbiguityCheck.mockResolvedValue({
       entityRef: 'component:default/my-service',
       kind: 'Component',
       namespace: 'default',
       name: 'my-service',
     });
-    const program = new Command();
-    registerCatalogCommands(program);
 
-    await program.parseAsync([
-      'node',
-      'test',
-      'catalog',
-      'get',
-      'my-service',
-      '--kind',
-      'Component',
-    ]);
+    await parseCatalog('get', 'my-service', '--kind', 'Component');
 
     expect(mockResolveEntityWithAmbiguityCheck).toHaveBeenCalledWith(
       'my-service',
-      expect.objectContaining({
-        kindFlag: 'Component',
-      }),
+      expect.objectContaining({ kindFlag: 'Component' }),
     );
     expect(mockRunRawAction).toHaveBeenCalledWith(
       'catalog:get-catalog-entity',
@@ -134,71 +99,40 @@ describe('catalog get', () => {
       'rhdh-cli catalog get my-service',
     );
   });
-});
 
-describe('catalog validate', () => {
-  beforeEach(() => {
-    jest.clearAllMocks();
-  });
-
-  it('calls handleCommandError without entity or entity-file', async () => {
-    const program = new Command();
-    registerCatalogCommands(program);
-
-    await program.parseAsync(['node', 'test', 'catalog', 'validate']);
-
-    expect(mockHandleCommandError).toHaveBeenCalledWith(
-      expect.objectContaining({
-        message: '--entity or --entity-file is required',
-      }),
-      'human',
+  it('rejects validate/register/unregister without required inputs', async () => {
+    const cases: Array<{
+      args: string[];
+      message: string;
+      suggestion: string;
+    }> = [
       {
+        args: ['validate'],
+        message: '--entity or --entity-file is required',
         suggestion:
           'rhdh-cli catalog validate --entity-file ./catalog-info.yaml',
       },
-    );
-  });
-});
-
-describe('catalog register', () => {
-  beforeEach(() => {
-    jest.clearAllMocks();
-  });
-
-  it('calls handleCommandError without --location-url', async () => {
-    const program = new Command();
-    registerCatalogCommands(program);
-
-    await program.parseAsync(['node', 'test', 'catalog', 'register']);
-
-    expect(mockHandleCommandError).toHaveBeenCalledWith(
-      expect.objectContaining({ message: '--location-url is required' }),
-      'human',
       {
+        args: ['register'],
+        message: '--location-url is required',
         suggestion:
           'rhdh-cli catalog register --location-url https://github.com/org/repo/blob/main/catalog-info.yaml',
       },
-    );
-  });
-});
-
-describe('catalog unregister', () => {
-  beforeEach(() => {
-    jest.clearAllMocks();
-  });
-
-  it('calls handleCommandError without location', async () => {
-    const program = new Command();
-    registerCatalogCommands(program);
-
-    await program.parseAsync(['node', 'test', 'catalog', 'unregister']);
-
-    expect(mockHandleCommandError).toHaveBeenCalledWith(
-      expect.objectContaining({
+      {
+        args: ['unregister'],
         message: '--location-id or --location-url is required',
-      }),
-      'human',
-      { suggestion: 'rhdh-cli catalog unregister --location-id <id>' },
-    );
+        suggestion: 'rhdh-cli catalog unregister --location-id <id>',
+      },
+    ];
+
+    for (const { args, message, suggestion } of cases) {
+      jest.clearAllMocks();
+      await parseCatalog(...args);
+      expect(mockHandleCommandError).toHaveBeenCalledWith(
+        expect.objectContaining({ message }),
+        'human',
+        { suggestion },
+      );
+    }
   });
 });

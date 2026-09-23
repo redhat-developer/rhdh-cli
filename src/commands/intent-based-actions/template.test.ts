@@ -27,17 +27,19 @@ const mockHandleCommandError = handleCommandError as jest.MockedFunction<
   typeof handleCommandError
 >;
 
-describe('template list', () => {
+async function parseTemplate(...args: string[]) {
+  const program = new Command();
+  registerTemplateCommands(program);
+  await program.parseAsync(['node', 'test', 'template', ...args]);
+}
+
+describe('template', () => {
   beforeEach(() => {
     jest.clearAllMocks();
   });
 
-  it('requests only the fields rendered in human output', async () => {
-    const program = new Command();
-    registerTemplateCommands(program);
-
-    await program.parseAsync(['node', 'test', 'template', 'list']);
-
+  it('list selects human table fields and omits them for json', async () => {
+    await parseTemplate('list');
     expect(mockRunEntityListAction).toHaveBeenCalledWith(
       'catalog:query-catalog-entities',
       {
@@ -53,21 +55,9 @@ describe('template list', () => {
       },
       'human',
     );
-  });
 
-  it('does not set fields for --output json', async () => {
-    const program = new Command();
-    registerTemplateCommands(program);
-
-    await program.parseAsync([
-      'node',
-      'test',
-      'template',
-      'list',
-      '--output',
-      'json',
-    ]);
-
+    jest.clearAllMocks();
+    await parseTemplate('list', '--output', 'json');
     expect(mockRunEntityListAction).toHaveBeenCalledWith(
       'catalog:query-catalog-entities',
       {
@@ -79,33 +69,16 @@ describe('template list', () => {
       'json',
     );
   });
-});
 
-describe('template execute', () => {
-  beforeEach(() => {
-    jest.clearAllMocks();
-  });
-
-  it('resolves the ref and calls runRawAction with scaffolder:execute-template', async () => {
+  it('execute resolves the ref and dry-run reads YAML or rejects missing file', async () => {
     mockResolveEntityWithAmbiguityCheck.mockResolvedValue({
       entityRef: 'template:default/react-ssr',
       kind: 'Template',
       namespace: 'default',
       name: 'react-ssr',
     });
-    const program = new Command();
-    registerTemplateCommands(program);
 
-    await program.parseAsync([
-      'node',
-      'test',
-      'template',
-      'execute',
-      'react-ssr',
-      '--value',
-      'name=my-app',
-    ]);
-
+    await parseTemplate('execute', 'react-ssr', '--value', 'name=my-app');
     expect(mockResolveEntityWithAmbiguityCheck).toHaveBeenCalledWith(
       'react-ssr',
       expect.objectContaining({ defaultKind: 'template' }),
@@ -121,20 +94,9 @@ describe('template execute', () => {
       'human',
       'rhdh-cli template list',
     );
-  });
-});
 
-describe('template dry-run', () => {
-  beforeEach(() => {
     jest.clearAllMocks();
-  });
-
-  it('calls handleCommandError without --template-file', async () => {
-    const program = new Command();
-    registerTemplateCommands(program);
-
-    await program.parseAsync(['node', 'test', 'template', 'dry-run']);
-
+    await parseTemplate('dry-run');
     expect(mockHandleCommandError).toHaveBeenCalledWith(
       expect.objectContaining({ message: '--template-file is required' }),
       'human',
@@ -143,9 +105,7 @@ describe('template dry-run', () => {
           'rhdh-cli template dry-run --template-file ./template.yaml --value name=my-app',
       },
     );
-  });
 
-  it('reads YAML from --template-file and calls scaffolder:dry-run-template', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'rhdh-cli-template-'));
     const templateFile = join(dir, 'template.yaml');
     const yaml = [
@@ -158,20 +118,14 @@ describe('template dry-run', () => {
     ].join('\n');
     writeFileSync(templateFile, yaml);
 
-    const program = new Command();
-    registerTemplateCommands(program);
-
-    await program.parseAsync([
-      'node',
-      'test',
-      'template',
+    jest.clearAllMocks();
+    await parseTemplate(
       'dry-run',
       '--template-file',
       templateFile,
       '--value',
       'name=demo',
-    ]);
-
+    );
     expect(mockRunRawAction).toHaveBeenCalledWith(
       'scaffolder:dry-run-template',
       {
