@@ -29,7 +29,10 @@ const SAMPLE_COMPONENT = {
 const SAMPLE_API = {
   kind: 'API',
   metadata: { name: 'payments-api', namespace: 'default' },
-  spec: { type: 'openapi', definition: 'openapi: 3.0.0\ninfo:\n  title: Payments\n' },
+  spec: {
+    type: 'openapi',
+    definition: 'openapi: 3.0.0\ninfo:\n  title: Payments\n',
+  },
 };
 
 const SAMPLE_TEMPLATE = {
@@ -149,7 +152,7 @@ describe('intent commands (mocked client integration)', () => {
     expect(spyText(io.stdout)).toContain('payments');
   });
 
-  it('api list and get-spec exercise query + definition extraction', async () => {
+  it('api list and get-spec extract definitions or error when missing', async () => {
     mockExecActionJson.mockReturnValue({ items: [SAMPLE_API] });
     await runCli(registerApiCommands, ['api', 'list', '--type', 'openapi']);
     expect(mockExecActionJson).toHaveBeenCalledWith(
@@ -175,6 +178,20 @@ describe('intent commands (mocked client integration)', () => {
       instance: undefined,
     });
     expect(spyText(io.stdout)).toContain('openapi: 3.0.0');
+
+    jest.clearAllMocks();
+    io.stderr.mockClear();
+    io.exit.mockClear();
+    mockExecAction.mockReturnValue(
+      JSON.stringify({
+        kind: 'API',
+        metadata: { name: 'empty', namespace: 'default' },
+        spec: { type: 'openapi' },
+      }),
+    );
+    await runCli(registerApiCommands, ['api', 'get-spec', 'api:default/empty']);
+    expect(io.exit).toHaveBeenCalledWith(1);
+    expect(spyText(io.stderr)).toMatch(/no spec\.definition/i);
   });
 
   it('search prints results and surfaces action failures', async () => {
@@ -263,7 +280,8 @@ describe('intent commands (mocked client integration)', () => {
     mockExecAction.mockReturnValue(JSON.stringify({ ok: true }));
     const dir = mkdtempSync(join(tmpdir(), 'rhdh-cli-int-tpl-'));
     const templateFile = join(dir, 'template.yaml');
-    const yaml = 'apiVersion: scaffolder.backstage.io/v1beta3\nkind: Template\n';
+    const yaml =
+      'apiVersion: scaffolder.backstage.io/v1beta3\nkind: Template\n';
     writeFileSync(templateFile, yaml);
     await runCli(registerTemplateCommands, [
       'template',
