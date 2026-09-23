@@ -14,4 +14,16 @@
  * limitations under the License.
  */
 
-export { start, update, restart, stop, logs, status } from './command';
+export {
+  start,
+  update,
+  watchUpdate,
+  waitForContainerEvent,
+  waitForContainerCleanup,
+  resolveRhdhUrl,
+  waitForRhdhReady,
+  restart,
+  stop,
+  logs,
+  status,
+} from './command';
