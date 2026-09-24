@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Removed
+
+- **`plugin export`:** Backend plugins and modules no longer ship the legacy `dist/configSchema.json` copy. Exports write only `dist/.config-schema.json` and remove a stale legacy copy when re-exporting without `--clean`, matching the RHDH schema loader ([RHIDP-17026](https://redhat.atlassian.net/browse/RHIDP-17026)).
+
 ## 2.1.1 - 2026-09-21
 
 ### Added
