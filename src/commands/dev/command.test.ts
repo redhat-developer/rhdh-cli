@@ -827,6 +827,86 @@ describe('watchUpdate', () => {
     }
   }
 
+  /**
+   * Start watchUpdate and drive it into the settle-wait phase: cycle 1 is
+   * held open, a second change arrives while it's still in-flight (setting
+   * pendingChange), cycle 1 is then released, and this resolves once the
+   * settle-wait's two events subscriptions (rhdh + install-dynamic-plugins)
+   * have spawned. Shared by tests that need to interact with that window —
+   * injecting further changes, resolving it, or triggering shutdown.
+   */
+  async function enterSettleWait(settleTimeoutMs: number): Promise<{
+    watchPromise: Promise<void>;
+    settleChildren: FakeChildProcess[];
+    spawnMock: jest.Mock;
+  }> {
+    const { spawn: spawnMock } = jest.requireMock('node:child_process') as {
+      spawn: jest.Mock;
+    };
+    const settleChildren: FakeChildProcess[] = [];
+    spawnMock.mockImplementation(() => {
+      const child = new FakeChildProcess();
+      settleChildren.push(child);
+      return child;
+    });
+
+    // Hold cycle 1 open so we can reliably inject a second change while
+    // `running` is still true.
+    let releaseCycle1: () => void = () => {};
+    mockExport.mockImplementationOnce(
+      () => new Promise<void>(resolve => (releaseCycle1 = resolve)),
+    );
+
+    const watchPromise = watchUpdate('podman', runtimeDir, 0, settleTimeoutMs);
+
+    fakeWatcher.emit('all', 'change', 'src/a.ts');
+    await waitForExportCalls(1); // cycle 1 started; still in-flight
+
+    fakeWatcher.emit('all', 'change', 'src/b.ts');
+    // Let the second change's own (0ms) debounce timer fire and observe
+    // running === true, setting pendingChange instead of starting a second
+    // drainCycles().
+    await new Promise<void>(resolve => setTimeout(resolve, 10));
+
+    releaseCycle1(); // cycle 1 finishes; keepGoing becomes true
+
+    const spawnDeadline = Date.now() + 5000;
+    while (settleChildren.length < 2) {
+      if (Date.now() > spawnDeadline) {
+        throw new Error('Timed out waiting for settle-wait children to spawn');
+      }
+      await new Promise<void>(resolve => setImmediate(resolve));
+    }
+
+    return { watchPromise, settleChildren, spawnMock };
+  }
+
+  /** Emit the settle-wait's expected 'cleanup' event to each captured child. */
+  function resolveSettleWait(settleChildren: FakeChildProcess[]) {
+    for (const child of settleChildren) {
+      const rhdhEvent = JSON.stringify({
+        Status: 'cleanup',
+        Attributes: { 'com.docker.compose.service': 'rhdh' },
+      });
+      child.stdout.emit('data', Buffer.from(`${rhdhEvent}\n`));
+      const installerEvent = JSON.stringify({
+        Status: 'cleanup',
+        Attributes: {
+          'com.docker.compose.service': 'install-dynamic-plugins',
+        },
+      });
+      child.stdout.emit('data', Buffer.from(`${installerEvent}\n`));
+    }
+  }
+
+  /** Restore spawn's default mock (tracking the shared `fakeChild`). */
+  function restoreDefaultSpawnMock(spawnMock: jest.Mock) {
+    spawnMock.mockImplementation(() => {
+      fakeChild = new FakeChildProcess();
+      return fakeChild;
+    });
+  }
+
   it('runs an update cycle when a file change event fires', async () => {
     // debounceMs=0 so the timer fires on the next event-loop tick.
     const watchPromise = watchUpdate('podman', runtimeDir, 0, 0);
@@ -885,49 +965,12 @@ describe('watchUpdate', () => {
     // right after the cycle itself, before the optional settle-wait ran. A
     // change arriving during that wait saw `running === false` and called
     // drainCycles() again — a second, concurrent loop rather than a
-    // coalesced follow-up. Also verifies the settle-wait subscribes to the
-    // events stream *before* runUpdateCycle's own compose stop/start calls
-    // run (not after), by capturing spawned children and confirming both
-    // exist before cycle 2 begins.
-    const { spawn: spawnMock } = jest.requireMock('node:child_process') as {
-      spawn: jest.Mock;
-    };
-    const settleChildren: FakeChildProcess[] = [];
-    spawnMock.mockImplementation(() => {
-      const child = new FakeChildProcess();
-      settleChildren.push(child);
-      return child;
-    });
-
-    // Hold cycle 1 open so we can reliably inject a second change while
-    // `running` is still true.
-    let releaseCycle1: () => void = () => {};
-    mockExport.mockImplementationOnce(
-      () => new Promise<void>(resolve => (releaseCycle1 = resolve)),
-    );
-
-    const watchPromise = watchUpdate('podman', runtimeDir, 0, 5000);
-
-    fakeWatcher.emit('all', 'change', 'src/a.ts');
-    await waitForExportCalls(1); // cycle 1 started; still in-flight
-
-    fakeWatcher.emit('all', 'change', 'src/b.ts');
-    // Let the second change's own (0ms) debounce timer fire and observe
-    // running === true, setting pendingChange instead of starting a second
-    // drainCycles().
-    await new Promise<void>(resolve => setTimeout(resolve, 10));
-
-    releaseCycle1(); // cycle 1 finishes; keepGoing becomes true
-
-    // The settle-wait's two subscriptions (rhdh + install-dynamic-plugins)
-    // should spawn before cycle 2 starts.
-    const spawnDeadline = Date.now() + 5000;
-    while (settleChildren.length < 2) {
-      if (Date.now() > spawnDeadline) {
-        throw new Error('Timed out waiting for settle-wait children to spawn');
-      }
-      await new Promise<void>(resolve => setImmediate(resolve));
-    }
+    // coalesced follow-up. enterSettleWait() already proves the settle-wait
+    // subscribes to the events stream *before* runUpdateCycle's own compose
+    // stop/start calls run (not after), by capturing spawned children and
+    // confirming both exist before cycle 2 begins.
+    const { watchPromise, settleChildren, spawnMock } =
+      await enterSettleWait(5000);
 
     // While the settle-wait is unresolved, cycle 2 must not have started yet
     // — proving `running` stayed true and the pending change was coalesced
@@ -945,21 +988,7 @@ describe('watchUpdate', () => {
     await new Promise<void>(resolve => setTimeout(resolve, 10));
     expect(mockExport).toHaveBeenCalledTimes(1);
 
-    // Resolve the settle-wait by emitting the expected event to each child.
-    for (const child of settleChildren) {
-      const event = JSON.stringify({
-        Status: 'cleanup',
-        Attributes: { 'com.docker.compose.service': 'rhdh' },
-      });
-      child.stdout.emit('data', Buffer.from(`${event}\n`));
-      const event2 = JSON.stringify({
-        Status: 'cleanup',
-        Attributes: {
-          'com.docker.compose.service': 'install-dynamic-plugins',
-        },
-      });
-      child.stdout.emit('data', Buffer.from(`${event2}\n`));
-    }
+    resolveSettleWait(settleChildren);
 
     // Cycle 2 now runs, absorbing the coalesced pending change.
     await waitForExportCalls(2);
@@ -968,11 +997,7 @@ describe('watchUpdate', () => {
     fakeWatcher.emit('error', new Error('done'));
     await expect(watchPromise).rejects.toThrow('done');
 
-    // Restore the default mock implementation for subsequent tests.
-    spawnMock.mockImplementation(() => {
-      fakeChild = new FakeChildProcess();
-      return fakeChild;
-    });
+    restoreDefaultSpawnMock(spawnMock);
   });
 
   it('continues watching after a failed update cycle', async () => {
@@ -1081,47 +1106,8 @@ describe('watchUpdate', () => {
     // free, but SIGTERM to just this PID does not — and process.exit()
     // prevents waitForContainerEvent's own JS-side timeout from ever running
     // to kill them itself. shutdown() must kill any tracked child directly.
-    const { spawn: spawnMock } = jest.requireMock('node:child_process') as {
-      spawn: jest.Mock;
-    };
-    const settleChildren: FakeChildProcess[] = [];
-    spawnMock.mockImplementation(() => {
-      const child = new FakeChildProcess();
-      settleChildren.push(child);
-      return child;
-    });
-
-    // Hold cycle 1 open (mockExport won't resolve) so we can reliably inject
-    // a second change while `running` is still true, forcing pendingChange
-    // and, once cycle 1 is released, the settle-wait phase.
-    let releaseCycle1: () => void = () => {};
-    mockExport.mockImplementationOnce(
-      () => new Promise<void>(resolve => (releaseCycle1 = resolve)),
-    );
-
-    // settleTimeoutMs > 0 so drainCycles spawns the settle-wait listeners.
-    const watchPromise = watchUpdate('podman', runtimeDir, 0, 5000);
-
-    fakeWatcher.emit('all', 'change', 'src/a.ts');
-    await waitForExportCalls(1); // cycle 1 started; still in-flight (export pending)
-
-    fakeWatcher.emit('all', 'change', 'src/b.ts');
-    // Let the second change's own (0ms) debounce timer fire and observe
-    // running === true, setting pendingChange rather than starting a
-    // concurrent drainCycles().
-    await new Promise<void>(resolve => setTimeout(resolve, 10));
-
-    releaseCycle1(); // let cycle 1 finish; keepGoing becomes true
-
-    // Wait for the settle-wait's two events subscriptions (rhdh +
-    // install-dynamic-plugins) to spawn.
-    const deadline = Date.now() + 5000;
-    while (settleChildren.length < 2) {
-      if (Date.now() > deadline) {
-        throw new Error('Timed out waiting for settle-wait children to spawn');
-      }
-      await new Promise<void>(resolve => setImmediate(resolve));
-    }
+    const { watchPromise, settleChildren, spawnMock } =
+      await enterSettleWait(5000);
 
     const exitSpy = jest
       .spyOn(process, 'exit')
@@ -1138,11 +1124,7 @@ describe('watchUpdate', () => {
     exitSpy.mockRestore();
     void watchPromise;
 
-    // Restore the default mock implementation for subsequent tests.
-    spawnMock.mockImplementation(() => {
-      fakeChild = new FakeChildProcess();
-      return fakeChild;
-    });
+    restoreDefaultSpawnMock(spawnMock);
   });
 
   it('update --watch deploys the current tree immediately, before entering watch mode', async () => {

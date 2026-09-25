@@ -605,7 +605,7 @@ export async function watchUpdate(
         Task.log(
           `[watch] Change received during cycle — waiting for runtime to settle...`,
         );
-        if (settlePromise) await settlePromise;
+        if (settlePromise !== undefined) await settlePromise;
       }
       // Cleared only now, after any settle-wait completes — not in a
       // `finally` right after the cycle itself. Clearing it earlier let a
