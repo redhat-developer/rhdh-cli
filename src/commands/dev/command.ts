@@ -236,7 +236,15 @@ async function waitForInstallerToFinish(
   if (composeServiceState(installer).includes('exited')) {
     return;
   }
-  await waitForContainerEvent(containerTool, 'install-dynamic-plugins', 'died');
+  // Podman's terminal container-death event is 'died'; Docker's is 'die'.
+  // Subscribing with the wrong filter means the event stream never matches
+  // anything and this stalls for the full waitForContainerEvent timeout.
+  const diedEvent = containerTool === 'podman' ? 'died' : 'die';
+  await waitForContainerEvent(
+    containerTool,
+    'install-dynamic-plugins',
+    diedEvent,
+  );
 }
 
 export async function start(opts: OptionValues) {
@@ -456,7 +464,7 @@ function describeWatchError(err: unknown): string {
  * Watch source files and run a full update cycle on changes.
  *
  * Design:
- * - Watches src/, package.json, tsconfig*.json, and *.config.* files.
+ * - Watches src/ and package.json.
  * - Excludes output directories (node_modules, dist, dist-dynamic,
  *   dist-types) to prevent output-loop triggering.
  * - Events are debounced: the first event in a `debounceMs` window triggers

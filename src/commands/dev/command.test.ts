@@ -1042,6 +1042,33 @@ describe('start', () => {
     // Never needed to subscribe to the events stream at all.
     expect(spawnMock).not.toHaveBeenCalled();
   });
+
+  it("waits for docker's 'die' event, not podman's 'died', when --container-tool=docker", async () => {
+    // Regression test: Docker's terminal container-death event is 'die', not
+    // 'died'. Subscribing to phase 3's events stream with the wrong filter
+    // means it never matches anything and stalls for the full
+    // waitForContainerEvent timeout on every Docker-backed `start`.
+    const startPromise = start({
+      rhdhLocalDir: runtimeDir,
+      containerTool: 'docker',
+    });
+
+    await waitForCondition(
+      () => spawnMock.mock.calls.length > 0,
+      'waitForContainerEvent to spawn the events subscription',
+    );
+    const [, spawnArgs] = spawnMock.mock.calls[0] as [string, string[]];
+    expect(spawnArgs).toContain('event=die');
+    expect(spawnArgs).not.toContain('event=died');
+
+    const event = JSON.stringify({
+      Action: 'die',
+      Attributes: { 'com.docker.compose.service': 'install-dynamic-plugins' },
+    });
+    fakeChild.stdout.emit('data', Buffer.from(`${event}\n`));
+
+    await expect(startPromise).resolves.toBeUndefined();
+  });
 });
 
 // ---------------------------------------------------------------------------
