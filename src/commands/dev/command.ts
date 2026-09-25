@@ -44,8 +44,9 @@ export async function resolveRhdhUrl(runtimeDir: string): Promise<string> {
     if (!(await fs.pathExists(file))) continue;
     const content = await fs.readFile(file, 'utf8');
     for (const line of content.split('\n')) {
-      const match = line.match(/^\s*BASE_URL\s*=\s*(.+?)\s*$/);
-      if (match) url = match[1].replace(/^["']|["']$/g, '');
+      const match = line.match(/^\s*BASE_URL\s*=\s*(.*)$/);
+      const value = match?.[1].trim();
+      if (value) url = value.replace(/^["']|["']$/g, '');
     }
   }
   return url;
@@ -424,6 +425,30 @@ export function isIgnoredWatchPath(filePath: string): boolean {
 }
 
 /**
+ * Render a caught `unknown` value as a human-readable string for log output.
+ *
+ * Avoids `String(value)` on non-primitive values, which falls back to
+ * `Object.prototype.toString()` (`[object Object]`) for plain objects that
+ * don't define their own `toString()`.
+ */
+function describeWatchError(err: unknown): string {
+  if (err instanceof Error) return err.message;
+  if (typeof err === 'string') return err;
+  if (
+    typeof err === 'number' ||
+    typeof err === 'boolean' ||
+    typeof err === 'bigint'
+  ) {
+    return String(err);
+  }
+  try {
+    return JSON.stringify(err) ?? 'Unknown error';
+  } catch {
+    return 'Unknown error';
+  }
+}
+
+/**
  * Watch source files and run a full update cycle on changes.
  *
  * Design:
@@ -482,7 +507,7 @@ export async function watchUpdate(
         await runUpdateCycle(runtimeDir, containerTool, '[watch] ');
         Task.log(`[watch] Update complete in ${Date.now() - cycleStart}ms.`);
       } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : String(err);
+        const message = describeWatchError(err);
         Task.log(
           `[watch] Update failed after ${Date.now() - cycleStart}ms: ${message}`,
         );
@@ -522,7 +547,7 @@ export async function watchUpdate(
   });
 
   watcher.on('error', (err: unknown) => {
-    const message = err instanceof Error ? err.message : String(err);
+    const message = describeWatchError(err);
     Task.log(`[watch] Watcher error: ${message}`);
   });
 
