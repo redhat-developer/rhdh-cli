@@ -88,10 +88,22 @@ Use `plugin dev` from a generated or existing dynamic plugin project to export i
 rhdh-cli plugin dev start --configure --rhdh-local-dir /path/to/rhdh-local
 ```
 
-`--configure` adds the CLI-managed plugin configuration include without replacing existing user configuration. Set `RHDH_LOCAL_DIR` to avoid repeating the path. After changing plugin source, refresh the staged plugin and RHDH service with:
+`--configure` adds the CLI-managed plugin configuration include without replacing existing user configuration. Set `RHDH_LOCAL_DIR` to avoid repeating the path. `start` prints four labeled phases (`[1/4]` build/export, `[2/4]` start the runtime, `[3/4]` install plugins, `[4/4]` wait for readiness) and blocks until RHDH responds, printing the URL to open once it's ready.
+
+After changing plugin source, refresh the staged plugin and RHDH service with:
 
 ```bash
 rhdh-cli plugin dev update
+```
+
+`update` and `restart` require the runtime to already be running — start it first with `plugin dev start`, or they fail fast with an actionable message instead of a raw compose/container error. Like `start`, `update` blocks until RHDH is reachable again (up to two minutes) and prints the URL on success.
+
+Pass `--watch` to `start` or `update` to keep the CLI running: it watches `src/` and `package.json` and automatically re-exports, re-stages, and restarts the runtime on every change, so you don't have to re-run `update` by hand.
+
+```bash
+rhdh-cli plugin dev start --watch
+# or, once the runtime is already up:
+rhdh-cli plugin dev update --watch
 ```
 
 Use `rhdh-cli plugin dev status` for the interpreted runtime state, `rhdh-cli plugin dev logs` for application logs, and `rhdh-cli plugin dev logs --installer` to diagnose installation failures. To restart the RHDH service after changing RHDH Local configuration (without re-deploying the plugin), use `rhdh-cli plugin dev restart`. Stop the runtime with `rhdh-cli plugin dev stop`; add `--clean` to remove containers and networks while retaining volumes, configuration, and plugin artifacts. The default container tool is `podman`; pass `--container-tool docker` if your environment uses Docker instead.

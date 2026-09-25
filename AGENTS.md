@@ -125,6 +125,13 @@ registered in `src/commands/index.ts` and lazy-load their handlers from
 re-staging) — use it when changing RHDH Local configuration without touching
 plugin code. `update` re-exports, re-stages, and then restarts the RHDH service.
 
+`start` and `update` both block on `waitForRhdhReady` (poll-based, 120s default
+timeout) before returning, printing the RHDH URL once it responds. Both also
+accept `--watch`, which hands off into `watchUpdate`: a chokidar watcher on
+`src/` and `package.json` (500ms debounce, serialized cycles) that repeats the
+same export/stage/restart cycle as a one-shot `update` on every source change,
+so a source edit doesn't require re-running the command by hand.
+
 Key files:
 
 - `command.ts` — per-subcommand handlers (`start`, `update`, `restart`, `stop`,
@@ -152,7 +159,11 @@ RHDH Local and will not appear in `git status` after a successful `start`.
 **Pre-flight check:** `start` and `update` call `validateProjectFiles()` before
 invoking `plugin export`. For backend plugins this checks that `dist-types/`
 exists, failing fast with a clear `yarn tsc` instruction rather than letting
-`yarn build` fail deep in the export process.
+`yarn build` fail deep in the export process. `update` and `restart` also call
+`ensureRuntimeRunning()` first, which inspects Compose `ps` for the `rhdh`
+service and fails fast with an actionable message ("RHDH Local is not running.
+Run `rhdh-cli plugin dev start` first.") instead of a raw compose/container
+subprocess error.
 
 **Symlink handling:** `stagePlugin` uses `fs.remove` + `fs.copy` with
 `dereference: false` so relative symlinks in `node_modules/.bin/` are preserved

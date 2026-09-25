@@ -1,6 +1,8 @@
 import fs from 'fs-extra';
 import os from 'node:os';
 import path from 'node:path';
+import EventEmitter from 'node:events';
+import chokidar from 'chokidar';
 
 jest.mock('../../lib/paths', () => ({
   paths: {
@@ -40,6 +42,40 @@ jest.mock('../export-dynamic-plugin', () => ({
   command: jest.fn(),
 }));
 
+// ---------------------------------------------------------------------------
+// Chokidar mock used by watchUpdate tests
+// ---------------------------------------------------------------------------
+class FakeWatcher extends EventEmitter {
+  close = jest.fn().mockResolvedValue(undefined);
+}
+let fakeWatcher: FakeWatcher;
+
+jest.mock('chokidar', () => ({
+  __esModule: true,
+  default: {
+    watch: jest.fn(() => {
+      fakeWatcher = new FakeWatcher();
+      return fakeWatcher;
+    }),
+  },
+}));
+
+// ---------------------------------------------------------------------------
+// node:child_process spawn mock used by waitForContainerCleanup tests
+// ---------------------------------------------------------------------------
+class FakeChildProcess extends EventEmitter {
+  stdout = new EventEmitter();
+  kill = jest.fn();
+}
+let fakeChild: FakeChildProcess;
+
+jest.mock('node:child_process', () => ({
+  spawn: jest.fn(() => {
+    fakeChild = new FakeChildProcess();
+    return fakeChild;
+  }),
+}));
+
 import {
   composeArgs,
   composeStatusArgs,
@@ -55,6 +91,15 @@ import {
   updateGeneratedConfig,
   stop,
   status,
+  start,
+  update,
+  restart,
+  watchUpdate,
+  waitForContainerEvent,
+  waitForContainerCleanup,
+  resolveRhdhUrl,
+  waitForRhdhReady,
+  isIgnoredWatchPath,
 } from './command';
 import { Task } from '../../lib/tasks';
 import { run, execFile } from '../../lib/run';
@@ -233,16 +278,19 @@ describe('plugin dev', () => {
   });
 
   it('rejects a container tool that is not on PATH', async () => {
-    const taskMock = Task as jest.Mocked<typeof Task>;
-    taskMock.forCommand.mockRejectedValueOnce(new Error('command not found'));
+    const execFileMock = execFile as jest.MockedFunction<typeof execFile>;
+    execFileMock.mockRejectedValueOnce(new Error('command not found'));
     await expect(validateContainerTool('docker')).rejects.toThrow(
       'Unable to find docker on PATH',
     );
   });
 
   it('accepts a container tool that is on PATH', async () => {
-    const taskMock = Task as jest.Mocked<typeof Task>;
-    taskMock.forCommand.mockResolvedValueOnce(undefined);
+    const execFileMock = execFile as jest.MockedFunction<typeof execFile>;
+    execFileMock.mockResolvedValueOnce({
+      stdout: 'podman version 5.0.0',
+      stderr: '',
+    });
     await expect(validateContainerTool('podman')).resolves.toBe('podman');
   });
 
@@ -284,6 +332,12 @@ describe('plugin dev', () => {
       }
       mockRun.mockReset();
       mockExecFile.mockReset();
+      // validateContainerTool now uses execFile for the silent version check.
+      // Default to resolving so subcommand tests don't need to set it up themselves.
+      mockExecFile.mockResolvedValue({
+        stdout: 'podman version 5.0.0',
+        stderr: '',
+      });
       mockTask.forCommand.mockResolvedValue(undefined);
       mockTask.log.mockReset();
     });
@@ -302,10 +356,90 @@ describe('plugin dev', () => {
 
     it('status rejects when the compose child process fails', async () => {
       const err = new ExitCodeError(1, 'podman compose ps');
-      mockExecFile.mockRejectedValueOnce(err);
+      // First call: version check (passes); second call: compose ps (fails).
+      mockExecFile
+        .mockResolvedValueOnce({ stdout: 'podman version 5.0.0', stderr: '' })
+        .mockRejectedValueOnce(err);
       await expect(
         status({ rhdhLocalDir: runtimeDir, containerTool: 'podman' }),
       ).rejects.toThrow(ExitCodeError);
+    });
+
+    it('update rejects with an actionable message when RHDH Local is not running', async () => {
+      // First call: version check (passes); second call: compose ps reports
+      // no services at all (RHDH Local was never started).
+      mockExecFile
+        .mockResolvedValueOnce({ stdout: 'podman version 5.0.0', stderr: '' })
+        .mockResolvedValueOnce({ stdout: '[]', stderr: '' });
+      await expect(
+        update({ rhdhLocalDir: runtimeDir, containerTool: 'podman' }),
+      ).rejects.toThrow('RHDH Local is not running');
+    });
+
+    it('update rejects when RHDH Local is stopped (not just absent)', async () => {
+      mockExecFile
+        .mockResolvedValueOnce({ stdout: 'podman version 5.0.0', stderr: '' })
+        .mockResolvedValueOnce({
+          stdout: JSON.stringify([
+            { Service: 'rhdh', State: 'exited', ExitCode: 0 },
+          ]),
+          stderr: '',
+        });
+      await expect(
+        update({ rhdhLocalDir: runtimeDir, containerTool: 'podman' }),
+      ).rejects.toThrow('RHDH Local is not running');
+    });
+
+    it('update --watch rejects immediately when RHDH Local is not running, without entering watch mode', async () => {
+      // Regression test: --watch must fail fast the same way the one-shot
+      // path does. Without an explicit ensureRuntimeRunning call before
+      // watchUpdate, this would instead resolve into watch mode and only
+      // surface the error on the first change-triggered cycle.
+      const mockChokidarWatch = chokidar.watch as jest.MockedFunction<
+        typeof chokidar.watch
+      >;
+      mockChokidarWatch.mockClear();
+      mockExecFile
+        .mockResolvedValueOnce({ stdout: 'podman version 5.0.0', stderr: '' })
+        .mockResolvedValueOnce({ stdout: '[]', stderr: '' });
+      await expect(
+        update({
+          rhdhLocalDir: runtimeDir,
+          containerTool: 'podman',
+          watch: true,
+        }),
+      ).rejects.toThrow('RHDH Local is not running');
+      expect(mockChokidarWatch).not.toHaveBeenCalled();
+    });
+
+    it('restart rejects with an actionable message when RHDH Local is not running', async () => {
+      mockExecFile
+        .mockResolvedValueOnce({ stdout: 'podman version 5.0.0', stderr: '' })
+        .mockResolvedValueOnce({ stdout: '[]', stderr: '' });
+      await expect(
+        restart({ rhdhLocalDir: runtimeDir, containerTool: 'podman' }),
+      ).rejects.toThrow('RHDH Local is not running');
+      expect(mockRun).not.toHaveBeenCalled();
+    });
+
+    it('restart stops and starts rhdh when RHDH Local is running', async () => {
+      // version check, then two compose-ps calls: the pre-flight check, then
+      // the final getRuntimeStatus call after stop-rhdh/start-rhdh.
+      mockExecFile
+        .mockResolvedValueOnce({ stdout: 'podman version 5.0.0', stderr: '' })
+        .mockResolvedValueOnce({
+          stdout: JSON.stringify([{ Service: 'rhdh', State: 'running' }]),
+          stderr: '',
+        })
+        .mockResolvedValueOnce({
+          stdout: JSON.stringify([{ Service: 'rhdh', State: 'running' }]),
+          stderr: '',
+        });
+      mockRun.mockResolvedValue(undefined);
+      await expect(
+        restart({ rhdhLocalDir: runtimeDir, containerTool: 'podman' }),
+      ).resolves.toBeUndefined();
+      expect(mockRun).toHaveBeenCalledTimes(2);
     });
   });
 
@@ -333,7 +467,7 @@ describe('plugin dev', () => {
     );
     await expect(
       ensureGeneratedConfigIncluded(directory, false),
-    ).rejects.toThrow('rerun with --configure');
+    ).rejects.toThrow('plugin dev start --configure');
     await ensureGeneratedConfigIncluded(directory, true);
     await expect(fs.readFile(override, 'utf8')).resolves.toContain(
       'rhdh-cli.generated.local.yaml',
@@ -514,5 +648,1015 @@ describe('plugin dev', () => {
         await expect(stagePlugin(runtimeDir)).rejects.toThrow('not inside');
       });
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// isIgnoredWatchPath — chokidar v4+ dropped glob-string support for `ignored`;
+// this is a regression test for that (a glob array previously matched nothing).
+// ---------------------------------------------------------------------------
+
+describe('isIgnoredWatchPath', () => {
+  const root = path.join(path.sep, 'home', 'user', 'checkout', 'plugin');
+
+  it('ignores paths under output/dependency directories inside the plugin root', () => {
+    expect(isIgnoredWatchPath(path.join(root, 'dist', 'output.js'), root)).toBe(
+      true,
+    );
+    expect(
+      isIgnoredWatchPath(path.join(root, 'dist-dynamic', 'package.json'), root),
+    ).toBe(true);
+    expect(
+      isIgnoredWatchPath(path.join(root, 'dist-types', 'index.d.ts'), root),
+    ).toBe(true);
+    expect(
+      isIgnoredWatchPath(
+        path.join(root, 'node_modules', 'pkg', 'index.js'),
+        root,
+      ),
+    ).toBe(true);
+  });
+
+  it('does not ignore ordinary watched paths', () => {
+    expect(isIgnoredWatchPath(path.join(root, 'src', 'index.ts'), root)).toBe(
+      false,
+    );
+    expect(isIgnoredWatchPath(path.join(root, 'package.json'), root)).toBe(
+      false,
+    );
+  });
+
+  it('does not ignore a path just because an ancestor outside the root is named dist or node_modules', () => {
+    // Regression test: chokidar always passes absolute paths. Checking every
+    // segment of the *full* absolute path (rather than only segments inside
+    // the plugin root) meant a checkout that merely lived under e.g.
+    // /home/user/dist/my-plugin or /home/user/node_modules-backup/my-plugin
+    // had every file ignored, while `watchUpdate` still printed "Watching...".
+    const weirdRoot = path.join(path.sep, 'home', 'user', 'dist', 'plugin');
+    expect(
+      isIgnoredWatchPath(path.join(weirdRoot, 'src', 'index.ts'), weirdRoot),
+    ).toBe(false);
+
+    const weirdRoot2 = path.join(
+      path.sep,
+      'home',
+      'user',
+      'node_modules',
+      'plugin',
+    );
+    expect(
+      isIgnoredWatchPath(path.join(weirdRoot2, 'package.json'), weirdRoot2),
+    ).toBe(false);
+  });
+
+  it('does not ignore paths outside the root (defensive; chokidar should not call us with these)', () => {
+    expect(
+      isIgnoredWatchPath(path.join(path.sep, 'other', 'dist', 'file.js'), root),
+    ).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// watchUpdate — file-watching behaviour
+// ---------------------------------------------------------------------------
+
+/**
+ * Scaffold a temp RHDH Local runtime dir (with the files
+ * `validateProjectFiles`/Compose checks require) and a temp plugin dir with a
+ * minimal frontend plugin `package.json`. Shared by the `watchUpdate` and
+ * `start` suites, which both drive a real (mocked-at-the-edges) `plugin dev`
+ * cycle against these directories.
+ */
+async function scaffoldPluginDevRuntime(
+  runtimePrefix: string,
+  pluginPrefix: string,
+  pluginPackageName: string,
+): Promise<{ runtimeDir: string; pluginDir: string }> {
+  const runtimeDir = await fs.mkdtemp(path.join(os.tmpdir(), runtimePrefix));
+  const pluginDir = await fs.mkdtemp(path.join(os.tmpdir(), pluginPrefix));
+  (global as any).__pluginDevTestDir = pluginDir;
+
+  for (const f of [
+    'compose.yaml',
+    'compose-dynamic-plugins-root.yaml',
+    'prepare-and-install-dynamic-plugins.sh',
+    'wait-for-plugins-and-start.sh',
+  ]) {
+    await fs.writeFile(path.join(runtimeDir, f), '');
+  }
+
+  // Write the generated config include so ensureGeneratedConfigIncluded passes
+  const override = path.join(
+    runtimeDir,
+    'configs/dynamic-plugins/dynamic-plugins.override.yaml',
+  );
+  await fs.outputFile(
+    override,
+    `includes:\n  - configs/dynamic-plugins/rhdh-cli.generated.local.yaml\n`,
+  );
+
+  // Write a minimal frontend plugin package.json so validateProjectFiles passes
+  // (frontend plugins do not require dist-types).
+  await fs.writeJson(path.join(pluginDir, 'package.json'), {
+    name: pluginPackageName,
+    version: '0.1.0',
+    backstage: { role: 'frontend-plugin' },
+  });
+
+  return { runtimeDir, pluginDir };
+}
+
+describe('watchUpdate', () => {
+  let runtimeDir: string;
+  const mockRun = run as jest.MockedFunction<typeof run>;
+  const mockExecFile = execFile as jest.MockedFunction<typeof execFile>;
+  const mockTask = Task as jest.Mocked<typeof Task>;
+  const mockExport = jest.requireMock('../export-dynamic-plugin')
+    .command as jest.MockedFunction<() => Promise<void>>;
+
+  let pluginDir: string;
+
+  beforeEach(async () => {
+    ({ runtimeDir, pluginDir } = await scaffoldPluginDevRuntime(
+      'plugin-dev-watch-runtime-',
+      'plugin-dev-watch-plugin-',
+      '@internal/my-watch-plugin',
+    ));
+
+    mockRun.mockReset();
+    mockExecFile.mockReset();
+    mockTask.forCommand.mockResolvedValue(undefined);
+    mockTask.log.mockReset();
+    mockExport.mockReset();
+
+    // Default: export + compose succeed; compose ps reports rhdh running so
+    // ensureRuntimeRunning's pre-flight check passes.
+    mockExport.mockResolvedValue(undefined);
+    mockRun.mockResolvedValue(undefined);
+    mockExecFile.mockResolvedValue({
+      stdout: JSON.stringify([{ Service: 'rhdh', State: 'running' }]),
+      stderr: '',
+    });
+  });
+
+  afterEach(async () => {
+    delete (global as any).__pluginDevTestDir;
+    // Remove signal listeners added by watchUpdate to avoid accumulation
+    process.removeAllListeners('SIGINT');
+    process.removeAllListeners('SIGTERM');
+    await fs.remove(runtimeDir);
+    await fs.remove(pluginDir);
+  });
+
+  /**
+   * Wait until mockExport has been called at least `count` times by polling
+   * with setImmediate-based yields. We pass debounceMs=0 to watchUpdate so the
+   * setTimeout fires on the very next event loop tick; real timers mean fs-extra
+   * and other async operations resolve normally.
+   */
+  async function waitForExportCalls(count: number, timeoutMs = 5000) {
+    const deadline = Date.now() + timeoutMs;
+    while (mockExport.mock.calls.length < count) {
+      if (Date.now() > deadline) {
+        throw new Error(
+          `Timed out waiting for mockExport to be called ${count} time(s) ` +
+            `(called ${mockExport.mock.calls.length} time(s))`,
+        );
+      }
+      await new Promise<void>(resolve => setImmediate(resolve));
+    }
+  }
+
+  /**
+   * Start watchUpdate and drive it into the settle-wait phase: cycle 1 is
+   * held open, a second change arrives while it's still in-flight (setting
+   * pendingChange), cycle 1 is then released, and this resolves once the
+   * settle-wait's two events subscriptions (rhdh + install-dynamic-plugins)
+   * have spawned. Shared by tests that need to interact with that window —
+   * injecting further changes, resolving it, or triggering shutdown.
+   */
+  async function enterSettleWait(settleTimeoutMs: number): Promise<{
+    watchPromise: Promise<void>;
+    settleChildren: FakeChildProcess[];
+    spawnMock: jest.Mock;
+  }> {
+    const { spawn: spawnMock } = jest.requireMock('node:child_process') as {
+      spawn: jest.Mock;
+    };
+    const settleChildren: FakeChildProcess[] = [];
+    spawnMock.mockImplementation(() => {
+      const child = new FakeChildProcess();
+      settleChildren.push(child);
+      return child;
+    });
+
+    // Hold cycle 1 open so we can reliably inject a second change while
+    // `running` is still true.
+    let releaseCycle1: () => void = () => {};
+    mockExport.mockImplementationOnce(
+      () => new Promise<void>(resolve => (releaseCycle1 = resolve)),
+    );
+
+    const watchPromise = watchUpdate('podman', runtimeDir, 0, settleTimeoutMs);
+
+    fakeWatcher.emit('all', 'change', 'src/a.ts');
+    await waitForExportCalls(1); // cycle 1 started; still in-flight
+
+    fakeWatcher.emit('all', 'change', 'src/b.ts');
+    // Let the second change's own (0ms) debounce timer fire and observe
+    // running === true, setting pendingChange instead of starting a second
+    // drainCycles().
+    await new Promise<void>(resolve => setTimeout(resolve, 10));
+
+    releaseCycle1(); // cycle 1 finishes; keepGoing becomes true
+
+    const spawnDeadline = Date.now() + 5000;
+    while (settleChildren.length < 2) {
+      if (Date.now() > spawnDeadline) {
+        throw new Error('Timed out waiting for settle-wait children to spawn');
+      }
+      await new Promise<void>(resolve => setImmediate(resolve));
+    }
+
+    return { watchPromise, settleChildren, spawnMock };
+  }
+
+  /** Emit the settle-wait's expected 'cleanup' event to each captured child. */
+  function resolveSettleWait(settleChildren: FakeChildProcess[]) {
+    for (const child of settleChildren) {
+      const rhdhEvent = JSON.stringify({
+        Status: 'cleanup',
+        Attributes: { 'com.docker.compose.service': 'rhdh' },
+      });
+      child.stdout.emit('data', Buffer.from(`${rhdhEvent}\n`));
+      const installerEvent = JSON.stringify({
+        Status: 'cleanup',
+        Attributes: {
+          'com.docker.compose.service': 'install-dynamic-plugins',
+        },
+      });
+      child.stdout.emit('data', Buffer.from(`${installerEvent}\n`));
+    }
+  }
+
+  /** Restore spawn's default mock (tracking the shared `fakeChild`). */
+  function restoreDefaultSpawnMock(spawnMock: jest.Mock) {
+    spawnMock.mockImplementation(() => {
+      fakeChild = new FakeChildProcess();
+      return fakeChild;
+    });
+  }
+
+  it('runs an update cycle when a file change event fires', async () => {
+    // debounceMs=0 so the timer fires on the next event-loop tick.
+    const watchPromise = watchUpdate('podman', runtimeDir, 0, 0);
+
+    fakeWatcher.emit('all', 'change', 'src/index.ts');
+    await waitForExportCalls(1);
+
+    expect(mockExport).toHaveBeenCalledTimes(1);
+
+    fakeWatcher.emit('error', new Error('done'));
+    await expect(watchPromise).rejects.toThrow('done');
+  });
+
+  it('watches tsconfig.json in addition to src/ and package.json', async () => {
+    // Regression test: RHIDP-16673's acceptance criteria require watching
+    // "relevant build configuration files" alongside src/ and package.json.
+    // tsconfig.json is the only one scaffolded projects actually have
+    // (plugin new's adaptStandaloneProject).
+    const mockChokidarWatch = chokidar.watch as jest.MockedFunction<
+      typeof chokidar.watch
+    >;
+    mockChokidarWatch.mockClear();
+
+    const watchPromise = watchUpdate('podman', runtimeDir, 0, 0);
+    await new Promise<void>(resolve => setImmediate(resolve));
+
+    expect(mockChokidarWatch).toHaveBeenCalledWith(
+      expect.arrayContaining([expect.stringContaining('tsconfig.json')]),
+      expect.anything(),
+    );
+
+    fakeWatcher.emit('error', new Error('done'));
+    await expect(watchPromise).rejects.toThrow('done');
+  });
+
+  it('debounces rapid consecutive file events into a single cycle', async () => {
+    // Use debounceMs=20 so rapid events within that window coalesce, but the
+    // cycle still completes quickly in real-timer mode.
+    const watchPromise = watchUpdate('podman', runtimeDir, 20, 0);
+
+    // Three events fired rapidly — only the first one should schedule a timer
+    // (the guard `if (debounceTimer !== undefined) return` drops the rest).
+    fakeWatcher.emit('all', 'change', 'src/a.ts');
+    fakeWatcher.emit('all', 'change', 'src/b.ts');
+    fakeWatcher.emit('all', 'change', 'src/c.ts');
+    await waitForExportCalls(1);
+
+    expect(mockExport).toHaveBeenCalledTimes(1);
+
+    fakeWatcher.emit('error', new Error('done'));
+    await expect(watchPromise).rejects.toThrow('done');
+  });
+
+  it('holds running through the settle wait, so a change during it does not start a concurrent cycle', async () => {
+    // Regression test: `running` was previously cleared in a `finally` block
+    // right after the cycle itself, before the optional settle-wait ran. A
+    // change arriving during that wait saw `running === false` and called
+    // drainCycles() again — a second, concurrent loop rather than a
+    // coalesced follow-up. enterSettleWait() already proves the settle-wait
+    // subscribes to the events stream *before* runUpdateCycle's own compose
+    // stop/start calls run (not after), by capturing spawned children and
+    // confirming both exist before cycle 2 begins.
+    const { watchPromise, settleChildren, spawnMock } =
+      await enterSettleWait(5000);
+
+    // While the settle-wait is unresolved, cycle 2 must not have started yet
+    // — proving `running` stayed true and the pending change was coalesced
+    // into this same drainCycles() loop rather than a concurrent one.
+    await new Promise<void>(resolve => setImmediate(resolve));
+    expect(mockExport).toHaveBeenCalledTimes(1);
+
+    // A third change arriving *during* the settle-wait is the critical case:
+    // with the bug (running cleared before the wait), this would see
+    // running === false and call drainCycles() again — a second, concurrent
+    // cycle starting immediately, incrementing mockExport to 2 before the
+    // settle-wait ever resolves. With the fix, it's coalesced into the same
+    // pendingChange the already-running loop will pick up once the wait ends.
+    fakeWatcher.emit('all', 'change', 'src/c.ts');
+    await new Promise<void>(resolve => setTimeout(resolve, 10));
+    expect(mockExport).toHaveBeenCalledTimes(1);
+
+    resolveSettleWait(settleChildren);
+
+    // Cycle 2 now runs, absorbing the coalesced pending change.
+    await waitForExportCalls(2);
+    expect(mockExport).toHaveBeenCalledTimes(2);
+
+    fakeWatcher.emit('error', new Error('done'));
+    await expect(watchPromise).rejects.toThrow('done');
+
+    restoreDefaultSpawnMock(spawnMock);
+  });
+
+  it('continues watching after a failed update cycle', async () => {
+    const watchPromise = watchUpdate('podman', runtimeDir, 0, 0);
+
+    mockExport.mockRejectedValueOnce(new Error('build exploded'));
+
+    fakeWatcher.emit('all', 'change', 'src/fail.ts');
+    await waitForExportCalls(1);
+
+    expect(mockExport).toHaveBeenCalledTimes(1);
+    expect(mockTask.log).toHaveBeenCalledWith(
+      expect.stringContaining('build exploded'),
+    );
+
+    // A second event after the failed cycle should still trigger a new cycle.
+    mockExport.mockResolvedValueOnce(undefined);
+    fakeWatcher.emit('all', 'change', 'src/fixed.ts');
+    await waitForExportCalls(2);
+
+    expect(mockExport).toHaveBeenCalledTimes(2);
+
+    fakeWatcher.emit('error', new Error('done'));
+    await expect(watchPromise).rejects.toThrow('done');
+  });
+
+  async function waitForTaskLogContaining(substring: string, timeoutMs = 5000) {
+    const deadline = Date.now() + timeoutMs;
+    while (
+      !mockTask.log.mock.calls.some(call => String(call[0]).includes(substring))
+    ) {
+      if (Date.now() > deadline) {
+        throw new Error(
+          `Timed out waiting for a Task.log call containing "${substring}"`,
+        );
+      }
+      await new Promise<void>(resolve => setImmediate(resolve));
+    }
+  }
+
+  it('fails a cycle cleanly and keeps watching when RHDH Local is not running', async () => {
+    const watchPromise = watchUpdate('podman', runtimeDir, 0, 0);
+
+    // Simulate RHDH Local not running for the first triggered cycle —
+    // ensureRuntimeRunning should reject before exportCommand is ever called.
+    mockExecFile.mockResolvedValueOnce({ stdout: '[]', stderr: '' });
+
+    fakeWatcher.emit('all', 'change', 'src/index.ts');
+    await waitForTaskLogContaining('RHDH Local is not running');
+    expect(mockExport).not.toHaveBeenCalled();
+
+    // A subsequent change, with RHDH running again (the default mock), should
+    // succeed and the watcher should still be alive to pick it up.
+    fakeWatcher.emit('all', 'change', 'src/fixed.ts');
+    await waitForExportCalls(1);
+    expect(mockExport).toHaveBeenCalledTimes(1);
+
+    fakeWatcher.emit('error', new Error('done'));
+    await expect(watchPromise).rejects.toThrow('done');
+  });
+
+  it('closes the watcher on SIGINT', async () => {
+    watchUpdate('podman', runtimeDir, 0, 0);
+
+    const exitSpy = jest
+      .spyOn(process, 'exit')
+      .mockImplementation((() => {}) as () => never);
+
+    process.emit('SIGINT');
+
+    // Allow the shutdown async chain to run.
+    await new Promise<void>(resolve => setImmediate(resolve));
+    await Promise.resolve();
+
+    expect(fakeWatcher.close).toHaveBeenCalled();
+    expect(exitSpy).toHaveBeenCalledWith(0);
+
+    exitSpy.mockRestore();
+  });
+
+  it('closes the watcher on SIGTERM', async () => {
+    // Regression coverage alongside the SIGINT test above: a terminal Ctrl+C
+    // signals the whole foreground process group for free, but a direct
+    // SIGTERM to just this process's PID does not reach any spawned
+    // children — shutdown() must still run the same way on either signal.
+    watchUpdate('podman', runtimeDir, 0, 0);
+
+    const exitSpy = jest
+      .spyOn(process, 'exit')
+      .mockImplementation((() => {}) as () => never);
+
+    process.emit('SIGTERM');
+
+    await new Promise<void>(resolve => setImmediate(resolve));
+    await Promise.resolve();
+
+    expect(fakeWatcher.close).toHaveBeenCalled();
+    expect(exitSpy).toHaveBeenCalledWith(0);
+
+    exitSpy.mockRestore();
+  });
+
+  it('kills an in-flight settle-wait events subscription on shutdown', async () => {
+    // Regression test: spawn() puts children in the same process group as
+    // the parent by default, so SIGINT (terminal-wide) takes them along for
+    // free, but SIGTERM to just this PID does not — and process.exit()
+    // prevents waitForContainerEvent's own JS-side timeout from ever running
+    // to kill them itself. shutdown() must kill any tracked child directly.
+    const { watchPromise, settleChildren, spawnMock } =
+      await enterSettleWait(5000);
+
+    const exitSpy = jest
+      .spyOn(process, 'exit')
+      .mockImplementation((() => {}) as () => never);
+
+    process.emit('SIGTERM');
+    await new Promise<void>(resolve => setImmediate(resolve));
+    await Promise.resolve();
+
+    for (const child of settleChildren) {
+      expect(child.kill).toHaveBeenCalled();
+    }
+
+    exitSpy.mockRestore();
+    void watchPromise;
+
+    restoreDefaultSpawnMock(spawnMock);
+  });
+
+  it('update --watch deploys the current tree immediately, before entering watch mode', async () => {
+    // Regression test: unlike `start --watch` (which runs its full 4-phase
+    // cycle before conditionally entering watchUpdate), `update --watch`
+    // previously skipped straight into watchUpdate() with no initial
+    // deploy — whatever was already on disk sat undeployed until the first
+    // change-triggered cycle.
+    // stagePlugin requires dist-dynamic to already exist (export is mocked
+    // and doesn't create it itself).
+    await fs.ensureDir(path.join(pluginDir, 'dist-dynamic'));
+    await fs.writeJson(path.join(pluginDir, 'dist-dynamic', 'package.json'), {
+      name: '@internal/my-watch-plugin',
+      version: '0.1.0',
+    });
+
+    const mockFetch = jest
+      .fn()
+      .mockResolvedValue(new Response(null, { status: 200 }) as Response);
+    (global as any).fetch = mockFetch;
+
+    const updatePromise = update({
+      rhdhLocalDir: runtimeDir,
+      containerTool: 'podman',
+      watch: true,
+    });
+
+    // The initial cycle runs immediately, without waiting for any watcher
+    // event.
+    await waitForExportCalls(1);
+    await waitForTaskLogContaining('Refresh your browser at');
+
+    // A subsequent file change triggers a second cycle via watchUpdate.
+    fakeWatcher.emit('all', 'change', 'src/index.ts');
+    await waitForExportCalls(2);
+    expect(mockExport).toHaveBeenCalledTimes(2);
+
+    fakeWatcher.emit('error', new Error('done'));
+    await expect(updatePromise).rejects.toThrow('done');
+
+    (global as any).fetch = undefined;
+  });
+});
+
+// ---------------------------------------------------------------------------
+// start — --watch wiring
+// ---------------------------------------------------------------------------
+
+describe('start', () => {
+  let runtimeDir: string;
+  let pluginDir: string;
+  const mockRun = run as jest.MockedFunction<typeof run>;
+  const mockExecFile = execFile as jest.MockedFunction<typeof execFile>;
+  const mockTask = Task as jest.Mocked<typeof Task>;
+  const mockExport = jest.requireMock('../export-dynamic-plugin')
+    .command as jest.MockedFunction<() => Promise<void>>;
+  const mockFetch = jest.fn<
+    ReturnType<typeof fetch>,
+    Parameters<typeof fetch>
+  >();
+  const mockChokidarWatch = chokidar.watch as jest.MockedFunction<
+    typeof chokidar.watch
+  >;
+
+  beforeEach(async () => {
+    ({ runtimeDir, pluginDir } = await scaffoldPluginDevRuntime(
+      'plugin-dev-start-runtime-',
+      'plugin-dev-start-plugin-',
+      '@internal/my-start-plugin',
+    ));
+    // stagePlugin requires dist-dynamic to already exist (export is mocked).
+    await fs.ensureDir(path.join(pluginDir, 'dist-dynamic'));
+    await fs.writeJson(path.join(pluginDir, 'dist-dynamic', 'package.json'), {
+      name: '@internal/my-start-plugin',
+      version: '0.1.0',
+    });
+
+    mockRun.mockReset();
+    mockExecFile.mockReset();
+    mockTask.forCommand.mockResolvedValue(undefined);
+    mockTask.log.mockReset();
+    mockExport.mockReset();
+    mockChokidarWatch.mockClear();
+    (jest.requireMock('node:child_process').spawn as jest.Mock).mockClear();
+
+    mockExport.mockResolvedValue(undefined);
+    mockRun.mockResolvedValue(undefined);
+    mockExecFile.mockResolvedValue({
+      stdout: 'podman version 5.0.0',
+      stderr: '',
+    });
+
+    mockFetch.mockReset();
+    (global as any).fetch = mockFetch;
+    mockFetch.mockResolvedValue(
+      new Response(null, { status: 200 }) as Response,
+    );
+    jest.spyOn(process.stdout, 'write').mockImplementation(() => true);
+  });
+
+  afterEach(async () => {
+    delete (global as any).__pluginDevTestDir;
+    (process.stdout.write as jest.Mock).mockRestore();
+    (global as any).fetch = undefined;
+    process.removeAllListeners('SIGINT');
+    process.removeAllListeners('SIGTERM');
+    await fs.remove(runtimeDir);
+    await fs.remove(pluginDir);
+  });
+
+  const { spawn: spawnMock } = jest.requireMock('node:child_process') as {
+    spawn: jest.Mock;
+  };
+
+  function emitInstallerDied() {
+    const event = JSON.stringify({
+      Action: 'died',
+      Attributes: { 'com.docker.compose.service': 'install-dynamic-plugins' },
+    });
+    fakeChild.stdout.emit('data', Buffer.from(`${event}\n`));
+  }
+
+  async function waitForCondition(
+    check: () => boolean,
+    description: string,
+    timeoutMs = 5000,
+  ) {
+    const deadline = Date.now() + timeoutMs;
+    while (!check()) {
+      if (Date.now() > deadline) {
+        throw new Error(`Timed out waiting for: ${description}`);
+      }
+      await new Promise<void>(resolve => setImmediate(resolve));
+    }
+  }
+
+  it('enters watch mode after a successful start when --watch is passed', async () => {
+    const startPromise = start({
+      rhdhLocalDir: runtimeDir,
+      containerTool: 'podman',
+      watch: true,
+    });
+
+    // Phases 1-2 (export/stage/compose-start) involve real fs I/O, so poll
+    // rather than assume a fixed number of ticks — wait until phase 3
+    // actually spawns the container-events subscription, then satisfy it.
+    await waitForCondition(
+      () => spawnMock.mock.calls.length > 0,
+      'waitForContainerEvent to spawn the events subscription',
+    );
+    emitInstallerDied();
+
+    // Phase 4's readiness poll resolves on the first mocked fetch; once
+    // start() proceeds into watchUpdate, chokidar.watch is called synchronously.
+    await waitForCondition(
+      () => mockChokidarWatch.mock.calls.length > 0,
+      'watchUpdate to call chokidar.watch',
+    );
+
+    expect(mockTask.log).toHaveBeenCalledWith(
+      expect.stringContaining('RHDH is ready at'),
+    );
+
+    fakeWatcher.emit('error', new Error('done'));
+    await expect(startPromise).rejects.toThrow('done');
+  });
+
+  it('does not enter watch mode when --watch is not passed', async () => {
+    const startPromise = start({
+      rhdhLocalDir: runtimeDir,
+      containerTool: 'podman',
+    });
+
+    await waitForCondition(
+      () => spawnMock.mock.calls.length > 0,
+      'waitForContainerEvent to spawn the events subscription',
+    );
+    emitInstallerDied();
+
+    await expect(startPromise).resolves.toBeUndefined();
+    expect(mockChokidarWatch).not.toHaveBeenCalled();
+  });
+
+  it('skips waiting for the installer event when it already exited (re-entrant start)', async () => {
+    // version check, then compose ps reporting the installer already exited
+    // from a previous `start` — compose up -d won't restart it, so its
+    // `died` event will never fire again for a fresh event-stream subscriber.
+    mockExecFile
+      .mockResolvedValueOnce({ stdout: 'podman version 5.0.0', stderr: '' })
+      .mockResolvedValueOnce({
+        stdout: JSON.stringify([
+          { Service: 'install-dynamic-plugins', State: 'exited', ExitCode: 0 },
+        ]),
+        stderr: '',
+      });
+
+    const startPromise = start({
+      rhdhLocalDir: runtimeDir,
+      containerTool: 'podman',
+    });
+
+    await expect(startPromise).resolves.toBeUndefined();
+    // Never needed to subscribe to the events stream at all.
+    expect(spawnMock).not.toHaveBeenCalled();
+  });
+
+  it("waits for docker's 'die' event, not podman's 'died', when --container-tool=docker", async () => {
+    // Regression test: Docker's terminal container-death event is 'die', not
+    // 'died'. Subscribing to phase 3's events stream with the wrong filter
+    // means it never matches anything and stalls for the full
+    // waitForContainerEvent timeout on every Docker-backed `start`.
+    const startPromise = start({
+      rhdhLocalDir: runtimeDir,
+      containerTool: 'docker',
+    });
+
+    await waitForCondition(
+      () => spawnMock.mock.calls.length > 0,
+      'waitForContainerEvent to spawn the events subscription',
+    );
+    const [, spawnArgs] = spawnMock.mock.calls[0] as [string, string[]];
+    expect(spawnArgs).toContain('event=die');
+    expect(spawnArgs).not.toContain('event=died');
+
+    // Real Docker `events --format json` shape: the compose-service label
+    // lives under Actor.Attributes, not a top-level Attributes field (that's
+    // Podman's shape — using it here would silently pass this test without
+    // actually exercising Docker's real event parsing).
+    const event = JSON.stringify({
+      Action: 'die',
+      Actor: {
+        Attributes: { 'com.docker.compose.service': 'install-dynamic-plugins' },
+      },
+    });
+    fakeChild.stdout.emit('data', Buffer.from(`${event}\n`));
+
+    await expect(startPromise).resolves.toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// waitForContainerEvent — single-service event subscription
+// ---------------------------------------------------------------------------
+
+describe('waitForContainerEvent', () => {
+  function emitEvent(svc: string, action: string) {
+    const event = JSON.stringify({
+      Action: action,
+      Attributes: { 'com.docker.compose.service': svc },
+    });
+    fakeChild.stdout.emit('data', Buffer.from(`${event}\n`));
+  }
+
+  it('resolves when the target service emits the target action', async () => {
+    const p = waitForContainerEvent('podman', 'rhdh', 'died', 5000);
+    await new Promise<void>(resolve => setImmediate(resolve));
+    emitEvent('rhdh', 'died');
+    await new Promise<void>(resolve => setImmediate(resolve));
+    await expect(p).resolves.toBeUndefined();
+    expect(fakeChild.kill).toHaveBeenCalled();
+  });
+
+  it('ignores events for other services', async () => {
+    const p = waitForContainerEvent('podman', 'rhdh', 'died', 5000);
+    await new Promise<void>(resolve => setImmediate(resolve));
+    // wrong service — should not resolve
+    emitEvent('install-dynamic-plugins', 'died');
+    await new Promise<void>(resolve => setImmediate(resolve));
+    // correct service
+    emitEvent('rhdh', 'died');
+    await new Promise<void>(resolve => setImmediate(resolve));
+    await expect(p).resolves.toBeUndefined();
+  });
+
+  it('resolves on timeout when the event does not arrive', async () => {
+    jest.useFakeTimers();
+    const p = waitForContainerEvent('podman', 'rhdh', 'died', 1000);
+    await Promise.resolve();
+    jest.advanceTimersByTime(1100);
+    for (let i = 0; i < 5; i++) await Promise.resolve();
+    await expect(p).resolves.toBeUndefined();
+    expect(fakeChild.kill).toHaveBeenCalled();
+    jest.useRealTimers();
+  });
+
+  it('passes the correct event filter to spawn', async () => {
+    const { spawn: spawnMock } = jest.requireMock('node:child_process') as {
+      spawn: jest.Mock;
+    };
+    spawnMock.mockClear();
+
+    waitForContainerEvent('docker', 'install-dynamic-plugins', 'die', 5000);
+    await new Promise<void>(resolve => setImmediate(resolve));
+
+    expect(spawnMock).toHaveBeenCalledWith(
+      'docker',
+      expect.arrayContaining([
+        'event=die',
+        'label=com.docker.compose.service=install-dynamic-plugins',
+      ]),
+      expect.anything(),
+    );
+  });
+
+  it('omits --stream for docker, which has no such flag and always streams', async () => {
+    // Regression test: docker's `events` command has no --stream flag and
+    // rejects it, exiting immediately (child.on('close') would then resolve
+    // this promise before any event is ever seen). Podman's `events`
+    // supports (and per its own docs, expects) an explicit --stream.
+    const { spawn: spawnMock } = jest.requireMock('node:child_process') as {
+      spawn: jest.Mock;
+    };
+    spawnMock.mockClear();
+
+    waitForContainerEvent('docker', 'rhdh', 'die', 5000);
+    await new Promise<void>(resolve => setImmediate(resolve));
+    const [, dockerArgs] = spawnMock.mock.calls[0] as [string, string[]];
+    expect(dockerArgs).not.toContain('--stream');
+
+    spawnMock.mockClear();
+    waitForContainerEvent('podman', 'rhdh', 'died', 5000);
+    await new Promise<void>(resolve => setImmediate(resolve));
+    const [, podmanArgs] = spawnMock.mock.calls[0] as [string, string[]];
+    expect(podmanArgs).toContain('--stream');
+  });
+
+  it("matches Docker's Actor.Attributes event shape, not just Podman's top-level Attributes", async () => {
+    // Regression test: real `docker events --format json` output nests the
+    // compose-service label under Actor.Attributes, not a top-level
+    // Attributes field. Podman puts it top-level. Reading only the top-level
+    // field means svc is always '' for real Docker events, so the filter
+    // never matches and this always burns the full timeout on Docker.
+    const p = waitForContainerEvent('docker', 'rhdh', 'die', 5000);
+    await new Promise<void>(resolve => setImmediate(resolve));
+    const event = JSON.stringify({
+      Action: 'die',
+      Actor: { Attributes: { 'com.docker.compose.service': 'rhdh' } },
+    });
+    fakeChild.stdout.emit('data', Buffer.from(`${event}\n`));
+    await new Promise<void>(resolve => setImmediate(resolve));
+    await expect(p).resolves.toBeUndefined();
+    expect(fakeChild.kill).toHaveBeenCalled();
+  });
+
+  it('still matches events using the top-level Attributes shape (Podman)', async () => {
+    const p = waitForContainerEvent('podman', 'rhdh', 'died', 5000);
+    await new Promise<void>(resolve => setImmediate(resolve));
+    emitEvent('rhdh', 'died');
+    await new Promise<void>(resolve => setImmediate(resolve));
+    await expect(p).resolves.toBeUndefined();
+  });
+
+  it('logs a warning and still resolves when the events command fails to spawn', async () => {
+    const mockTask = Task as jest.Mocked<typeof Task>;
+    mockTask.log.mockClear();
+    const p = waitForContainerEvent('podman', 'rhdh', 'died', 5000);
+    await new Promise<void>(resolve => setImmediate(resolve));
+    fakeChild.emit('error', new Error('spawn podman ENOENT'));
+    await expect(p).resolves.toBeUndefined();
+    expect(mockTask.log).toHaveBeenCalledWith(
+      expect.stringContaining('spawn podman ENOENT'),
+    );
+  });
+
+  it('logs a warning when the events command exits unexpectedly on its own', async () => {
+    const mockTask = Task as jest.Mocked<typeof Task>;
+    mockTask.log.mockClear();
+    const p = waitForContainerEvent('podman', 'rhdh', 'died', 5000);
+    await new Promise<void>(resolve => setImmediate(resolve));
+    fakeChild.emit('close', 1, null);
+    await expect(p).resolves.toBeUndefined();
+    expect(mockTask.log).toHaveBeenCalledWith(
+      expect.stringContaining('exited unexpectedly (code 1)'),
+    );
+  });
+
+  it('does not log a warning when close follows our own kill() after a match', async () => {
+    const mockTask = Task as jest.Mocked<typeof Task>;
+    mockTask.log.mockClear();
+    const p = waitForContainerEvent('podman', 'rhdh', 'died', 5000);
+    await new Promise<void>(resolve => setImmediate(resolve));
+    emitEvent('rhdh', 'died');
+    await new Promise<void>(resolve => setImmediate(resolve));
+    await p;
+    // Simulate the 'close' event that naturally follows our own kill() —
+    // code is null (terminated by signal), not a non-zero exit code.
+    fakeChild.emit('close', null, 'SIGTERM');
+    expect(mockTask.log).not.toHaveBeenCalledWith(
+      expect.stringContaining('exited unexpectedly'),
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// waitForContainerCleanup — dual-service settle (delegates to waitForContainerEvent)
+// ---------------------------------------------------------------------------
+
+describe('waitForContainerCleanup', () => {
+  it('uses cleanup for podman and die for docker', async () => {
+    const { spawn: spawnMock } = jest.requireMock('node:child_process') as {
+      spawn: jest.Mock;
+    };
+    spawnMock.mockClear();
+
+    // waitForContainerCleanup spawns two parallel waitForContainerEvent calls.
+    // Capture each FakeChildProcess instance as spawn is called.
+    const children: FakeChildProcess[] = [];
+    spawnMock.mockImplementation(() => {
+      const child = new FakeChildProcess();
+      children.push(child);
+      return child;
+    });
+
+    const p = waitForContainerCleanup('podman', 5000);
+    // Allow both spawns to register their stdout listeners.
+    await new Promise<void>(resolve => setImmediate(resolve));
+    await new Promise<void>(resolve => setImmediate(resolve));
+
+    const calls = spawnMock.mock.calls as Array<[string, string[]]>;
+    expect(calls.every(([tool]) => tool === 'podman')).toBe(true);
+    expect(calls.some(([, args]) => args.includes('event=cleanup'))).toBe(true);
+    expect(calls.some(([, args]) => args.includes('event=die'))).toBe(false);
+
+    // Emit the cleanup event to each respective child.
+    function emitTo(child: FakeChildProcess, svc: string, action = 'cleanup') {
+      const event = JSON.stringify({
+        Action: action,
+        Attributes: { 'com.docker.compose.service': svc },
+      });
+      child.stdout.emit('data', Buffer.from(`${event}\n`));
+    }
+    // children[0] watches rhdh, children[1] watches install-dynamic-plugins
+    // (or vice-versa depending on Promise.all order — emit to both).
+    for (const child of children) {
+      emitTo(child, 'rhdh');
+      emitTo(child, 'install-dynamic-plugins');
+    }
+    await new Promise<void>(resolve => setImmediate(resolve));
+    await expect(p).resolves.toBeUndefined();
+
+    // Restore the default mock implementation for subsequent tests.
+    spawnMock.mockImplementation(() => {
+      fakeChild = new FakeChildProcess();
+      return fakeChild;
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// resolveRhdhUrl — env file parsing
+// ---------------------------------------------------------------------------
+
+describe('resolveRhdhUrl', () => {
+  let dir: string;
+
+  beforeEach(async () => {
+    dir = await fs.mkdtemp(path.join(os.tmpdir(), 'plugin-dev-url-'));
+  });
+  afterEach(() => fs.remove(dir));
+
+  const writeEnvFile = (name: string, content: string) =>
+    fs.writeFile(path.join(dir, name), content);
+
+  it('returns the fallback URL when no env files exist', async () => {
+    await expect(resolveRhdhUrl(dir)).resolves.toBe('http://localhost:7007');
+  });
+
+  it('reads BASE_URL from default.env', async () => {
+    await writeEnvFile('default.env', 'BASE_URL=http://localhost:9999\n');
+    await expect(resolveRhdhUrl(dir)).resolves.toBe('http://localhost:9999');
+  });
+
+  it('.env overrides default.env', async () => {
+    await writeEnvFile('default.env', 'BASE_URL=http://localhost:9999\n');
+    await writeEnvFile('.env', '# comment\nBASE_URL=http://my-host:7007\n');
+    await expect(resolveRhdhUrl(dir)).resolves.toBe('http://my-host:7007');
+  });
+
+  it('ignores commented-out BASE_URL lines', async () => {
+    await writeEnvFile('default.env', 'BASE_URL=http://localhost:7007\n');
+    await writeEnvFile('.env', '# BASE_URL=http://other:1234\n');
+    await expect(resolveRhdhUrl(dir)).resolves.toBe('http://localhost:7007');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// waitForRhdhReady — HTTP readiness polling
+// ---------------------------------------------------------------------------
+
+describe('waitForRhdhReady', () => {
+  const mockFetch = jest.fn<
+    ReturnType<typeof fetch>,
+    Parameters<typeof fetch>
+  >();
+
+  beforeEach(() => {
+    mockFetch.mockReset();
+    // Replace global fetch with the mock for the duration of each test.
+    (global as any).fetch = mockFetch;
+    // Suppress the dot output during tests.
+    jest.spyOn(process.stdout, 'write').mockImplementation(() => true);
+  });
+
+  afterEach(() => {
+    (process.stdout.write as jest.Mock).mockRestore();
+    (global as any).fetch = undefined;
+  });
+
+  it('resolves with the URL when the first poll returns 200', async () => {
+    mockFetch.mockResolvedValueOnce(
+      new Response(null, { status: 200 }) as Response,
+    );
+    await expect(
+      waitForRhdhReady('http://localhost:7007', 5000, 0),
+    ).resolves.toBe('http://localhost:7007');
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('retries on connection failure and resolves when it succeeds', async () => {
+    mockFetch
+      .mockRejectedValueOnce(new Error('ECONNREFUSED'))
+      .mockResolvedValueOnce(new Response(null, { status: 200 }) as Response);
+    await expect(
+      waitForRhdhReady('http://localhost:7007', 5000, 0),
+    ).resolves.toBe('http://localhost:7007');
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+  });
+
+  it('throws after timeout when never ready', async () => {
+    mockFetch.mockRejectedValue(new Error('ECONNREFUSED'));
+    await expect(
+      waitForRhdhReady('http://localhost:7007', 10, 0),
+    ).rejects.toThrow('did not become ready');
   });
 });
