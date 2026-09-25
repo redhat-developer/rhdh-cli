@@ -8,7 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
-- **`plugin dev`:** Add `--watch` to `rhdh-cli plugin dev start`, and a standalone `rhdh-cli plugin dev update --watch`, for continuous re-export/re-stage/restart on source changes ([RHIDP-16673](https://redhat.atlassian.net/browse/RHIDP-16673)). Watches `src/` and `package.json` with a 500ms debounce and serializes cycles so a change arriving mid-cycle queues exactly one follow-up; prints a refresh URL once RHDH responds. `plugin dev start` now also shows phased `[1/4]`–`[4/4]` progress through build/export, runtime start, plugin install, and readiness polling. `plugin dev update` and `plugin dev restart` fail fast with an actionable message when RHDH Local isn't running yet, instead of surfacing a raw compose/container error.
+- **`plugin dev`:** Add `--watch` to `rhdh-cli plugin dev start`, and a standalone `rhdh-cli plugin dev update --watch`, for continuous re-export/re-stage/restart on source changes ([RHIDP-16673](https://redhat.atlassian.net/browse/RHIDP-16673), [#222](https://github.com/redhat-developer/rhdh-cli/pull/222)). Watches `src/` and `package.json` with a 500ms debounce and serializes cycles so a change arriving mid-cycle queues exactly one follow-up; prints a refresh URL once RHDH responds. `plugin dev start` now also shows phased `[1/4]`–`[4/4]` progress through build/export, runtime start, plugin install, and readiness polling. `plugin dev update` and `plugin dev restart` fail fast with an actionable message when RHDH Local isn't running yet, instead of surfacing a raw compose/container error.
 
 ## 2.1.1 - 2026-09-21
 
