@@ -390,6 +390,28 @@ describe('plugin dev', () => {
       ).rejects.toThrow('RHDH Local is not running');
     });
 
+    it('update --watch rejects immediately when RHDH Local is not running, without entering watch mode', async () => {
+      // Regression test: --watch must fail fast the same way the one-shot
+      // path does. Without an explicit ensureRuntimeRunning call before
+      // watchUpdate, this would instead resolve into watch mode and only
+      // surface the error on the first change-triggered cycle.
+      const mockChokidarWatch = chokidar.watch as jest.MockedFunction<
+        typeof chokidar.watch
+      >;
+      mockChokidarWatch.mockClear();
+      mockExecFile
+        .mockResolvedValueOnce({ stdout: 'podman version 5.0.0', stderr: '' })
+        .mockResolvedValueOnce({ stdout: '[]', stderr: '' });
+      await expect(
+        update({
+          rhdhLocalDir: runtimeDir,
+          containerTool: 'podman',
+          watch: true,
+        }),
+      ).rejects.toThrow('RHDH Local is not running');
+      expect(mockChokidarWatch).not.toHaveBeenCalled();
+    });
+
     it('restart rejects with an actionable message when RHDH Local is not running', async () => {
       mockExecFile
         .mockResolvedValueOnce({ stdout: 'podman version 5.0.0', stderr: '' })
@@ -773,7 +795,7 @@ describe('watchUpdate', () => {
 
   it('runs an update cycle when a file change event fires', async () => {
     // debounceMs=0 so the timer fires on the next event-loop tick.
-    const watchPromise = watchUpdate(runtimeDir, 'podman', 0, 0);
+    const watchPromise = watchUpdate('podman', runtimeDir, 0, 0);
 
     fakeWatcher.emit('all', 'change', 'src/index.ts');
     await waitForExportCalls(1);
@@ -787,7 +809,7 @@ describe('watchUpdate', () => {
   it('debounces rapid consecutive file events into a single cycle', async () => {
     // Use debounceMs=20 so rapid events within that window coalesce, but the
     // cycle still completes quickly in real-timer mode.
-    const watchPromise = watchUpdate(runtimeDir, 'podman', 20, 0);
+    const watchPromise = watchUpdate('podman', runtimeDir, 20, 0);
 
     // Three events fired rapidly — only the first one should schedule a timer
     // (the guard `if (debounceTimer !== undefined) return` drops the rest).
@@ -803,7 +825,7 @@ describe('watchUpdate', () => {
   });
 
   it('continues watching after a failed update cycle', async () => {
-    const watchPromise = watchUpdate(runtimeDir, 'podman', 0, 0);
+    const watchPromise = watchUpdate('podman', runtimeDir, 0, 0);
 
     mockExport.mockRejectedValueOnce(new Error('build exploded'));
 
@@ -841,7 +863,7 @@ describe('watchUpdate', () => {
   }
 
   it('fails a cycle cleanly and keeps watching when RHDH Local is not running', async () => {
-    const watchPromise = watchUpdate(runtimeDir, 'podman', 0, 0);
+    const watchPromise = watchUpdate('podman', runtimeDir, 0, 0);
 
     // Simulate RHDH Local not running for the first triggered cycle —
     // ensureRuntimeRunning should reject before exportCommand is ever called.
@@ -862,7 +884,7 @@ describe('watchUpdate', () => {
   });
 
   it('closes the watcher on SIGINT', async () => {
-    watchUpdate(runtimeDir, 'podman', 0, 0);
+    watchUpdate('podman', runtimeDir, 0, 0);
 
     const exitSpy = jest
       .spyOn(process, 'exit')
@@ -1133,6 +1155,28 @@ describe('waitForContainerEvent', () => {
       ]),
       expect.anything(),
     );
+  });
+
+  it('omits --stream for docker, which has no such flag and always streams', async () => {
+    // Regression test: docker's `events` command has no --stream flag and
+    // rejects it, exiting immediately (child.on('close') would then resolve
+    // this promise before any event is ever seen). Podman's `events`
+    // supports (and per its own docs, expects) an explicit --stream.
+    const { spawn: spawnMock } = jest.requireMock('node:child_process') as {
+      spawn: jest.Mock;
+    };
+    spawnMock.mockClear();
+
+    waitForContainerEvent('docker', 'rhdh', 'die', 5000);
+    await new Promise<void>(resolve => setImmediate(resolve));
+    const [, dockerArgs] = spawnMock.mock.calls[0] as [string, string[]];
+    expect(dockerArgs).not.toContain('--stream');
+
+    spawnMock.mockClear();
+    waitForContainerEvent('podman', 'rhdh', 'died', 5000);
+    await new Promise<void>(resolve => setImmediate(resolve));
+    const [, podmanArgs] = spawnMock.mock.calls[0] as [string, string[]];
+    expect(podmanArgs).toContain('--stream');
   });
 });
 

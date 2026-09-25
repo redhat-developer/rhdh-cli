@@ -71,7 +71,8 @@ export async function waitForRhdhReady(
   while (Date.now() < deadline) {
     try {
       const res = await fetch(url, { signal: AbortSignal.timeout(5_000) });
-      if (res.ok || (res.status >= 200 && res.status < 400)) {
+      // 3xx redirects are treated as ready too, not just res.ok's [200, 300).
+      if (res.status >= 200 && res.status < 400) {
         process.stdout.write(' ready.\n');
         return url;
       }
@@ -269,13 +270,13 @@ export async function start(opts: OptionValues) {
   Task.log(`\nRHDH is ready at ${url}`);
 
   if (opts.watch) {
-    await watchUpdate(runtimeDir, containerTool);
+    await watchUpdate(containerTool, runtimeDir);
   }
 }
 
 async function runUpdateCycle(
-  runtimeDir: string,
   containerTool: string,
+  runtimeDir: string,
   prefix = '',
 ): Promise<void> {
   await ensureRuntimeRunning(containerTool, runtimeDir);
@@ -297,9 +298,14 @@ async function runUpdateCycle(
 export async function update(opts: OptionValues) {
   const { runtimeDir, containerTool } = await resolveAndValidate(opts);
   if (opts.watch) {
-    await watchUpdate(runtimeDir, containerTool);
+    // Fail fast here rather than relying on the first change-triggered cycle
+    // inside watchUpdate to discover this — a user starting `update --watch`
+    // against a stopped runtime should see the actionable error immediately,
+    // not only after they edit a source file.
+    await ensureRuntimeRunning(containerTool, runtimeDir);
+    await watchUpdate(containerTool, runtimeDir);
   } else {
-    await runUpdateCycle(runtimeDir, containerTool);
+    await runUpdateCycle(containerTool, runtimeDir);
   }
 }
 
@@ -326,7 +332,12 @@ export async function waitForContainerEvent(
       containerTool,
       [
         'events',
-        '--stream',
+        // Podman defaults to streaming but accepts (and needs, per its own
+        // docs) an explicit --stream. Docker's `events` has no such flag and
+        // always streams — passing it there makes Docker reject the command
+        // and exit immediately, so `close` would resolve this promise before
+        // any event is ever seen.
+        ...(containerTool === 'podman' ? ['--stream'] : []),
         '--format',
         'json',
         '--filter',
@@ -482,8 +493,8 @@ function describeWatchError(err: unknown): string {
  *   0 to skip event-based settling entirely (used in tests).
  */
 export async function watchUpdate(
-  runtimeDir: string,
   containerTool: string,
+  runtimeDir: string,
   debounceMs = 500,
   settleTimeoutMs = 15_000,
 ): Promise<void> {
@@ -516,7 +527,7 @@ export async function watchUpdate(
       const cycleStart = Date.now();
       try {
         Task.log(`\n[watch] Change detected — starting update cycle...`);
-        await runUpdateCycle(runtimeDir, containerTool, '[watch] ');
+        await runUpdateCycle(containerTool, runtimeDir, '[watch] ');
         Task.log(`[watch] Update complete in ${Date.now() - cycleStart}ms.`);
       } catch (err: unknown) {
         const message = describeWatchError(err);
@@ -558,11 +569,6 @@ export async function watchUpdate(
     scheduleUpdate();
   });
 
-  watcher.on('error', (err: unknown) => {
-    const message = describeWatchError(err);
-    Task.log(`[watch] Watcher error: ${message}`);
-  });
-
   const shutdown = async () => {
     Task.log('\n[watch] Shutting down...');
     if (debounceTimer !== undefined) {
@@ -575,9 +581,14 @@ export async function watchUpdate(
   process.on('SIGINT', shutdown);
   process.on('SIGTERM', shutdown);
 
-  // Keep the process alive while the watcher is active.
+  // Keep the process alive while the watcher is active. A fatal watcher
+  // error logs and ends the keep-alive promise.
   await new Promise<void>((_resolve, reject) => {
-    watcher.on('error', reject);
+    watcher.on('error', (err: unknown) => {
+      const message = describeWatchError(err);
+      Task.log(`[watch] Watcher error: ${message}`);
+      reject(err);
+    });
   });
 }
 
