@@ -664,6 +664,52 @@ describe('isIgnoredWatchPath', () => {
 // watchUpdate — file-watching behaviour
 // ---------------------------------------------------------------------------
 
+/**
+ * Scaffold a temp RHDH Local runtime dir (with the files
+ * `validateProjectFiles`/Compose checks require) and a temp plugin dir with a
+ * minimal frontend plugin `package.json`. Shared by the `watchUpdate` and
+ * `start` suites, which both drive a real (mocked-at-the-edges) `plugin dev`
+ * cycle against these directories.
+ */
+async function scaffoldPluginDevRuntime(
+  runtimePrefix: string,
+  pluginPrefix: string,
+  pluginPackageName: string,
+): Promise<{ runtimeDir: string; pluginDir: string }> {
+  const runtimeDir = await fs.mkdtemp(path.join(os.tmpdir(), runtimePrefix));
+  const pluginDir = await fs.mkdtemp(path.join(os.tmpdir(), pluginPrefix));
+  (global as any).__pluginDevTestDir = pluginDir;
+
+  for (const f of [
+    'compose.yaml',
+    'compose-dynamic-plugins-root.yaml',
+    'prepare-and-install-dynamic-plugins.sh',
+    'wait-for-plugins-and-start.sh',
+  ]) {
+    await fs.writeFile(path.join(runtimeDir, f), '');
+  }
+
+  // Write the generated config include so ensureGeneratedConfigIncluded passes
+  const override = path.join(
+    runtimeDir,
+    'configs/dynamic-plugins/dynamic-plugins.override.yaml',
+  );
+  await fs.outputFile(
+    override,
+    `includes:\n  - configs/dynamic-plugins/rhdh-cli.generated.local.yaml\n`,
+  );
+
+  // Write a minimal frontend plugin package.json so validateProjectFiles passes
+  // (frontend plugins do not require dist-types).
+  await fs.writeJson(path.join(pluginDir, 'package.json'), {
+    name: pluginPackageName,
+    version: '0.1.0',
+    backstage: { role: 'frontend-plugin' },
+  });
+
+  return { runtimeDir, pluginDir };
+}
+
 describe('watchUpdate', () => {
   let runtimeDir: string;
   const mockRun = run as jest.MockedFunction<typeof run>;
@@ -675,40 +721,11 @@ describe('watchUpdate', () => {
   let pluginDir: string;
 
   beforeEach(async () => {
-    runtimeDir = await fs.mkdtemp(
-      path.join(os.tmpdir(), 'plugin-dev-watch-runtime-'),
-    );
-    pluginDir = await fs.mkdtemp(
-      path.join(os.tmpdir(), 'plugin-dev-watch-plugin-'),
-    );
-    (global as any).__pluginDevTestDir = pluginDir;
-
-    for (const f of [
-      'compose.yaml',
-      'compose-dynamic-plugins-root.yaml',
-      'prepare-and-install-dynamic-plugins.sh',
-      'wait-for-plugins-and-start.sh',
-    ]) {
-      await fs.writeFile(path.join(runtimeDir, f), '');
-    }
-
-    // Write the generated config include so ensureGeneratedConfigIncluded passes
-    const override = path.join(
-      runtimeDir,
-      'configs/dynamic-plugins/dynamic-plugins.override.yaml',
-    );
-    await fs.outputFile(
-      override,
-      `includes:\n  - configs/dynamic-plugins/rhdh-cli.generated.local.yaml\n`,
-    );
-
-    // Write a minimal frontend plugin package.json so validateProjectFiles passes
-    // (frontend plugins do not require dist-types).
-    await fs.writeJson(path.join(pluginDir, 'package.json'), {
-      name: '@internal/my-watch-plugin',
-      version: '0.1.0',
-      backstage: { role: 'frontend-plugin' },
-    });
+    ({ runtimeDir, pluginDir } = await scaffoldPluginDevRuntime(
+      'plugin-dev-watch-runtime-',
+      'plugin-dev-watch-plugin-',
+      '@internal/my-watch-plugin',
+    ));
 
     mockRun.mockReset();
     mockExecFile.mockReset();
@@ -885,37 +902,11 @@ describe('start', () => {
   >;
 
   beforeEach(async () => {
-    runtimeDir = await fs.mkdtemp(
-      path.join(os.tmpdir(), 'plugin-dev-start-runtime-'),
-    );
-    pluginDir = await fs.mkdtemp(
-      path.join(os.tmpdir(), 'plugin-dev-start-plugin-'),
-    );
-    (global as any).__pluginDevTestDir = pluginDir;
-
-    for (const f of [
-      'compose.yaml',
-      'compose-dynamic-plugins-root.yaml',
-      'prepare-and-install-dynamic-plugins.sh',
-      'wait-for-plugins-and-start.sh',
-    ]) {
-      await fs.writeFile(path.join(runtimeDir, f), '');
-    }
-
-    const override = path.join(
-      runtimeDir,
-      'configs/dynamic-plugins/dynamic-plugins.override.yaml',
-    );
-    await fs.outputFile(
-      override,
-      `includes:\n  - configs/dynamic-plugins/rhdh-cli.generated.local.yaml\n`,
-    );
-
-    await fs.writeJson(path.join(pluginDir, 'package.json'), {
-      name: '@internal/my-start-plugin',
-      version: '0.1.0',
-      backstage: { role: 'frontend-plugin' },
-    });
+    ({ runtimeDir, pluginDir } = await scaffoldPluginDevRuntime(
+      'plugin-dev-start-runtime-',
+      'plugin-dev-start-plugin-',
+      '@internal/my-start-plugin',
+    ));
     // stagePlugin requires dist-dynamic to already exist (export is mocked).
     await fs.ensureDir(path.join(pluginDir, 'dist-dynamic'));
     await fs.writeJson(path.join(pluginDir, 'dist-dynamic', 'package.json'), {
@@ -1185,39 +1176,27 @@ describe('resolveRhdhUrl', () => {
   });
   afterEach(() => fs.remove(dir));
 
+  const writeEnvFile = (name: string, content: string) =>
+    fs.writeFile(path.join(dir, name), content);
+
   it('returns the fallback URL when no env files exist', async () => {
     await expect(resolveRhdhUrl(dir)).resolves.toBe('http://localhost:7007');
   });
 
   it('reads BASE_URL from default.env', async () => {
-    await fs.writeFile(
-      path.join(dir, 'default.env'),
-      'BASE_URL=http://localhost:9999\n',
-    );
+    await writeEnvFile('default.env', 'BASE_URL=http://localhost:9999\n');
     await expect(resolveRhdhUrl(dir)).resolves.toBe('http://localhost:9999');
   });
 
   it('.env overrides default.env', async () => {
-    await fs.writeFile(
-      path.join(dir, 'default.env'),
-      'BASE_URL=http://localhost:9999\n',
-    );
-    await fs.writeFile(
-      path.join(dir, '.env'),
-      '# comment\nBASE_URL=http://my-host:7007\n',
-    );
+    await writeEnvFile('default.env', 'BASE_URL=http://localhost:9999\n');
+    await writeEnvFile('.env', '# comment\nBASE_URL=http://my-host:7007\n');
     await expect(resolveRhdhUrl(dir)).resolves.toBe('http://my-host:7007');
   });
 
   it('ignores commented-out BASE_URL lines', async () => {
-    await fs.writeFile(
-      path.join(dir, 'default.env'),
-      'BASE_URL=http://localhost:7007\n',
-    );
-    await fs.writeFile(
-      path.join(dir, '.env'),
-      '# BASE_URL=http://other:1234\n',
-    );
+    await writeEnvFile('default.env', 'BASE_URL=http://localhost:7007\n');
+    await writeEnvFile('.env', '# BASE_URL=http://other:1234\n');
     await expect(resolveRhdhUrl(dir)).resolves.toBe('http://localhost:7007');
   });
 });
