@@ -18,7 +18,7 @@ import { OptionValues } from 'commander';
 import fs from 'fs-extra';
 import YAML from 'yaml';
 import path from 'node:path';
-import { spawn } from 'node:child_process';
+import { spawn, ChildProcess } from 'node:child_process';
 import chokidar from 'chokidar';
 
 import { execFile, run } from '../../lib/run';
@@ -297,17 +297,29 @@ async function runUpdateCycle(
 
 export async function update(opts: OptionValues) {
   const { runtimeDir, containerTool } = await resolveAndValidate(opts);
+  // Always deploy the current tree immediately, matching `start`'s
+  // build-then-optionally-watch structure — `--watch` must not leave
+  // whatever's already on disk undeployed until the first change arrives.
+  // This also covers the ensureRuntimeRunning pre-flight check, so a
+  // stopped runtime fails fast here rather than only on the first
+  // change-triggered cycle inside watchUpdate.
+  await runUpdateCycle(containerTool, runtimeDir);
   if (opts.watch) {
-    // Fail fast here rather than relying on the first change-triggered cycle
-    // inside watchUpdate to discover this — a user starting `update --watch`
-    // against a stopped runtime should see the actionable error immediately,
-    // not only after they edit a source file.
-    await ensureRuntimeRunning(containerTool, runtimeDir);
     await watchUpdate(containerTool, runtimeDir);
-  } else {
-    await runUpdateCycle(containerTool, runtimeDir);
   }
 }
+
+/**
+ * Container-events child processes (spawned by `waitForContainerEvent`) that
+ * are still running. Tracked so `watchUpdate`'s shutdown handler can kill
+ * them on SIGINT/SIGTERM instead of leaving them orphaned: `spawn()` puts
+ * children in the same process group as the parent by default, so a
+ * terminal Ctrl+C (which signals the whole foreground process group) takes
+ * them with it, but a direct `SIGTERM` to just this process's PID does not.
+ * Once `process.exit()` runs, this file's own JS-side timeout-driven
+ * `child.kill()` never gets a chance to fire either.
+ */
+const activeEventSubscriptions = new Set<ChildProcess>();
 
 /**
  * Subscribe to the container runtime event stream and resolve once a specific
@@ -347,12 +359,17 @@ export async function waitForContainerEvent(
       ],
       { stdio: ['ignore', 'pipe', 'ignore'] },
     );
+    activeEventSubscriptions.add(child);
+    const finish = () => {
+      activeEventSubscriptions.delete(child);
+      resolve();
+    };
 
     const timer =
       timeoutMs > 0
         ? setTimeout(() => {
             child.kill();
-            resolve();
+            finish();
           }, timeoutMs)
         : undefined;
 
@@ -369,13 +386,21 @@ export async function waitForContainerEvent(
             Action?: string;
             Status?: string;
             Attributes?: Record<string, string>;
+            // Docker nests the compose-service label here instead of at the
+            // top level (verified against Docker's documented events JSON
+            // schema); Podman uses the top-level `Attributes` above
+            // (verified against real `podman events --format json` output).
+            Actor?: { Attributes?: Record<string, string> };
           };
           const action = event.Action ?? event.Status ?? '';
-          const svc = event.Attributes?.['com.docker.compose.service'] ?? '';
+          const svc =
+            event.Attributes?.['com.docker.compose.service'] ??
+            event.Actor?.Attributes?.['com.docker.compose.service'] ??
+            '';
           if (action === eventAction && svc === service) {
             if (timer !== undefined) clearTimeout(timer);
             child.kill();
-            resolve();
+            finish();
           }
         } catch {
           // non-JSON line — ignore
@@ -383,14 +408,24 @@ export async function waitForContainerEvent(
       }
     });
 
-    child.on('error', () => {
+    child.on('error', err => {
       if (timer !== undefined) clearTimeout(timer);
-      resolve();
+      Task.log(
+        `Warning: could not watch for '${containerTool} events' (${describeWatchError(err)}). Proceeding without confirming ${service}'s '${eventAction}' event.`,
+      );
+      finish();
     });
 
-    child.on('close', () => {
+    child.on('close', code => {
       if (timer !== undefined) clearTimeout(timer);
-      resolve();
+      // A null code means we killed it ourselves (SIGTERM) after already
+      // matching the event or hitting our own timeout — not a failure.
+      if (code !== null && code !== 0) {
+        Task.log(
+          `Warning: '${containerTool} events' exited unexpectedly (code ${code}). Proceeding without confirming ${service}'s '${eventAction}' event.`,
+        );
+      }
+      finish();
     });
   });
 }
@@ -440,9 +475,20 @@ const ignoredWatchSegments = new Set([
  * nothing, since chokidar no longer interprets `*` as a wildcard there. This
  * checks path segments directly instead, so output directories are actually
  * excluded rather than just documented as excluded.
+ *
+ * Chokidar always calls this with an absolute path. Segments are checked only
+ * within `root` (the plugin directory) — not the full absolute path — so a
+ * checkout that merely happens to live under an ancestor directory named
+ * e.g. `dist` or `node_modules` doesn't have every file ignored while still
+ * printing "Watching...".
  */
-export function isIgnoredWatchPath(filePath: string): boolean {
-  return filePath
+export function isIgnoredWatchPath(filePath: string, root: string): boolean {
+  const relative = path.relative(root, filePath);
+  // Outside root entirely — chokidar shouldn't call us with these for our
+  // watched paths, but stay conservative and never ignore what we can't
+  // place relative to the plugin.
+  if (relative.startsWith('..') || path.isAbsolute(relative)) return false;
+  return relative
     .split(path.sep)
     .some(segment => ignoredWatchSegments.has(segment));
 }
@@ -475,7 +521,7 @@ function describeWatchError(err: unknown): string {
  * Watch source files and run a full update cycle on changes.
  *
  * Design:
- * - Watches src/ and package.json.
+ * - Watches src/, package.json, and tsconfig.json.
  * - Excludes output directories (node_modules, dist, dist-dynamic,
  *   dist-types) to prevent output-loop triggering.
  * - Events are debounced: the first event in a `debounceMs` window triggers
@@ -498,19 +544,24 @@ export async function watchUpdate(
   debounceMs = 500,
   settleTimeoutMs = 15_000,
 ): Promise<void> {
+  const root = paths.targetDir;
   const watchPaths = [
     paths.resolveTarget('src'),
     paths.resolveTarget('package.json'),
+    // The only build-configuration file `plugin new` scaffolds (see
+    // adaptStandaloneProject); chokidar is fine watching a path that
+    // doesn't exist yet, so this is safe for projects without one.
+    paths.resolveTarget('tsconfig.json'),
   ];
 
   Task.log(
     'Watching for changes. Press Ctrl+C to stop.\n' +
-      `  Watching: src/, package.json\n` +
+      `  Watching: src/, package.json, tsconfig.json\n` +
       `  Ignored:  node_modules/, dist/, dist-dynamic/, dist-types/`,
   );
 
   const watcher = chokidar.watch(watchPaths, {
-    ignored: isIgnoredWatchPath,
+    ignored: filePath => isIgnoredWatchPath(filePath, root),
     ignoreInitial: true,
     persistent: true,
   });
@@ -525,6 +576,19 @@ export async function watchUpdate(
       running = true;
       pendingChange = false;
       const cycleStart = Date.now();
+      // Start listening for this cycle's own compose stop/install actions'
+      // terminal event *before* runUpdateCycle runs them below —
+      // waitForContainerEvent only sees events emitted after the
+      // subscription begins, so subscribing afterward (once the actions have
+      // already run) almost always misses the event and burns the full
+      // settleTimeoutMs on every queued follow-up cycle. Only awaited below
+      // if a follow-up cycle turns out to be needed; otherwise left to
+      // resolve on its own (killed on shutdown via activeEventSubscriptions
+      // if the process exits first).
+      const settlePromise =
+        settleTimeoutMs > 0
+          ? waitForContainerCleanup(containerTool, settleTimeoutMs)
+          : undefined;
       try {
         Task.log(`\n[watch] Change detected — starting update cycle...`);
         await runUpdateCycle(containerTool, runtimeDir, '[watch] ');
@@ -535,18 +599,20 @@ export async function watchUpdate(
           `[watch] Update failed after ${Date.now() - cycleStart}ms: ${message}`,
         );
         Task.log('[watch] Watching for further changes...');
-      } finally {
-        running = false;
       }
       keepGoing = pendingChange;
       if (keepGoing) {
         Task.log(
           `[watch] Change received during cycle — waiting for runtime to settle...`,
         );
-        if (settleTimeoutMs > 0) {
-          await waitForContainerCleanup(containerTool, settleTimeoutMs);
-        }
+        if (settlePromise) await settlePromise;
       }
+      // Cleared only now, after any settle-wait completes — not in a
+      // `finally` right after the cycle itself. Clearing it earlier let a
+      // change arriving during the settle-wait see `running === false` and
+      // start a second, concurrent drainCycles() instead of being coalesced
+      // into pendingChange for this same loop.
+      running = false;
     }
   };
 
@@ -573,6 +639,14 @@ export async function watchUpdate(
     Task.log('\n[watch] Shutting down...');
     if (debounceTimer !== undefined) {
       clearTimeout(debounceTimer);
+    }
+    // Kill any in-flight `events` subscriptions (e.g. a pending settle-wait)
+    // explicitly. SIGINT gets these for free via the terminal's
+    // whole-process-group signal, but a direct SIGTERM to just this
+    // process's PID does not, and process.exit() below would otherwise
+    // leave them orphaned before their own JS-side timeout ever fires.
+    for (const child of activeEventSubscriptions) {
+      child.kill();
     }
     await watcher.close();
     process.exit(0);
