@@ -44,9 +44,13 @@ export async function resolveRhdhUrl(runtimeDir: string): Promise<string> {
     if (!(await fs.pathExists(file))) continue;
     const content = await fs.readFile(file, 'utf8');
     for (const line of content.split('\n')) {
-      const match = line.match(/^\s*BASE_URL\s*=\s*(.*)$/);
-      const value = match?.[1].trim();
-      if (value) url = value.replace(/^["']|["']$/g, '');
+      const eq = line.indexOf('=');
+      if (eq === -1 || line.slice(0, eq).trim() !== 'BASE_URL') continue;
+      const value = line
+        .slice(eq + 1)
+        .trim()
+        .replace(/^["']|["']$/g, '');
+      if (value) url = value;
     }
   }
   return url;
