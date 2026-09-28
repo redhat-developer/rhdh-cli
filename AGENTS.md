@@ -42,12 +42,14 @@ import prefix, typescript:S4624 nested template literals) before they accumulate
   not Backstage versions. The CLI resolves RHDH versions to Backstage
   release versions via a 3-tier strategy: (1) remote metadata from the
   RHDH GitHub release branch, (2) a static compatibility matrix
-  (`RHDH_COMPATIBILITY_MATRIX` in `src/lib/rhdhVersion.ts`), (3) error if
-  neither resolves. Bare version numbers like `1.54.0` that do not match a
+  (`RHDH_COMPATIBILITY_MATRIX` in `src/lib/rhdhVersion.ts`), (3) Backstage
+  release manifest fetch from `versions.backstage.io`. If neither tier 1
+  nor tier 2 resolves a Backstage version, an error is raised. Bare
+  version numbers like `1.54.0` that do not match a
   known RHDH release are rejected — users must prefix with `backstage:` to
   target a Backstage version directly (e.g. `backstage:1.54.0`). The static
   matrix must be updated manually each RHDH release cycle.
-- **Offline vs air-gapped**: `RHDH_OFFLINE=true` (or `--offline`) skips
+- **Offline vs air-gapped**: `RHDH_OFFLINE=true` skips
   the GitHub metadata lookup (tier 1) and falls back to the static
   compatibility matrix (tier 2), but the Backstage release manifest still
   fetches from `versions.backstage.io`. For true air-gapped use, users must
@@ -192,7 +194,7 @@ subprocess error.
 as symlinks in the staged copy rather than followed, which would cause a
 self-copy error on repeated `update` runs.
 
-### Version resolution engine
+### `rhdhVersion.ts` — version resolution engine
 
 `src/lib/rhdhVersion.ts` is the core abstraction that maps RHDH version
 queries to Backstage release versions and their package manifests. All
@@ -241,8 +243,9 @@ Key files:
 
 - `command.ts` — `checkPluginDependencies()` audit logic, human-readable
   tabular output, and JSON mode.
-- `command.test.ts` — test patterns using `setupFetchMock` to mock both
-  the RHDH metadata endpoint and the Backstage manifest endpoint.
+- `command.test.ts` — test patterns using `jest.mock` to stub
+  `resolveRhdhVersion` at the module boundary, allowing unit tests of
+  audit logic and CLI output without triggering any network calls.
 
 ## Pattern References
 
