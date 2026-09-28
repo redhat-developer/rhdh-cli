@@ -97,11 +97,14 @@ describe('intent commands (mocked client integration)', () => {
       'list',
       '--kind',
       'Component',
+      '--instance',
+      'staging',
     ]);
     expect(mockExecActionJson).toHaveBeenCalledWith(
       'catalog:query-catalog-entities',
       expect.objectContaining({
         query: JSON.stringify({ kind: 'Component' }),
+        instance: 'staging',
         fields: JSON.stringify([
           'metadata.name',
           'kind',
@@ -150,38 +153,6 @@ describe('intent commands (mocked client integration)', () => {
       instance: undefined,
     });
     expect(spyText(io.stdout)).toContain('payments');
-  });
-
-  it('forwards --instance on catalog list and search', async () => {
-    mockExecActionJson.mockReturnValue({ items: [SAMPLE_COMPONENT] });
-    await runCli(registerCatalogCommands, [
-      'catalog',
-      'list',
-      '--kind',
-      'Component',
-      '--instance',
-      'staging',
-    ]);
-    expect(mockExecActionJson).toHaveBeenCalledWith(
-      'catalog:query-catalog-entities',
-      expect.objectContaining({ instance: 'staging' }),
-    );
-
-    jest.clearAllMocks();
-    mockExecActionJson.mockReturnValue({ results: [] });
-    await runCli(registerSearchCommands, [
-      'search',
-      'payment',
-      '--instance',
-      'staging',
-    ]);
-    expect(mockExecActionJson).toHaveBeenCalledWith(
-      'search:query',
-      expect.objectContaining({
-        term: 'payment',
-        instance: 'staging',
-      }),
-    );
   });
 
   it('catalog validate/register/unregister call catalog actions', async () => {
@@ -324,12 +295,15 @@ describe('intent commands (mocked client integration)', () => {
       'payment',
       '--filter',
       'kind=Component',
+      '--instance',
+      'staging',
     ]);
     expect(mockExecActionJson).toHaveBeenCalledWith(
       'search:query',
       expect.objectContaining({
         term: 'payment',
         filters: JSON.stringify({ kind: 'Component' }),
+        instance: 'staging',
       }),
     );
     expect(spyText(io.stdout)).toContain('Payments service');
