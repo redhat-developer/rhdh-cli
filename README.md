@@ -98,7 +98,7 @@ rhdh-cli plugin dev update
 
 `update` and `restart` require the runtime to already be running — start it first with `plugin dev start`, or they fail fast with an actionable message instead of a raw compose/container error. Like `start`, `update` blocks until RHDH is reachable again (up to two minutes) and prints the URL on success.
 
-Pass `--watch` to `start` or `update` to keep the CLI running: it watches `src/` and `package.json` and automatically re-exports, re-stages, and restarts the runtime on every change, so you don't have to re-run `update` by hand.
+Pass `--watch` to `start` or `update` to keep the CLI running: it watches `src/`, `package.json`, and `tsconfig.json` and automatically re-exports, re-stages, and restarts the runtime on every change, so you don't have to re-run `update` by hand.
 
 ```bash
 rhdh-cli plugin dev start --watch

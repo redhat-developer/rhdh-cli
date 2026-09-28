@@ -1477,6 +1477,23 @@ describe('waitForContainerEvent', () => {
     await expect(p).resolves.toBeUndefined();
   });
 
+  it('matches events using the lowercase status field as an action fallback', async () => {
+    const p = waitForContainerEvent('docker', 'rhdh', 'die', 5000);
+    await new Promise<void>(resolve => setImmediate(resolve));
+    fakeChild.stdout.emit(
+      'data',
+      Buffer.from(
+        `${JSON.stringify({
+          status: 'die',
+          Actor: { Attributes: { 'com.docker.compose.service': 'rhdh' } },
+        })}\n`,
+      ),
+    );
+    await new Promise<void>(resolve => setImmediate(resolve));
+    await expect(p).resolves.toBeUndefined();
+    expect(fakeChild.kill).toHaveBeenCalled();
+  });
+
   it('logs a warning and still resolves when the events command fails to spawn', async () => {
     const mockTask = Task as jest.Mocked<typeof Task>;
     mockTask.log.mockClear();

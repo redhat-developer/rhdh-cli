@@ -128,7 +128,7 @@ plugin code. `update` re-exports, re-stages, and then restarts the RHDH service.
 `start` and `update` both block on `waitForRhdhReady` (poll-based, 120s default
 timeout) before returning, printing the RHDH URL once it responds. Both also
 accept `--watch`, which hands off into `watchUpdate`: a chokidar watcher on
-`src/` and `package.json` (500ms debounce, serialized cycles) that repeats the
+`src/`, `package.json`, and `tsconfig.json` (500ms debounce, serialized cycles) that repeats the
 same export/stage/restart cycle as a one-shot `update` on every source change,
 so a source edit doesn't require re-running the command by hand.
 

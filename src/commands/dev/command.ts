@@ -385,6 +385,7 @@ export async function waitForContainerEvent(
           const event = JSON.parse(trimmed) as {
             Action?: string;
             Status?: string;
+            status?: string;
             Attributes?: Record<string, string>;
             // Docker nests the compose-service label here instead of at the
             // top level (verified against Docker's documented events JSON
@@ -392,7 +393,7 @@ export async function waitForContainerEvent(
             // (verified against real `podman events --format json` output).
             Actor?: { Attributes?: Record<string, string> };
           };
-          const action = event.Action ?? event.Status ?? '';
+          const action = event.Action ?? event.Status ?? event.status ?? '';
           const svc =
             event.Attributes?.['com.docker.compose.service'] ??
             event.Actor?.Attributes?.['com.docker.compose.service'] ??
@@ -621,8 +622,9 @@ export async function watchUpdate(
     debounceTimer = setTimeout(async () => {
       debounceTimer = undefined;
       if (running) {
-        // A cycle is active — record the intent and let the cycle's finally
-        // block start another one when it finishes.
+        // A cycle is active — record the intent so the while loop in
+        // drainCycles picks up another cycle when the current one
+        // (including any settle wait) finishes.
         pendingChange = true;
         return;
       }
