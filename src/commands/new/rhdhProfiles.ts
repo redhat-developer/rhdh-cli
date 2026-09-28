@@ -34,6 +34,9 @@ export const rhdhProfiles: Record<string, RhdhProfileDefinition> = {
       // transitives follow the ranges published by upstream packages.
       // Newer express type packages are incompatible with the RHDH 2.1 toolchain.
       '@types/express': '4.17.21',
+      // Pin cli-defaults to prevent transitive resolution of 0.1.6+ which pulls in
+      // cli-module-package-manager-yarn with broken internal yarn patches.
+      '@backstage/cli-defaults': '0.1.5',
     },
     // Keep frontend development dependencies out of backend and module projects.
     templateRoleOverlays: {

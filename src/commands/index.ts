@@ -227,11 +227,19 @@ export function registerPluginCommand(program: Command) {
       '--configure',
       'Add the CLI-managed plugin configuration include to RHDH Local on first use',
     )
+    .option(
+      '--watch',
+      'After startup, watch source files and re-run the update cycle automatically on change',
+    )
     .action(lazy(() => import('./dev').then(m => m.start)));
 
   devSharedOptions(dev.command('update'))
     .description(
       'Re-export and re-stage the plugin, then restart the RHDH service',
+    )
+    .option(
+      '--watch',
+      'Watch source files and re-run the update cycle automatically on change',
     )
     .action(lazy(() => import('./dev').then(m => m.update)));
 

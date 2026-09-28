@@ -56,6 +56,7 @@
     "@yarnpkg/lockfile": "^1.1.0",
     "@yarnpkg/parsers": "^3.0.0-rc.4",
     "chalk": "^4.0.0",
+    "chokidar": "^5.0.0",
     "codeowners": "^5.1.1",
     "commander": "^9.1.0",
     "eslint": "8.57.1",

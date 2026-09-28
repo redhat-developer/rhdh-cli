@@ -124,7 +124,9 @@ describe('createPluginProject', () => {
       );
       expect(packageJson.devDependencies.typescript).toBe('5.4.5');
       expect(packageJson.resolutions['@types/express']).toBe('4.17.21');
+      expect(packageJson.resolutions['@backstage/cli-defaults']).toBe('0.1.5');
       expect(Object.keys(packageJson.resolutions).sort()).toEqual([
+        '@backstage/cli-defaults',
         '@types/express',
       ]);
       expect(
