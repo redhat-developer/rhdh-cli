@@ -152,6 +152,119 @@ describe('intent commands (mocked client integration)', () => {
     expect(spyText(io.stdout)).toContain('payments');
   });
 
+  it('forwards --instance on catalog list and search', async () => {
+    mockExecActionJson.mockReturnValue({ items: [SAMPLE_COMPONENT] });
+    await runCli(registerCatalogCommands, [
+      'catalog',
+      'list',
+      '--kind',
+      'Component',
+      '--instance',
+      'staging',
+    ]);
+    expect(mockExecActionJson).toHaveBeenCalledWith(
+      'catalog:query-catalog-entities',
+      expect.objectContaining({ instance: 'staging' }),
+    );
+
+    jest.clearAllMocks();
+    mockExecActionJson.mockReturnValue({ results: [] });
+    await runCli(registerSearchCommands, [
+      'search',
+      'payment',
+      '--instance',
+      'staging',
+    ]);
+    expect(mockExecActionJson).toHaveBeenCalledWith(
+      'search:query',
+      expect.objectContaining({
+        term: 'payment',
+        instance: 'staging',
+      }),
+    );
+  });
+
+  it('catalog validate/register/unregister call catalog actions', async () => {
+    const entityYaml =
+      'apiVersion: backstage.io/v1alpha1\nkind: Component\nmetadata:\n  name: payments\n';
+    mockExecAction.mockReturnValue(JSON.stringify({ valid: true }));
+    await runCli(registerCatalogCommands, [
+      'catalog',
+      'validate',
+      '--entity',
+      entityYaml,
+      '--instance',
+      'staging',
+    ]);
+    expect(mockExecAction).toHaveBeenCalledWith(
+      'catalog:validate-entity',
+      expect.objectContaining({
+        entity: entityYaml,
+        instance: 'staging',
+      }),
+    );
+
+    jest.clearAllMocks();
+    io.stdout.mockClear();
+    const dir = mkdtempSync(join(tmpdir(), 'rhdh-cli-int-catalog-'));
+    const entityFile = join(dir, 'catalog-info.yaml');
+    writeFileSync(entityFile, entityYaml);
+    mockExecAction.mockReturnValue(JSON.stringify({ valid: true }));
+    await runCli(registerCatalogCommands, [
+      'catalog',
+      'validate',
+      '--entity-file',
+      entityFile,
+    ]);
+    expect(mockExecAction).toHaveBeenCalledWith(
+      'catalog:validate-entity',
+      expect.objectContaining({ entity: entityYaml }),
+    );
+
+    jest.clearAllMocks();
+    io.stdout.mockClear();
+    mockExecAction.mockReturnValue(
+      JSON.stringify({ location: 'url:https://example.com/catalog-info.yaml' }),
+    );
+    await runCli(registerCatalogCommands, [
+      'catalog',
+      'register',
+      '--location-url',
+      'https://example.com/catalog-info.yaml',
+      '--instance',
+      'staging',
+    ]);
+    expect(mockExecAction).toHaveBeenCalledWith(
+      'catalog:register-entity',
+      expect.objectContaining({
+        locationUrl: 'https://example.com/catalog-info.yaml',
+        instance: 'staging',
+      }),
+    );
+    expect(spyText(io.stdout)).toContain('catalog-info.yaml');
+
+    jest.clearAllMocks();
+    io.stdout.mockClear();
+    mockExecAction.mockReturnValue(JSON.stringify({ ok: true }));
+    await runCli(registerCatalogCommands, [
+      'catalog',
+      'unregister',
+      '--location-id',
+      'loc-123',
+      '--location-url',
+      'https://example.com/catalog-info.yaml',
+    ]);
+    expect(mockExecAction).toHaveBeenCalledWith(
+      'catalog:unregister-entity',
+      expect.objectContaining({
+        type: JSON.stringify({
+          locationId: 'loc-123',
+          locationUrl: 'https://example.com/catalog-info.yaml',
+        }),
+      }),
+    );
+  });
+
   it('api list and get-spec extract definitions or error when missing', async () => {
     mockExecActionJson.mockReturnValue({ items: [SAMPLE_API] });
     await runCli(registerApiCommands, ['api', 'list', '--type', 'openapi']);
@@ -245,6 +358,63 @@ describe('intent commands (mocked client integration)', () => {
       }),
     );
     expect(spyText(io.stdout)).toMatch(/No results found/i);
+  });
+
+  it('docs list and get call techdocs-mcp-extras actions', async () => {
+    mockExecActionJson.mockReturnValue({ items: [SAMPLE_COMPONENT] });
+    await runCli(registerDocsCommands, [
+      'docs',
+      'list',
+      '--kind',
+      'Component',
+      '--instance',
+      'staging',
+    ]);
+    expect(mockExecActionJson).toHaveBeenCalledWith(
+      'techdocs-mcp-extras:fetch-techdocs',
+      expect.objectContaining({
+        entityType: 'Component',
+        instance: 'staging',
+      }),
+    );
+    expect(spyText(io.stdout)).toContain('payments');
+
+    jest.clearAllMocks();
+    io.stdout.mockClear();
+    // docs get always verifies the entity exists, then retrieves content.
+    mockExecActionJson
+      .mockReturnValueOnce({ items: [SAMPLE_COMPONENT] })
+      .mockReturnValueOnce({
+        content: '# Payments\n\nService overview',
+      });
+    await runCli(registerDocsCommands, [
+      'docs',
+      'get',
+      'component:default/payments',
+      '--instance',
+      'staging',
+    ]);
+    expect(mockExecActionJson).toHaveBeenNthCalledWith(
+      1,
+      'catalog:query-catalog-entities',
+      expect.objectContaining({
+        query: JSON.stringify({
+          'metadata.name': 'payments',
+          kind: 'component',
+          'metadata.namespace': 'default',
+        }),
+        instance: 'staging',
+      }),
+    );
+    expect(mockExecActionJson).toHaveBeenNthCalledWith(
+      2,
+      'techdocs-mcp-extras:retrieve-techdocs-content',
+      expect.objectContaining({
+        entityRef: 'Component:default/payments',
+        instance: 'staging',
+      }),
+    );
+    expect(spyText(io.stdout)).toContain('Service overview');
   });
 
   it('template list/execute/dry-run call scaffolder and catalog actions', async () => {
