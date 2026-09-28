@@ -302,7 +302,7 @@ COPY . .
             : `oci://${tag}!${packageName}`;
           return {
             package: packageString,
-            disabled: false,
+            enabled: true,
             ...(pluginConfig ? { pluginConfig } : {}),
           };
         }),
