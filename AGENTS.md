@@ -194,6 +194,12 @@ subprocess error.
 as symlinks in the staged copy rather than followed, which would cause a
 self-copy error on repeated `update` runs.
 
+**E2E testing contract:** `e2e-tests/plugin-dev.test.ts` validates `plugin dev`
+lifecycle commands (`start`, `status`, `update`, `stop --clean`) against real
+compose container engines (Podman or Docker). By default, tests use a lightweight
+compose fixture. Setting `E2E_RHDH_LOCAL_DIR` targets an existing RHDH Local
+checkout instead.
+
 ### `rhdhVersion.ts` — version resolution engine
 
 `src/lib/rhdhVersion.ts` is the core abstraction that maps RHDH version
