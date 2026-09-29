@@ -4,7 +4,7 @@ All notable changes to `@red-hat-developer-hub/cli` are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). The major and minor version are synchronized with the corresponding RHDH release (see [Versioning Strategy](README.md#versioning-strategy)).
 
-## [Unreleased]
+## 2.2.0 - 2026-09-28
 
 ### Removed
 
