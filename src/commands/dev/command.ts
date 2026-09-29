@@ -799,7 +799,7 @@ export async function updateGeneratedConfig(
       plugins: [
         {
           package: pluginPackage,
-          disabled: false,
+          enabled: true,
           pullPolicy: 'Always',
         },
       ],
