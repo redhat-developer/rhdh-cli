@@ -10,6 +10,7 @@ on:
         type: choice
         options:
           - main
+          - release-2.1
           - release-1.10
           - release-1.9
           - release-1.8
