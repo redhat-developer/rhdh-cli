@@ -39,9 +39,14 @@ export async function downloadFile(url: string, file: string): Promise<void> {
   });
 }
 
+export interface RunCommandOptions {
+  cwd?: string;
+  env?: NodeJS.ProcessEnv;
+}
+
 export async function runCommand(
   command: string,
-  options: { cwd?: string } = {},
+  options: RunCommandOptions = {},
 ): Promise<{ stdout: string; stderr: string }> {
   const cwd = options.cwd || process.cwd();
 
