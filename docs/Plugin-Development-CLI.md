@@ -78,9 +78,10 @@ rhdh-cli plugin new <name> [options]
 
 **Options:**
 
+- `--name <name>`: The plugin name (alternative to positional `<name>`).
 - `--type <type>`: Plugin type: `frontend`, `backend`, or `catalog-processor-module`.
 - `--template <name>`: Upstream template name from `@backstage/cli-module-new` (alternative to `--type`).
-- `--rhdh-version <version>`: Target RHDH release version for dependency pinning (e.g. `2.1.0`, `2.1`, `2.0.0`). Defaults to the latest supported GA release (`2.1.0`).
+- `--rhdh-version <version>`: Target RHDH release version for dependency pinning (e.g. `2.1.0`, `2.1`, `2.0.0`). Defaults to the latest supported GA release.
 - `--output <directory>`: Target directory for the scaffolded project (defaults to `<name>`).
 - `--plugin-package <name>`: Override the generated `package.json` package name (defaults to `@internal/backstage-plugin-<name>`).
 - `--module-id <id>`: Override the module identifier for module-type templates (defaults to `<name>`).
@@ -153,6 +154,8 @@ RHDH versions (e.g. `2.1.0`) differ from Backstage versions (e.g. `1.54.6`). `rh
    - `1.10.0` / `1.10` $\rightarrow$ Backstage `1.49.4`
    - `1.9.0` / `1.9` $\rightarrow$ Backstage `1.45.3`
    - `1.8.0` / `1.8` $\rightarrow$ Backstage `1.42.5`
+   - `1.7.0` / `1.7` $\rightarrow$ Backstage `1.39.1`
+   - `1.6.0` / `1.6` $\rightarrow$ Backstage `1.36.1`
 3. **Manifest Resolution (Tier 3):** Fetches the concrete package manifest from `versions.backstage.io` (or a local `--manifest-file`). To target a Backstage version directly, prefix it with `backstage:`, e.g. `--rhdh-version backstage:1.54.0`.
 
 ### Audit Statuses
@@ -236,7 +239,7 @@ Dry run completed. 2 dependencies would be updated in package.json.
 
 ### Lockfile Synchronization
 
-By default, after updating `package.json` and `backstage.json`, `plugin upgrade` automatically detects whether your project uses Yarn (`yarn.lock`) or npm (`package-lock.json`) and runs `yarn install` or `npm install` to synchronize lockfiles.
+By default, after updating `package.json` and `backstage.json`, `plugin upgrade` automatically detects Yarn (`yarn.lock`) presence (defaulting to npm when no `yarn.lock` is found) and runs `yarn install` or `npm install` to synchronize lockfiles.
 
 Use `--skip-install` if you want to inspect file changes or run your install separately with custom flags:
 
@@ -285,14 +288,14 @@ export RHDH_LOCAL_DIR=/path/to/rhdh-local
 
 Run `rhdh-cli plugin dev <subcommand> [options]`:
 
-| Subcommand        | Description                                                                                   |
-| ----------------- | --------------------------------------------------------------------------------------------- |
-| `start` (default) | Build & export the plugin, stage into RHDH Local, start containers, and wait for readiness    |
-| `update`          | Re-export and re-stage the plugin into the running runtime with readiness polling             |
-| `restart`         | Restart the RHDH service without re-exporting the plugin (useful after modifying configs)     |
-| `status`          | Report interpreted container and plugin-installer status                                      |
-| `logs`            | Stream or display container logs (`--rhdh`, `--installer`, `--follow`)                        |
-| `stop`            | Stop and remove RHDH Local runtime containers (add `--clean` to remove networks/staged files) |
+| Subcommand        | Description                                                                                                                                                  |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `start` (default) | Build & export the plugin, stage into RHDH Local, start containers, and wait for readiness                                                                   |
+| `update`          | Re-export and re-stage the plugin into the running runtime with readiness polling                                                                            |
+| `restart`         | Restart the RHDH service without re-exporting the plugin (useful after modifying configs)                                                                    |
+| `status`          | Report interpreted container and plugin-installer status                                                                                                     |
+| `logs`            | Stream or display container logs (`--rhdh`, `--installer`, `--follow`)                                                                                       |
+| `stop`            | Stop RHDH Local runtime containers; add `--clean` to also remove containers and networks (volumes, configuration, and staged plugin artifacts are preserved) |
 
 ### Automated Configuration with `--configure`
 
@@ -333,7 +336,7 @@ Features of watch mode:
 
 - **Debounced (500ms):** Coalesces rapid sequential file saves into a single update cycle.
 - **Serialized Cycles:** If changes occur while an update is actively running, exactly one follow-up cycle runs after completion.
-- **Event-Driven Waits:** Listens to container lifecycle events (`die`/`start`) rather than polling raw subprocesses.
+- **Event-Driven Waits:** Listens to container lifecycle events (`died`/`die` for installer completion, `cleanup`/`die` for container teardown) with HTTP readiness polling for RHDH service availability.
 - **Readiness Notification:** Prompts you to refresh your browser only when RHDH is confirmed ready.
 
 ### Inspecting Runtime & Logs
