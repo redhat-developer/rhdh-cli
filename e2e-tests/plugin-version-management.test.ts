@@ -227,7 +227,10 @@ describe('plugin version management e2e', () => {
       log('Running full upgrade via alias plugin versions:bump');
       const { stdout, stderr } = await runCommand(
         `"${rhdhCli}" plugin versions:bump 2.1.0`,
-        { cwd: pluginDir },
+        {
+          cwd: pluginDir,
+          env: { ...process.env, YARN_ENABLE_IMMUTABLE_INSTALLS: 'false' },
+        },
       );
       const combined = stdout + stderr;
       expect(combined).toContain('Successfully upgraded');
