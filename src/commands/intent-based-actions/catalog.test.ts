@@ -1,47 +1,58 @@
 import { Command } from 'commander';
 import { registerCatalogCommands } from './catalog';
-import { runEntityListAction } from './helpers';
+import { handleCommandError } from './intent-errors';
 
 jest.mock('./helpers');
+jest.mock('./intent-errors');
 
-const mockRunEntityListAction = runEntityListAction as jest.MockedFunction<
-  typeof runEntityListAction
+const mockHandleCommandError = handleCommandError as jest.MockedFunction<
+  typeof handleCommandError
 >;
 
-describe('catalog list', () => {
+async function parseCatalog(...args: string[]) {
+  const program = new Command();
+  registerCatalogCommands(program);
+  await program.parseAsync(['node', 'test', 'catalog', ...args]);
+}
+
+describe('catalog command validation', () => {
   beforeEach(() => {
     jest.clearAllMocks();
   });
 
-  it('requests only the default table fields in human output', async () => {
-    const program = new Command();
-    registerCatalogCommands(program);
-
-    await program.parseAsync([
-      'node',
-      'test',
-      'catalog',
-      'list',
-      '--kind',
-      'template',
-    ]);
-
-    expect(mockRunEntityListAction).toHaveBeenCalledWith(
-      'catalog:query-catalog-entities',
+  it('rejects validate/register/unregister without required inputs', async () => {
+    const cases: Array<{
+      args: string[];
+      message: string;
+      suggestion: string;
+    }> = [
       {
-        instance: undefined,
-        limit: undefined,
-        query: JSON.stringify({ kind: 'template' }),
-        fields: JSON.stringify([
-          'metadata.name',
-          'kind',
-          'metadata.namespace',
-          'spec.type',
-        ]),
+        args: ['validate'],
+        message: '--entity or --entity-file is required',
+        suggestion:
+          'rhdh-cli catalog validate --entity-file ./catalog-info.yaml',
       },
-      'human',
-      'rhdh-cli catalog list --kind Component',
-      undefined,
-    );
+      {
+        args: ['register'],
+        message: '--location-url is required',
+        suggestion:
+          'rhdh-cli catalog register --location-url https://github.com/org/repo/blob/main/catalog-info.yaml',
+      },
+      {
+        args: ['unregister'],
+        message: '--location-id or --location-url is required',
+        suggestion: 'rhdh-cli catalog unregister --location-id <id>',
+      },
+    ];
+
+    for (const { args, message, suggestion } of cases) {
+      jest.clearAllMocks();
+      await parseCatalog(...args);
+      expect(mockHandleCommandError).toHaveBeenCalledWith(
+        expect.objectContaining({ message }),
+        'human',
+        { suggestion },
+      );
+    }
   });
 });

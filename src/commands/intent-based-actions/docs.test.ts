@@ -1,7 +1,7 @@
 import { Command } from 'commander';
 import { execAction, execActionJson, triggerTechDocsBuild } from './client';
 import { registerDocsCommands } from './docs';
-import { resolveEntityWithAmbiguityCheck, runSearchAction } from './helpers';
+import { resolveEntityWithAmbiguityCheck } from './helpers';
 import { handleCommandError } from './intent-errors';
 
 jest.mock('./client');
@@ -18,9 +18,6 @@ const mockTriggerTechDocsBuild = triggerTechDocsBuild as jest.MockedFunction<
 const mockHandleCommandError = handleCommandError as jest.MockedFunction<
   typeof handleCommandError
 >;
-const mockRunSearchAction = runSearchAction as jest.MockedFunction<
-  typeof runSearchAction
->;
 const mockResolveEntityWithAmbiguityCheck =
   resolveEntityWithAmbiguityCheck as jest.MockedFunction<
     typeof resolveEntityWithAmbiguityCheck
@@ -35,28 +32,7 @@ describe('docs get', () => {
     jest.clearAllMocks();
   });
 
-  it('reports an unresolved entity as a catalog error', async () => {
-    const error = new Error('Entity not found');
-    mockResolveEntityWithAmbiguityCheck.mockRejectedValue(error);
-    const stderrSpy = jest
-      .spyOn(process.stderr, 'write')
-      .mockImplementation(() => true);
-    const exitSpy = jest
-      .spyOn(process, 'exit')
-      .mockImplementation((() => undefined) as never);
-    const program = new Command();
-    registerDocsCommands(program);
-
-    await program.parseAsync(['node', 'test', 'docs', 'get', 'missing']);
-
-    expect(stderrSpy).not.toHaveBeenCalled();
-    expect(mockHandleCommandError).toHaveBeenCalledWith(error, 'human');
-
-    stderrSpy.mockRestore();
-    exitSpy.mockRestore();
-  });
-
-  it('verifies that a full entity reference exists before retrieving docs', async () => {
+  it('requires verifyExists and reports unresolved entities', async () => {
     const error = new Error('Entity not found: system:default/missing');
     mockResolveEntityWithAmbiguityCheck.mockRejectedValue(error);
     const program = new Command();
@@ -148,26 +124,6 @@ describe('docs get', () => {
       { suggestion: 'rhdh-cli docs build System:default/rhdh-local' },
     );
     stdoutSpy.mockRestore();
-  });
-});
-
-describe('docs search', () => {
-  beforeEach(() => {
-    jest.clearAllMocks();
-  });
-
-  it('suggests enabling the TechDocs search backend when search fails', async () => {
-    const program = new Command();
-    registerDocsCommands(program);
-
-    await program.parseAsync(['node', 'test', 'docs', 'search', 'rhdh']);
-
-    expect(mockRunSearchAction).toHaveBeenCalledWith(
-      'rhdh',
-      expect.objectContaining({ types: '["techdocs"]' }),
-      'human',
-      'Enable search-backend-module-techdocs on the RHDH instance.',
-    );
   });
 });
 

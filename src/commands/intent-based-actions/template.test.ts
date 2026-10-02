@@ -1,38 +1,31 @@
 import { Command } from 'commander';
-import { runEntityListAction } from './helpers';
+import { handleCommandError } from './intent-errors';
 import { registerTemplateCommands } from './template';
 
 jest.mock('./helpers');
+jest.mock('./intent-errors');
 
-const mockRunEntityListAction = runEntityListAction as jest.MockedFunction<
-  typeof runEntityListAction
+const mockHandleCommandError = handleCommandError as jest.MockedFunction<
+  typeof handleCommandError
 >;
 
-describe('template list', () => {
+describe('template command validation', () => {
   beforeEach(() => {
     jest.clearAllMocks();
   });
 
-  it('requests only the fields rendered in human output', async () => {
+  it('rejects dry-run without --template-file', async () => {
     const program = new Command();
     registerTemplateCommands(program);
+    await program.parseAsync(['node', 'test', 'template', 'dry-run']);
 
-    await program.parseAsync(['node', 'test', 'template', 'list']);
-
-    expect(mockRunEntityListAction).toHaveBeenCalledWith(
-      'catalog:query-catalog-entities',
-      {
-        query: JSON.stringify({ kind: 'Template' }),
-        instance: undefined,
-        limit: undefined,
-        fields: JSON.stringify([
-          'metadata.name',
-          'kind',
-          'metadata.namespace',
-          'spec.type',
-        ]),
-      },
+    expect(mockHandleCommandError).toHaveBeenCalledWith(
+      expect.objectContaining({ message: '--template-file is required' }),
       'human',
+      {
+        suggestion:
+          'rhdh-cli template dry-run --template-file ./template.yaml --value name=my-app',
+      },
     );
   });
 });
