@@ -66,11 +66,13 @@ describe('checkHeavyDependencies', () => {
 
       expect(logSpy).toHaveBeenCalledTimes(2);
       expect(logSpy.mock.calls[0][0]).toContain(
-        'WARNING: Found heavy dependency @backstage/backend-defaults',
+        'WARNING: Found heavy dependency',
       );
+      expect(logSpy.mock.calls[0][0]).toContain('@backstage/backend-defaults');
       expect(logSpy.mock.calls[1][0]).toContain(
-        'WARNING: Found heavy dependency @backstage/backend-app-api',
+        'WARNING: Found heavy dependency',
       );
+      expect(logSpy.mock.calls[1][0]).toContain('@backstage/backend-app-api');
       expect(logSpy.mock.calls[0][0]).toContain(
         'Should not be used in backend plugins',
       );
@@ -95,7 +97,10 @@ describe('checkHeavyDependencies', () => {
       );
       expect(logSpy).toHaveBeenCalledTimes(1);
       expect(logSpy.mock.calls[0][0]).toContain(
-        'WARNING: Found heavy dependency @backstage/backend-test-utils',
+        'WARNING: Found heavy dependency',
+      );
+      expect(logSpy.mock.calls[0][0]).toContain(
+        '@backstage/backend-test-utils',
       );
     });
 
@@ -157,13 +162,18 @@ describe('checkHeavyDependencies', () => {
 
       expect(logSpy).toHaveBeenCalledTimes(3);
       expect(logSpy.mock.calls[0][0]).toContain(
-        'WARNING: Found heavy dependency @backstage/core-app-api',
+        'WARNING: Found heavy dependency',
       );
+      expect(logSpy.mock.calls[0][0]).toContain('@backstage/core-app-api');
       expect(logSpy.mock.calls[1][0]).toContain(
-        'WARNING: Found heavy dependency @backstage/frontend-defaults',
+        'WARNING: Found heavy dependency',
+      );
+      expect(logSpy.mock.calls[1][0]).toContain('@backstage/frontend-defaults');
+      expect(logSpy.mock.calls[2][0]).toContain(
+        'WARNING: Found heavy dependency',
       );
       expect(logSpy.mock.calls[2][0]).toContain(
-        'WARNING: Found heavy dependency @backstage/frontend-test-utils',
+        '@backstage/frontend-test-utils',
       );
     });
 
