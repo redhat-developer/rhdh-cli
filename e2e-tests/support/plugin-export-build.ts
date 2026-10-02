@@ -92,6 +92,40 @@ export async function runCommand(
   }
 }
 
+export async function runExpectingFailure(
+  command: string,
+  options: RunCommandOptions = {},
+): Promise<{ stdout: string; stderr: string; message: string }> {
+  let succeeded = false;
+  let stdout = '';
+  let caughtError: unknown;
+
+  try {
+    const res = await runCommand(command, options);
+    succeeded = true;
+    stdout = res.stdout;
+  } catch (err: unknown) {
+    caughtError = err;
+  }
+
+  if (succeeded) {
+    throw new Error(
+      `Command expected to fail, but succeeded with output: ${stdout}`,
+    );
+  }
+
+  const e = (caughtError || {}) as {
+    stdout?: string;
+    stderr?: string;
+    message?: string;
+  };
+  return {
+    stdout: e?.stdout || '',
+    stderr: e?.stderr || '',
+    message: e?.message || '',
+  };
+}
+
 /**
  * Top-level directory names using the same steps as `plugin package`:
  * `npm pack --pack-destination …`, then `tar -xzf … --strip-components=1`.
