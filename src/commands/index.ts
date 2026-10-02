@@ -133,6 +133,7 @@ export function registerPluginCommand(program: Command) {
 
   command
     .command('check-versions')
+    .alias('versions:lint')
     .description(
       'Check dynamic plugin dependencies in package.json against target RHDH release Backstage manifest',
     )

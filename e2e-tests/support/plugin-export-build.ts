@@ -81,7 +81,14 @@ export async function runCommand(
     console.error(`${LOG_PREFIX} --- stdout ---\n${out}`);
     console.error(`${LOG_PREFIX} --- stderr ---\n${errOut}`);
 
-    throw new Error(enrichedMessage);
+    const enrichedError = Object.assign(new Error(enrichedMessage), {
+      code: e.code,
+      signal: e.signal,
+      stdout: e.stdout,
+      stderr: e.stderr,
+    });
+
+    throw enrichedError;
   }
 }
 
