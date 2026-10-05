@@ -85,6 +85,7 @@ rhdh-cli plugin new <name> [options]
 - `--output <directory>`: Target directory for the scaffolded project (defaults to `<name>`).
 - `--plugin-package <name>`: Override the generated `package.json` package name (defaults to `@internal/backstage-plugin-<name>`).
 - `--module-id <id>`: Override the module identifier for module-type templates (defaults to `<name>`).
+- `--manifest-file <path>`: Path to a local Backstage release manifest JSON file for air-gapped/offline scaffolding.
 
 **Example:**
 
@@ -309,10 +310,10 @@ rhdh-cli plugin dev start --configure --rhdh-local-dir /path/to/rhdh-local
 
 `start` prints labeled progress phases:
 
-- `[1/4] Build and export plugin`
-- `[2/4] Start RHDH Local runtime`
-- `[3/4] Install dynamic plugins`
-- `[4/4] Wait for RHDH readiness`
+- `[1/4] Building and exporting plugin...`
+- `[2/4] Starting RHDH Local runtime...`
+- `[3/4] Installing dynamic plugins...`
+- `[4/4] Waiting for RHDH to be ready...`
 
 Once reachable, the CLI prints the URL to open in your browser:
 
@@ -403,6 +404,7 @@ In air-gapped or restricted-network environments without access to `github.com` 
 1. **Supply a Local Backstage Manifest (`--manifest-file`):** Download the Backstage release manifest JSON (from `https://versions.backstage.io/v1/releases/<version>/manifest.json`) and point the CLI to it:
 
    ```bash
+   rhdh-cli plugin new my-custom-plugin --type frontend --manifest-file /path/to/manifest.json
    rhdh-cli plugin check-versions --rhdh-version 2.1.0 --manifest-file /path/to/manifest.json
    rhdh-cli plugin upgrade 2.1.0 --manifest-file /path/to/manifest.json
    ```
@@ -415,6 +417,7 @@ In air-gapped or restricted-network environments without access to `github.com` 
    export RHDH_OFFLINE=true
    export BACKSTAGE_MANIFEST_FILE=/path/to/manifest.json
 
+   rhdh-cli plugin new my-custom-plugin --type frontend
    rhdh-cli plugin check-versions --rhdh-version 2.1.0
    rhdh-cli plugin upgrade 2.1.0
    ```
