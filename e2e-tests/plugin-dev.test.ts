@@ -18,7 +18,6 @@ import {
   logSection,
   runCommand,
   runExpectingFailure,
-  RunCommandOptions,
 } from './support/plugin-export-build';
 import {
   cleanupCompose,

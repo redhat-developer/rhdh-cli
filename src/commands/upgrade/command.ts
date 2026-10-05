@@ -212,25 +212,11 @@ async function syncBackstageJson(
  */
 async function runInstallDependencies(targetDir: string): Promise<boolean> {
   const pm = await detectPackageManager(targetDir);
-  const prevImmutable = process.env.YARN_ENABLE_IMMUTABLE_INSTALLS;
   try {
-    // Upgrading dependencies inherently mutates the lockfile. Ensure Yarn Berry
-    // does not block lockfile updates when running in CI or automated PR workflows.
-    if (pm === 'yarn') {
-      process.env.YARN_ENABLE_IMMUTABLE_INSTALLS = 'false';
-    }
     await Task.forCommand(`${pm} install`, { cwd: targetDir });
     return true;
   } catch {
     return false;
-  } finally {
-    if (pm === 'yarn') {
-      if (prevImmutable === undefined) {
-        delete process.env.YARN_ENABLE_IMMUTABLE_INSTALLS;
-      } else {
-        process.env.YARN_ENABLE_IMMUTABLE_INSTALLS = prevImmutable;
-      }
-    }
   }
 }
 
