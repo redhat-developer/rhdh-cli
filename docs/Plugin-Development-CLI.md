@@ -81,7 +81,7 @@ rhdh-cli plugin new <name> [options]
 - `--name <name>`: The plugin name (alternative to positional `<name>`).
 - `--type <type>`: Plugin type: `frontend`, `backend`, or `catalog-processor-module`.
 - `--template <name>`: Upstream template name from `@backstage/cli-module-new` (alternative to `--type`).
-- `--rhdh-version <version>`: Target RHDH release version for dependency pinning (e.g. `2.1.0`, `2.1`, `2.0.0`). Defaults to the latest supported GA release.
+- `--rhdh-version <version>`: Target RHDH release version for dependency pinning (e.g. `2.1.0`, `2.1`). Defaults to the latest supported GA release (scaffolding currently supports RHDH 2.1).
 - `--output <directory>`: Target directory for the scaffolded project (defaults to `<name>`).
 - `--plugin-package <name>`: Override the generated `package.json` package name (defaults to `@internal/backstage-plugin-<name>`).
 - `--module-id <id>`: Override the module identifier for module-type templates (defaults to `<name>`).
@@ -96,11 +96,11 @@ rhdh-cli plugin new my-custom-plugin --type frontend --rhdh-version 2.1.0
 
 ### Supported Plugin Types
 
-| Type                       | Description                               | Included Features                                                                                 |
-| -------------------------- | ----------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| `frontend`                 | New Frontend System (NFS) frontend plugin | Routed page (`PageBlueprint`), `EntityCard` extension, i18n support, and MSW v2-backed unit tests |
-| `backend`                  | New Backend System (NBS) backend plugin   | Default dynamic export in `src/index.ts`, standalone backend router, and test utilities           |
-| `catalog-processor-module` | Backend module extending the catalog      | Custom catalog processor module registration extending `@backstage/plugin-catalog-backend`        |
+| Type                       | Description                               | Included Features                                                                                                                                  |
+| -------------------------- | ----------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `frontend`                 | New Frontend System (NFS) frontend plugin | Routed page (`PageBlueprint`), standalone `dev/` app harness, and MSW v2-backed unit tests                                                         |
+| `backend`                  | New Backend System (NBS) backend plugin   | `createBackendPlugin` with `src/router.ts`, standalone `dev/` app harness, and test utilities (dynamic packaging is performed via `plugin export`) |
+| `catalog-processor-module` | Backend module extending the catalog      | Custom catalog processor module registering `catalogProcessingExtensionPoint` from `@backstage/plugin-catalog-node` (no standalone `dev/` harness) |
 
 ### Upstream Template Reuse
 
@@ -115,7 +115,7 @@ Generated projects do **not** depend on `@red-hat-developer-hub/cli` as a runtim
 
 ### Standalone Development Harness
 
-Frontend and backend plugins include an isolated `dev/` harness:
+Frontend and backend plugins include an isolated `dev/` harness (catalog processor modules require a host backend plugin and do not include a standalone dev app):
 
 ```bash
 cd my-custom-plugin
@@ -140,7 +140,7 @@ rhdh-cli plugin versions:lint [options]       # alias
 
 **Options:**
 
-- `--rhdh-version <version>`: Target RHDH version to validate against (e.g. `2.1.0`, `2.1`, `2.0.0`, `1.10`, `latest`). Defaults to latest supported GA release.
+- `--rhdh-version <version>`: Target RHDH version to validate against (e.g. `2.1.0`, `2.1`, `2.0.0`, `1.10`, `latest`). When `--rhdh-version` is omitted, the CLI reads `backstage.json` in the plugin directory (or the monorepo root) and selects the RHDH release whose compatibility-matrix Backstage version matches that file. If several RHDH releases share that Backstage version, the first matrix entry wins (for example Backstage `1.52.0` selects RHDH `2.0.4`). If no `backstage.json` is found, the default is RHDH `2.1.0`. Pass `--rhdh-version` when you want a specific release.
 - `--manifest-file <path>`: Path to a local Backstage release manifest JSON file for air-gapped/offline verification.
 - `--json`: Output structured JSON suitable for CI/CD automation and scripts.
 
@@ -161,17 +161,17 @@ RHDH versions (e.g. `2.1.0`) differ from Backstage versions (e.g. `1.54.6`). `rh
 
 ### Audit Statuses
 
-| Status         | Symbol | Meaning                                                             |
-| -------------- | ------ | ------------------------------------------------------------------- |
-| `match`        | `✓`    | Declared dependency matches the exact manifest version              |
-| `mismatch`     | `✗`    | Declared dependency version differs from the manifest version       |
-| `unmanifested` | `⚠`   | `@backstage/*` package is not part of the official release manifest |
-| `unverifiable` | `⚠`   | Package uses `backstage:^` without a readable `backstage.json`      |
+| Status         | Symbol | Meaning                                                                                                                                            |
+| -------------- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `match`        | `✓`    | Declared dependency version aligns with the manifest version (range prefixes `^` and `~` are stripped, so `^1.12.9` matches manifest `1.12.9`)     |
+| `mismatch`     | `✗`    | Declared dependency version differs from the manifest version                                                                                      |
+| `unmanifested` | `⚠`   | `@backstage/*` package is not part of the official release manifest                                                                                |
+| `unverifiable` | `⚠`   | Declared version is `backstage:^` (cannot be statically verified against the manifest by `check-versions` without evaluating lockfile resolutions) |
 
 **Exit Codes:**
 
-- `0`: All `@backstage/*` dependencies match the target release manifest.
-- `1`: Version mismatches or unmanifested packages were detected.
+- `0`: All audited dependencies match the target release manifest or are unverifiable (`valid` ignores `unverifiable` packages; exit `0` does not guarantee that `backstage:^` protocol dependencies are aligned).
+- `1`: Version mismatches (`mismatch`) or unmanifested packages (`unmanifested`) were detected.
 
 ### CI Pipeline Integration
 
@@ -184,11 +184,13 @@ Use `plugin check-versions` in your CI workflow to ensure pull requests do not i
     npx @red-hat-developer-hub/cli plugin check-versions --rhdh-version 2.1 --json
 ```
 
-If mismatches are found, the command exits with code 1, reports mismatched packages, and provides the remediation command:
+If mismatches or unmanifested packages are found, the command exits with code 1, reports mismatched packages, and provides the remediation command:
 
 ```
 Remediation: Run rhdh-cli plugin upgrade 2.1.0 to align dependencies with RHDH v2.1.0.
 ```
+
+> **Note on `backstage:^` protocol dependencies:** When dependencies use the `backstage:^` protocol specifier, `check-versions` marks them as `unverifiable`. Since `valid` only fails on `mismatch` or `unmanifested`, a plugin whose `@backstage/*` dependencies are all `backstage:^` will exit with code `0`. A green run confirms that no conflicting version pins or unmanifested packages are present, but does not prove protocol-pinned dependencies are aligned without inspecting the package manager lockfile.
 
 ---
 
@@ -225,18 +227,20 @@ rhdh-cli plugin upgrade 2.1.0 --dry-run
 Output:
 
 ```
-Resolving Backstage version for RHDH v2.1.0...
-Target Backstage release: 1.54.9 [remote]
+Upgrading plugin dependencies to RHDH v2.1.0 (Backstage v1.54.6) [matrix] (dry run)...
 
-Planned Dependency Upgrades:
+Package                     Section       Current   Target    Status
+--------------------------------------------------------------------
+@backstage/core-plugin-api  dependencies  ^1.12.7   ^1.12.9   ↻ updated
+@backstage/core-components  dependencies  ^0.18.11  ^0.18.13  ↻ updated
+@backstage/theme            dependencies  ^0.6.2    ^0.6.2    ✓ unchanged
 
-Package                     Section       Current  Target   Status
--------------------------------------------------------------------
-@backstage/core-plugin-api  dependencies  ^1.12.7  ^1.12.9  UPGRADE
-@backstage/core-components  dependencies  ^0.18.11 ^0.18.13 UPGRADE
+Summary: ↻ 2 updated, ✓ 1 unchanged (3 total)
 
-Dry run completed. 2 dependencies would be updated in package.json.
+Dry run completed: No files were modified on disk. Would update package.json, backstage.json.
 ```
+
+The `[matrix]` tag indicates that version resolution used the embedded static compatibility matrix (pinning Backstage `1.54.6`). A live remote run displays `[remote]` and resolves against the release branch's `build-metadata.json`.
 
 ### Lockfile Synchronization
 
@@ -399,28 +403,33 @@ Requirements for `plugin package`:
 
 ## Air-Gapped & Offline Operations
 
-In air-gapped or restricted-network environments without access to `github.com` or `versions.backstage.io`, `rhdh-cli` supports fully offline execution:
+In air-gapped or restricted-network environments without access to `github.com` or `versions.backstage.io`, `rhdh-cli` supports fully offline execution. Note that `--manifest-file` and `RHDH_OFFLINE=true` serve complementary purposes and **both are required** when neither host is reachable:
 
-1. **Supply a Local Backstage Manifest (`--manifest-file`):** Download the Backstage release manifest JSON (from `https://versions.backstage.io/v1/releases/<version>/manifest.json`) and point the CLI to it:
+- `--manifest-file <path>` (or `BACKSTAGE_MANIFEST_FILE`): Bypasses downloading the Backstage release manifest from `versions.backstage.io`.
+- `RHDH_OFFLINE=true`: Suppresses the GitHub metadata network call (`fetchRemoteRhdhMetadata`) to `github.com` (which would otherwise block until timing out) and falls back to the embedded static compatibility matrix (Tier 2).
 
-   ```bash
-   rhdh-cli plugin new my-custom-plugin --type frontend --manifest-file /path/to/manifest.json
-   rhdh-cli plugin check-versions --rhdh-version 2.1.0 --manifest-file /path/to/manifest.json
-   rhdh-cli plugin upgrade 2.1.0 --manifest-file /path/to/manifest.json
-   ```
+### Option 1: Inline Command Flags with `RHDH_OFFLINE=true`
 
-   You can also set the `BACKSTAGE_MANIFEST_FILE` environment variable globally.
+Pass the local manifest path via `--manifest-file` and prefix commands with `RHDH_OFFLINE=true`:
 
-2. **Skip GitHub Metadata Lookups (`RHDH_OFFLINE=true`):** Set `RHDH_OFFLINE=true` to force the version resolver to use the embedded static compatibility matrix (Tier 2) and bypass remote network calls:
+```bash
+RHDH_OFFLINE=true rhdh-cli plugin new my-custom-plugin --type frontend --manifest-file /path/to/manifest.json
+RHDH_OFFLINE=true rhdh-cli plugin check-versions --rhdh-version 2.1.0 --manifest-file /path/to/manifest.json
+RHDH_OFFLINE=true rhdh-cli plugin upgrade 2.1.0 --manifest-file /path/to/manifest.json
+```
 
-   ```bash
-   export RHDH_OFFLINE=true
-   export BACKSTAGE_MANIFEST_FILE=/path/to/manifest.json
+### Option 2: Environment Variables (Recommended)
 
-   rhdh-cli plugin new my-custom-plugin --type frontend
-   rhdh-cli plugin check-versions --rhdh-version 2.1.0
-   rhdh-cli plugin upgrade 2.1.0
-   ```
+Export the environment variables for your session or CI job:
+
+```bash
+export RHDH_OFFLINE=true
+export BACKSTAGE_MANIFEST_FILE=/path/to/manifest.json
+
+rhdh-cli plugin new my-custom-plugin --type frontend
+rhdh-cli plugin check-versions --rhdh-version 2.1.0
+rhdh-cli plugin upgrade 2.1.0
+```
 
 ---
 
