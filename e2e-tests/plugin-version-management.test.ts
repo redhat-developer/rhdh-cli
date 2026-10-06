@@ -145,6 +145,7 @@ describe('plugin version management e2e', () => {
   describe('dependency upgrading (rhdh-cli plugin upgrade)', () => {
     let baselinePackageJson: Record<string, any>;
     let baselineBackstageJson: Record<string, any>;
+    let baselineYarnLock: string;
 
     beforeAll(async () => {
       baselinePackageJson = await fs.readJson(
@@ -152,6 +153,10 @@ describe('plugin version management e2e', () => {
       );
       baselineBackstageJson = await fs.readJson(
         path.join(pluginDir, 'backstage.json'),
+      );
+      baselineYarnLock = await fs.readFile(
+        path.join(pluginDir, 'yarn.lock'),
+        'utf8',
       );
     });
 
@@ -181,6 +186,11 @@ describe('plugin version management e2e', () => {
         path.join(pluginDir, 'backstage.json'),
         baselineBackstageJson,
         { spaces: 2 },
+      );
+      await fs.writeFile(
+        path.join(pluginDir, 'yarn.lock'),
+        baselineYarnLock,
+        'utf8',
       );
     });
 
@@ -249,14 +259,70 @@ describe('plugin version management e2e', () => {
         path.join(pluginDir, 'backstage.json'),
       );
       expect(currentBackstageJson.version).not.toBe('1.52.0');
+      expect(currentBackstageJson.version).toMatch(/^1\.54\./);
+
+      const currentPkg = await fs.readJson(
+        path.join(pluginDir, 'package.json'),
+      );
+      expect(currentPkg.dependencies['@backstage/core-plugin-api']).toBe(
+        '^1.12.9',
+      );
+      expect(currentPkg.dependencies['@backstage/core-components']).toBe(
+        '^0.18.13',
+      );
+
+      const currentYarnLock = await fs.readFile(
+        path.join(pluginDir, 'yarn.lock'),
+        'utf8',
+      );
+      expect(currentYarnLock).toContain(
+        '@backstage/core-plugin-api@npm:^1.12.9',
+      );
+      expect(currentYarnLock).toContain(
+        '@backstage/core-components@npm:^0.18.13',
+      );
     });
   });
 
   describe('multi-step version upgrade lifecycle (1.8 -> 2.0 -> 2.1)', () => {
     const multiStepDir = path.join(tmpDir, 'multi-step-fixture');
+    const localManifest20Path = path.join(
+      multiStepDir,
+      'manifest-rhdh-2.0.json',
+    );
+    const localManifest21Path = path.join(
+      multiStepDir,
+      'manifest-rhdh-2.1.json',
+    );
 
     beforeAll(async () => {
       await fs.mkdirp(multiStepDir);
+
+      // Local offline Backstage release manifests for deterministic execution
+      await fs.writeJson(
+        localManifest20Path,
+        {
+          releaseVersion: '1.52.0',
+          packages: [
+            { name: '@backstage/core-plugin-api', version: '1.12.7' },
+            { name: '@backstage/core-components', version: '0.18.11' },
+          ],
+        },
+        { spaces: 2 },
+      );
+
+      await fs.writeJson(
+        localManifest21Path,
+        {
+          releaseVersion: '1.54.6',
+          packages: [
+            { name: '@backstage/core-plugin-api', version: '1.12.9' },
+            { name: '@backstage/core-components', version: '0.18.13' },
+          ],
+        },
+        { spaces: 2 },
+      );
+
       // Simulate an older 1.8.0-era plugin package.json and backstage.json
       await fs.writeJson(
         path.join(multiStepDir, 'package.json'),
@@ -283,7 +349,7 @@ describe('plugin version management e2e', () => {
 
       // 1. Audit against 2.0.0 detects mismatches
       const check20Pre = await runExpectingFailure(
-        `"${rhdhCli}" plugin check-versions --rhdh-version 2.0.0 --json`,
+        `"${rhdhCli}" plugin check-versions --rhdh-version 2.0.0 --manifest-file "${localManifest20Path}" --json`,
         { cwd: multiStepDir, env: offlineEnv },
       );
       const check20PreJson = JSON.parse(check20Pre.stdout);
@@ -291,7 +357,7 @@ describe('plugin version management e2e', () => {
 
       // 2. Upgrade to 2.0.0 (Backstage 1.52.0)
       const upgrade20 = await runCommand(
-        `"${rhdhCli}" plugin upgrade 2.0.0 --skip-install --json`,
+        `"${rhdhCli}" plugin upgrade 2.0.0 --manifest-file "${localManifest20Path}" --skip-install --json`,
         { cwd: multiStepDir, env: offlineEnv },
       );
       const upgrade20Json = JSON.parse(upgrade20.stdout);
@@ -303,6 +369,9 @@ describe('plugin version management e2e', () => {
       expect(pkgAfter20.dependencies['@backstage/core-plugin-api']).toBe(
         '^1.12.7',
       );
+      expect(pkgAfter20.dependencies['@backstage/core-components']).toBe(
+        '^0.18.11',
+      );
       // Third-party dependency remains untouched
       expect(pkgAfter20.dependencies.react).toBe('^18.0.0');
 
@@ -313,36 +382,47 @@ describe('plugin version management e2e', () => {
 
       // 3. Audit against 2.0.0 now passes cleanly
       const check20Post = await runCommand(
-        `"${rhdhCli}" plugin check-versions --rhdh-version 2.0.0 --json`,
+        `"${rhdhCli}" plugin check-versions --rhdh-version 2.0.0 --manifest-file "${localManifest20Path}" --json`,
         { cwd: multiStepDir, env: offlineEnv },
       );
       expect(JSON.parse(check20Post.stdout).valid).toBe(true);
 
       // 4. Audit against 2.1.0 detects mismatches from 2.0.0
       const check21Pre = await runExpectingFailure(
-        `"${rhdhCli}" plugin check-versions --rhdh-version 2.1.0 --json`,
+        `"${rhdhCli}" plugin check-versions --rhdh-version 2.1.0 --manifest-file "${localManifest21Path}" --json`,
         { cwd: multiStepDir, env: offlineEnv },
       );
       expect(JSON.parse(check21Pre.stdout).valid).toBe(false);
 
       // 5. Upgrade to 2.1.0 (Backstage 1.54.6 / 1.54.9)
       const upgrade21 = await runCommand(
-        `"${rhdhCli}" plugin upgrade 2.1.0 --skip-install --json`,
+        `"${rhdhCli}" plugin upgrade 2.1.0 --manifest-file "${localManifest21Path}" --skip-install --json`,
         { cwd: multiStepDir, env: offlineEnv },
       );
       const upgrade21Json = JSON.parse(upgrade21.stdout);
+      expect(upgrade21Json.backstageVersion).toBe('1.54.6');
       expect(upgrade21Json.updatedFiles).toContain('package.json');
+      expect(upgrade21Json.updatedFiles).toContain('backstage.json');
 
       const pkgAfter21 = await fs.readJson(
         path.join(multiStepDir, 'package.json'),
       );
-      expect(pkgAfter21.dependencies['@backstage/core-plugin-api']).not.toBe(
-        '^1.12.7',
+      expect(pkgAfter21.dependencies['@backstage/core-plugin-api']).toBe(
+        '^1.12.9',
       );
+      expect(pkgAfter21.dependencies['@backstage/core-components']).toBe(
+        '^0.18.13',
+      );
+      expect(pkgAfter21.dependencies.react).toBe('^18.0.0');
+
+      const backstageAfter21 = await fs.readJson(
+        path.join(multiStepDir, 'backstage.json'),
+      );
+      expect(backstageAfter21.version).toBe('1.54.6');
 
       // 6. Audit against 2.1.0 now passes cleanly
       const check21Post = await runCommand(
-        `"${rhdhCli}" plugin check-versions --rhdh-version 2.1.0 --json`,
+        `"${rhdhCli}" plugin check-versions --rhdh-version 2.1.0 --manifest-file "${localManifest21Path}" --json`,
         { cwd: multiStepDir, env: offlineEnv },
       );
       expect(JSON.parse(check21Post.stdout).valid).toBe(true);
@@ -351,9 +431,24 @@ describe('plugin version management e2e', () => {
 
   describe('post-upgrade build and dynamic export', () => {
     it('builds and exports successfully as a dynamic plugin without version conflicts', async () => {
-      // Ensure pluginDir is aligned with 2.1.0
-      await runCommand(`"${rhdhCli}" plugin upgrade 2.1.0 --skip-install`, {
+      // Skew the real plugin off 2.1.0 pins to verify upgrade with install, build, and export
+      const pkg = await fs.readJson(path.join(pluginDir, 'package.json'));
+      pkg.dependencies['@backstage/core-components'] = '^0.18.11';
+      pkg.dependencies['@backstage/core-plugin-api'] = '^1.12.7';
+      await fs.writeJson(path.join(pluginDir, 'package.json'), pkg, {
+        spaces: 2,
+      });
+
+      await fs.writeJson(
+        path.join(pluginDir, 'backstage.json'),
+        { version: '1.52.0' },
+        { spaces: 2 },
+      );
+
+      log('Upgrading skewed plugin back to 2.1.0 with package manager install');
+      await runCommand(`"${rhdhCli}" plugin upgrade 2.1.0`, {
         cwd: pluginDir,
+        env: { ...process.env, YARN_ENABLE_IMMUTABLE_INSTALLS: 'false' },
       });
 
       const checkRes = await runCommand(
@@ -361,6 +456,11 @@ describe('plugin version management e2e', () => {
         { cwd: pluginDir },
       );
       expect(JSON.parse(checkRes.stdout).valid).toBe(true);
+
+      const targetBackstageJson = await fs.readJson(
+        path.join(pluginDir, 'backstage.json'),
+      );
+      expect(targetBackstageJson.version).toMatch(/^1\.54\./);
 
       log(
         'Typechecking and generating declarations in upgraded plugin project',
@@ -382,7 +482,9 @@ describe('plugin version management e2e', () => {
       const exportedPkg = await fs.readJson(
         path.join(pluginDir, 'dist-dynamic', 'package.json'),
       );
-      expect(exportedPkg.backstage?.['supported-versions']).toBeDefined();
+      expect(exportedPkg.backstage?.['supported-versions']).toBe(
+        targetBackstageJson.version,
+      );
     });
   });
 
