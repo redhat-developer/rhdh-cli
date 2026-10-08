@@ -35,28 +35,7 @@ describe('docs get', () => {
     jest.clearAllMocks();
   });
 
-  it('reports an unresolved entity as a catalog error', async () => {
-    const error = new Error('Entity not found');
-    mockResolveEntityWithAmbiguityCheck.mockRejectedValue(error);
-    const stderrSpy = jest
-      .spyOn(process.stderr, 'write')
-      .mockImplementation(() => true);
-    const exitSpy = jest
-      .spyOn(process, 'exit')
-      .mockImplementation((() => undefined) as never);
-    const program = new Command();
-    registerDocsCommands(program);
-
-    await program.parseAsync(['node', 'test', 'docs', 'get', 'missing']);
-
-    expect(stderrSpy).not.toHaveBeenCalled();
-    expect(mockHandleCommandError).toHaveBeenCalledWith(error, 'human');
-
-    stderrSpy.mockRestore();
-    exitSpy.mockRestore();
-  });
-
-  it('verifies that a full entity reference exists before retrieving docs', async () => {
+  it('requires verifyExists and reports unresolved entities', async () => {
     const error = new Error('Entity not found: system:default/missing');
     mockResolveEntityWithAmbiguityCheck.mockRejectedValue(error);
     const program = new Command();
