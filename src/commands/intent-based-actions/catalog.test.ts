@@ -1,5 +1,6 @@
 import { Command } from 'commander';
 import { registerCatalogCommands } from './catalog';
+import { runRawAction } from './helpers';
 import { handleCommandError } from './intent-errors';
 
 jest.mock('./helpers');
@@ -7,6 +8,9 @@ jest.mock('./intent-errors');
 
 const mockHandleCommandError = handleCommandError as jest.MockedFunction<
   typeof handleCommandError
+>;
+const mockRunRawAction = runRawAction as jest.MockedFunction<
+  typeof runRawAction
 >;
 
 async function parseCatalog(...args: string[]) {
@@ -18,6 +22,9 @@ async function parseCatalog(...args: string[]) {
 describe('catalog command validation', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockHandleCommandError.mockImplementation(() => {
+      throw new Error('COMMAND_EXIT');
+    });
   });
 
   it('rejects validate/register/unregister without required inputs', async () => {
@@ -47,12 +54,18 @@ describe('catalog command validation', () => {
 
     for (const { args, message, suggestion } of cases) {
       jest.clearAllMocks();
-      await parseCatalog(...args);
+      mockHandleCommandError.mockImplementation(() => {
+        throw new Error('COMMAND_EXIT');
+      });
+
+      await expect(parseCatalog(...args)).rejects.toThrow('COMMAND_EXIT');
+      expect(mockHandleCommandError).toHaveBeenCalledTimes(1);
       expect(mockHandleCommandError).toHaveBeenCalledWith(
         expect.objectContaining({ message }),
         'human',
         { suggestion },
       );
+      expect(mockRunRawAction).not.toHaveBeenCalled();
     }
   });
 });

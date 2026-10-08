@@ -1,50 +1,22 @@
-import { exec as execCallback } from 'node:child_process';
 import fs from 'fs-extra';
 import os from 'node:os';
 import path from 'node:path';
-import { promisify } from 'node:util';
 
-import { log, logSection } from './support/plugin-export-build';
-
-const exec = promisify(execCallback);
+import {
+  log,
+  logSection,
+  runCommand,
+  runExpectingFailure,
+} from './support/plugin-export-build';
 
 const TEST_TIMEOUT = 60 * 1000;
 const rhdhCli = path.resolve(__dirname, '../bin/rhdh-cli');
 
-/** Env var that enables live RHDH catalog checks. Auth must already be configured. */
-const RHDH_CLI_E2E_URL = process.env.RHDH_CLI_E2E_URL;
-
-async function runCli(
-  args: string,
-  options: { cwd?: string; env?: NodeJS.ProcessEnv } = {},
-): Promise<{
-  stdout: string;
-  stderr: string;
-  code: number;
-}> {
-  try {
-    const { stdout, stderr } = await exec(`"${rhdhCli}" ${args}`, {
-      shell: true,
-      maxBuffer: 10 * 1024 * 1024,
-      cwd: options.cwd,
-      env: { ...process.env, ...options.env },
-    });
-    return { stdout, stderr, code: 0 };
-  } catch (err: unknown) {
-    const e = err as {
-      code?: string | number;
-      stdout?: string;
-      stderr?: string;
-    };
-    const code =
-      typeof e.code === 'number' ? e.code : Number.parseInt(String(e.code), 10);
-    return {
-      stdout: e.stdout ?? '',
-      stderr: e.stderr ?? '',
-      code: Number.isFinite(code) ? code : 1,
-    };
-  }
-}
+/**
+ * Named authenticated Backstage/RHDH instance (`rhdh-cli auth login --instance …`).
+ * Gates the optional live suite and is passed through as `--instance`.
+ */
+const RHDH_CLI_E2E_INSTANCE = process.env.RHDH_CLI_E2E_INSTANCE;
 
 describe('intent-based CLI help and error contracts', () => {
   jest.setTimeout(TEST_TIMEOUT);
@@ -52,38 +24,47 @@ describe('intent-based CLI help and error contracts', () => {
   it('exposes intent commands and subcommand help offline', async () => {
     logSection('rhdh-cli --help / subcommand --help');
 
-    const root = await runCli('--help');
-    expect(root.code).toBe(0);
+    const root = await runCommand(`"${rhdhCli}" --help`);
     for (const command of ['catalog', 'api', 'search', 'docs', 'template']) {
       expect(root.stdout).toContain(command);
     }
 
-    const catalog = await runCli('catalog --help');
-    expect(catalog.code).toBe(0);
+    const catalog = await runCommand(`"${rhdhCli}" catalog --help`);
     for (const sub of ['list', 'get', 'validate', 'register', 'unregister']) {
       expect(catalog.stdout).toContain(sub);
     }
 
-    const search = await runCli('search --help');
-    expect(search.code).toBe(0);
+    const api = await runCommand(`"${rhdhCli}" api --help`);
+    expect(api.stdout).toContain('list');
+    expect(api.stdout).toContain('get-spec');
+
+    const search = await runCommand(`"${rhdhCli}" search --help`);
     expect(search.stdout).toMatch(/--types/);
     expect(search.stdout).toMatch(/--filter/);
 
-    const template = await runCli('template --help');
-    expect(template.code).toBe(0);
+    const docs = await runCommand(`"${rhdhCli}" docs --help`);
+    for (const sub of ['search', 'list', 'get', 'coverage', 'build']) {
+      expect(docs.stdout).toContain(sub);
+    }
+
+    const template = await runCommand(`"${rhdhCli}" template --help`);
     expect(template.stdout).toContain('execute');
     expect(template.stdout).toContain('dry-run');
   });
 
   it('exits non-zero with Error for invalid usage', async () => {
-    const missingFlag = await runCli('catalog register');
-    expect(missingFlag.code).not.toBe(0);
-    expect(missingFlag.stderr).toMatch(/Error:/);
-    expect(missingFlag.stderr).toMatch(/location-url/i);
+    const missingFlag = await runExpectingFailure(
+      `"${rhdhCli}" catalog register`,
+    );
+    expect(`${missingFlag.stderr}${missingFlag.message}`).toMatch(/Error:/);
+    expect(`${missingFlag.stderr}${missingFlag.message}`).toMatch(
+      /location-url/i,
+    );
 
-    const unknown = await runCli('not-a-real-command');
-    expect(unknown.code).not.toBe(0);
-    expect(`${unknown.stderr}${unknown.stdout}`).toMatch(
+    const unknown = await runExpectingFailure(
+      `"${rhdhCli}" not-a-real-command`,
+    );
+    expect(`${unknown.stderr}${unknown.stdout}${unknown.message}`).toMatch(
       /error|unknown|invalid command/i,
     );
   });
@@ -93,8 +74,9 @@ describe('intent-based CLI help and error contracts', () => {
       path.join(os.tmpdir(), 'rhdh-cli-intent-empty-'),
     );
     try {
-      const { stdout, code } = await runCli('--help', { cwd: emptyDir });
-      expect(code).toBe(0);
+      const { stdout } = await runCommand(`"${rhdhCli}" --help`, {
+        cwd: emptyDir,
+      });
       expect(stdout).toContain('catalog');
     } finally {
       await fs.remove(emptyDir);
@@ -102,22 +84,21 @@ describe('intent-based CLI help and error contracts', () => {
   });
 });
 
-const describeLive = RHDH_CLI_E2E_URL ? describe : describe.skip;
+const describeLive = RHDH_CLI_E2E_INSTANCE ? describe : describe.skip;
 
 describeLive('intent-based CLI live RHDH (optional)', () => {
   jest.setTimeout(TEST_TIMEOUT);
 
   it('catalog list --output json --kind Component returns parseable JSON', async () => {
-    logSection(
-      `Live catalog list against RHDH_CLI_E2E_URL=${RHDH_CLI_E2E_URL}`,
-    );
+    logSection(`Live catalog list against --instance ${RHDH_CLI_E2E_INSTANCE}`);
     log(
-      'Requires auth already configured (rhdh-cli auth login). Skipped in CI when unset.',
+      'Requires auth already configured (rhdh-cli auth login --instance …). Skipped in CI when RHDH_CLI_E2E_INSTANCE is unset.',
     );
 
-    const result = await runCli('catalog list --output json --kind Component');
+    const result = await runCommand(
+      `"${rhdhCli}" catalog list --output json --kind Component --instance "${RHDH_CLI_E2E_INSTANCE}"`,
+    );
 
-    expect(result.code).toBe(0);
     expect(() => JSON.parse(result.stdout)).not.toThrow();
   });
 });

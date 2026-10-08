@@ -1,7 +1,7 @@
 import { Command } from 'commander';
 import { execAction, execActionJson, triggerTechDocsBuild } from './client';
 import { registerDocsCommands } from './docs';
-import { resolveEntityWithAmbiguityCheck } from './helpers';
+import { resolveEntityWithAmbiguityCheck, runSearchAction } from './helpers';
 import { handleCommandError } from './intent-errors';
 
 jest.mock('./client');
@@ -17,6 +17,9 @@ const mockTriggerTechDocsBuild = triggerTechDocsBuild as jest.MockedFunction<
 >;
 const mockHandleCommandError = handleCommandError as jest.MockedFunction<
   typeof handleCommandError
+>;
+const mockRunSearchAction = runSearchAction as jest.MockedFunction<
+  typeof runSearchAction
 >;
 const mockResolveEntityWithAmbiguityCheck =
   resolveEntityWithAmbiguityCheck as jest.MockedFunction<
@@ -124,6 +127,26 @@ describe('docs get', () => {
       { suggestion: 'rhdh-cli docs build System:default/rhdh-local' },
     );
     stdoutSpy.mockRestore();
+  });
+});
+
+describe('docs search', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('suggests enabling the TechDocs search backend when search fails', async () => {
+    const program = new Command();
+    registerDocsCommands(program);
+
+    await program.parseAsync(['node', 'test', 'docs', 'search', 'rhdh']);
+
+    expect(mockRunSearchAction).toHaveBeenCalledWith(
+      'rhdh',
+      expect.objectContaining({ types: '["techdocs"]' }),
+      'human',
+      'Enable search-backend-module-techdocs on the RHDH instance.',
+    );
   });
 });
 

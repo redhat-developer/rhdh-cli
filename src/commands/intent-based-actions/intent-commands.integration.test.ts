@@ -2,7 +2,7 @@
  * Mocked integration tests: real commander + helpers + format/errors,
  * with only `./client` (action execution) mocked. No live RHDH required.
  */
-import { mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Command } from 'commander';
@@ -41,6 +41,13 @@ const SAMPLE_TEMPLATE = {
   spec: { type: 'website' },
 };
 
+class ProcessExitError extends Error {
+  constructor(readonly code: string | number | null | undefined) {
+    super(`process.exit(${code})`);
+    this.name = 'ProcessExitError';
+  }
+}
+
 function captureIo() {
   const stdout = jest
     .spyOn(process.stdout, 'write')
@@ -48,9 +55,11 @@ function captureIo() {
   const stderr = jest
     .spyOn(process.stderr, 'write')
     .mockImplementation(() => true);
-  const exit = jest
-    .spyOn(process, 'exit')
-    .mockImplementation((() => undefined) as never);
+  const exit = jest.spyOn(process, 'exit').mockImplementation(((
+    code?: string | number | null | undefined,
+  ) => {
+    throw new ProcessExitError(code);
+  }) as never);
   return {
     stdout,
     stderr,
@@ -71,7 +80,14 @@ async function runCli(
   // Avoid commander calling process.exit on its own parse errors.
   program.exitOverride();
   register(program);
-  await program.parseAsync(['node', 'test', ...args]);
+  try {
+    await program.parseAsync(['node', 'test', ...args]);
+  } catch (err) {
+    if (err instanceof ProcessExitError) {
+      return;
+    }
+    throw err;
+  }
 }
 
 function spyText(spy: jest.SpyInstance): string {
@@ -178,19 +194,23 @@ describe('intent commands (mocked client integration)', () => {
     jest.clearAllMocks();
     io.stdout.mockClear();
     const dir = mkdtempSync(join(tmpdir(), 'rhdh-cli-int-catalog-'));
-    const entityFile = join(dir, 'catalog-info.yaml');
-    writeFileSync(entityFile, entityYaml);
-    mockExecAction.mockReturnValue(JSON.stringify({ valid: true }));
-    await runCli(registerCatalogCommands, [
-      'catalog',
-      'validate',
-      '--entity-file',
-      entityFile,
-    ]);
-    expect(mockExecAction).toHaveBeenCalledWith(
-      'catalog:validate-entity',
-      expect.objectContaining({ entity: entityYaml }),
-    );
+    try {
+      const entityFile = join(dir, 'catalog-info.yaml');
+      writeFileSync(entityFile, entityYaml);
+      mockExecAction.mockReturnValue(JSON.stringify({ valid: true }));
+      await runCli(registerCatalogCommands, [
+        'catalog',
+        'validate',
+        '--entity-file',
+        entityFile,
+      ]);
+      expect(mockExecAction).toHaveBeenCalledWith(
+        'catalog:validate-entity',
+        expect.objectContaining({ entity: entityYaml }),
+      );
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
 
     jest.clearAllMocks();
     io.stdout.mockClear();
@@ -264,6 +284,7 @@ describe('intent commands (mocked client integration)', () => {
     expect(spyText(io.stdout)).toContain('openapi: 3.0.0');
 
     jest.clearAllMocks();
+    io.stdout.mockClear();
     io.stderr.mockClear();
     io.exit.mockClear();
     mockExecAction.mockReturnValue(
@@ -276,6 +297,7 @@ describe('intent commands (mocked client integration)', () => {
     await runCli(registerApiCommands, ['api', 'get-spec', 'api:default/empty']);
     expect(io.exit).toHaveBeenCalledWith(1);
     expect(spyText(io.stderr)).toMatch(/no spec\.definition/i);
+    expect(spyText(io.stdout)).not.toContain('undefined');
   });
 
   it('search prints results and surfaces action failures', async () => {
@@ -321,7 +343,7 @@ describe('intent commands (mocked client integration)', () => {
     expect(err).toMatch(/connect|ECONNREFUSED/i);
   });
 
-  it('docs search scopes types to techdocs', async () => {
+  it('docs search scopes types to techdocs and suggests the search module on failure', async () => {
     mockExecActionJson.mockReturnValue({ results: [] });
     await runCli(registerDocsCommands, ['docs', 'search', 'onboarding']);
     expect(mockExecActionJson).toHaveBeenCalledWith(
@@ -332,6 +354,18 @@ describe('intent commands (mocked client integration)', () => {
       }),
     );
     expect(spyText(io.stdout)).toMatch(/No results found/i);
+
+    jest.clearAllMocks();
+    io.stderr.mockClear();
+    io.exit.mockClear();
+    mockExecActionJson.mockImplementation(() => {
+      throw new Error('Unknown type: techdocs');
+    });
+    await runCli(registerDocsCommands, ['docs', 'search', 'onboarding']);
+    expect(io.exit).toHaveBeenCalledWith(1);
+    expect(spyText(io.stderr)).toContain(
+      'Enable search-backend-module-techdocs on the RHDH instance.',
+    );
   });
 
   it('docs list and get call techdocs-mcp-extras actions', async () => {
@@ -398,9 +432,34 @@ describe('intent commands (mocked client integration)', () => {
       'catalog:query-catalog-entities',
       expect.objectContaining({
         query: JSON.stringify({ kind: 'Template' }),
+        fields: JSON.stringify([
+          'metadata.name',
+          'kind',
+          'metadata.namespace',
+          'spec.type',
+        ]),
       }),
     );
     expect(spyText(io.stdout)).toContain('react-ssr');
+
+    jest.clearAllMocks();
+    io.stdout.mockClear();
+    mockExecAction.mockReturnValue(
+      JSON.stringify({ items: [SAMPLE_TEMPLATE] }),
+    );
+    await runCli(registerTemplateCommands, [
+      'template',
+      'list',
+      '--output',
+      'json',
+    ]);
+    expect(mockExecAction).toHaveBeenCalledWith(
+      'catalog:query-catalog-entities',
+      expect.objectContaining({
+        query: JSON.stringify({ kind: 'Template' }),
+        fields: undefined,
+      }),
+    );
 
     jest.clearAllMocks();
     io.stdout.mockClear();
@@ -423,19 +482,23 @@ describe('intent commands (mocked client integration)', () => {
     jest.clearAllMocks();
     mockExecAction.mockReturnValue(JSON.stringify({ ok: true }));
     const dir = mkdtempSync(join(tmpdir(), 'rhdh-cli-int-tpl-'));
-    const templateFile = join(dir, 'template.yaml');
-    const yaml =
-      'apiVersion: scaffolder.backstage.io/v1beta3\nkind: Template\n';
-    writeFileSync(templateFile, yaml);
-    await runCli(registerTemplateCommands, [
-      'template',
-      'dry-run',
-      '--template-file',
-      templateFile,
-    ]);
-    expect(mockExecAction).toHaveBeenCalledWith(
-      'scaffolder:dry-run-template',
-      expect.objectContaining({ templateYaml: yaml }),
-    );
+    try {
+      const templateFile = join(dir, 'template.yaml');
+      const yaml =
+        'apiVersion: scaffolder.backstage.io/v1beta3\nkind: Template\n';
+      writeFileSync(templateFile, yaml);
+      await runCli(registerTemplateCommands, [
+        'template',
+        'dry-run',
+        '--template-file',
+        templateFile,
+      ]);
+      expect(mockExecAction).toHaveBeenCalledWith(
+        'scaffolder:dry-run-template',
+        expect.objectContaining({ templateYaml: yaml }),
+      );
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
