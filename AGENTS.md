@@ -38,6 +38,30 @@ import prefix, typescript:S4624 nested template literals) before they accumulate
   its own `.command('action')` with only the flags that apply to it. See
   `plugin dev` in `src/commands/index.ts` and `src/commands/dev/` for the
   reference implementation.
+- **RHDH-to-Backstage version mapping**: RHDH versions (e.g. `2.1.0`) are
+  not Backstage versions. The CLI resolves RHDH versions to Backstage
+  release versions via a 3-tier strategy: (1) remote metadata from the
+  RHDH GitHub release branch, (2) a static compatibility matrix
+  (`RHDH_COMPATIBILITY_MATRIX` in `src/lib/rhdhVersion.ts`), (3) Backstage
+  release manifest fetch from `versions.backstage.io`. If neither tier 1
+  nor tier 2 resolves a Backstage version, an error is raised. Bare
+  version numbers like `1.54.0` that do not match a
+  known RHDH release are rejected — users must prefix with `backstage:` to
+  target a Backstage version directly (e.g. `backstage:1.54.0`). The static
+  matrix must be updated manually each RHDH release cycle.
+- **Offline vs air-gapped**: `RHDH_OFFLINE=true` skips
+  the GitHub metadata lookup (tier 1) and falls back to the static
+  compatibility matrix (tier 2), but the Backstage release manifest still
+  fetches from `versions.backstage.io`. For true air-gapped use, users must
+  also supply `--manifest-file <path>` (or set `BACKSTAGE_MANIFEST_FILE`)
+  pointing to a local copy of the Backstage release manifest JSON.
+- **Error handling in plugin commands**: Plugin command functions (under
+  `src/commands/`) signal non-zero exit by throwing `ExitCodeError` from
+  `src/lib/errors.ts`. The `lazy()` wrapper in `src/commands/index.ts`
+  catches it and calls `process.exit(error.code)`. This keeps command
+  functions testable — tests can catch the error without `process.exit()`
+  killing the test runner. Intent-based action commands use
+  `handleCommandError` from `intent-errors.ts` instead.
 
 ## CLI UX Design Conventions
 
@@ -125,6 +149,13 @@ registered in `src/commands/index.ts` and lazy-load their handlers from
 re-staging) — use it when changing RHDH Local configuration without touching
 plugin code. `update` re-exports, re-stages, and then restarts the RHDH service.
 
+`start` and `update` both block on `waitForRhdhReady` (poll-based, 120s default
+timeout) before returning, printing the RHDH URL once it responds. Both also
+accept `--watch`, which hands off into `watchUpdate`: a chokidar watcher on
+`src/`, `package.json`, and `tsconfig.json` (500ms debounce, serialized cycles) that repeats the
+same export/stage/restart cycle as a one-shot `update` on every source change,
+so a source edit doesn't require re-running the command by hand.
+
 Key files:
 
 - `command.ts` — per-subcommand handlers (`start`, `update`, `restart`, `stop`,
@@ -152,12 +183,75 @@ RHDH Local and will not appear in `git status` after a successful `start`.
 **Pre-flight check:** `start` and `update` call `validateProjectFiles()` before
 invoking `plugin export`. For backend plugins this checks that `dist-types/`
 exists, failing fast with a clear `yarn tsc` instruction rather than letting
-`yarn build` fail deep in the export process.
+`yarn build` fail deep in the export process. `update` and `restart` also call
+`ensureRuntimeRunning()` first, which inspects Compose `ps` for the `rhdh`
+service and fails fast with an actionable message ("RHDH Local is not running.
+Run `rhdh-cli plugin dev start` first.") instead of a raw compose/container
+subprocess error.
 
 **Symlink handling:** `stagePlugin` uses `fs.remove` + `fs.copy` with
 `dereference: false` so relative symlinks in `node_modules/.bin/` are preserved
 as symlinks in the staged copy rather than followed, which would cause a
 self-copy error on repeated `update` runs.
+
+**E2E testing contract:** `e2e-tests/plugin-dev.test.ts` validates `plugin dev`
+lifecycle commands (`start`, `status`, `update`, `stop --clean`) against real
+compose container engines (Podman or Docker). By default, tests use a lightweight
+compose fixture. Setting `E2E_RHDH_LOCAL_DIR` targets an existing RHDH Local
+checkout instead.
+
+### `rhdhVersion.ts` — version resolution engine
+
+`src/lib/rhdhVersion.ts` is the core abstraction that maps RHDH version
+queries to Backstage release versions and their package manifests. All
+commands that depend on a target RHDH version (`check-versions`, `upgrade`,
+`new`) call `resolveRhdhVersion()` as their entry point.
+
+**3-tier resolution:**
+
+1. **Remote metadata (tier 1)** — fetches `build-metadata.json` from the
+   RHDH GitHub repository's release branch (e.g. `release-2.0` for RHDH
+   `2.0.x`). Extracts the Backstage version from the `card` object.
+   Skipped when `RHDH_OFFLINE=true` or `{ offline: true }`.
+2. **Static compatibility matrix (tier 2)** — `RHDH_COMPATIBILITY_MATRIX`
+   maps known RHDH releases to Backstage versions. Used as fallback when
+   remote lookup fails, times out, or is skipped. This matrix must be
+   updated manually each RHDH release cycle.
+3. **Backstage release manifest (tier 3)** — once a Backstage version is
+   determined (by tier 1 or 2), the manifest is fetched from
+   `versions.backstage.io` (or from `BACKSTAGE_VERSIONS_BASE_URL` /
+   `--manifest-file`) to get concrete package versions for dependency
+   alignment.
+
+**Caching:** Resolved versions are cached by a composite key of
+`normalizedVersion + manifestFile + versionsBaseUrl + offline` so
+different resolution contexts (e.g. different base URLs) produce
+separate cache entries.
+
+Key files:
+
+- `src/lib/rhdhVersion.ts` — RHDH version normalization, GitHub ref
+  mapping, remote metadata fetch, static matrix lookup, and the main
+  `resolveRhdhVersion` entry point.
+- `src/lib/backstageVersion.ts` — Backstage manifest fetching,
+  `backstage:^` protocol resolution, `backstage.json` version detection.
+
+### `check-versions` — dependency alignment command
+
+`src/commands/check-versions/` owns `rhdh-cli plugin check-versions`. It
+audits a plugin's `package.json` dependencies against the Backstage release
+manifest for a target RHDH version. Dependency status is one of: `match`,
+`mismatch`, `unmanifested` (a `@backstage/` package not in the manifest),
+or `unverifiable` (`backstage:^` peer dependencies that cannot be resolved
+without `backstage.json`).
+
+Key files:
+
+- `command.ts` — `checkPluginDependencies()` audit logic, human-readable
+  tabular output, and JSON mode.
+- `command.test.ts` — test patterns using `jest.mock` to stub
+  `resolveRhdhVersion` at the module boundary, allowing unit tests of
+  audit logic and CLI output without triggering any network calls.
 
 ## Pattern References
 
@@ -166,6 +260,10 @@ self-copy error on repeated `update` runs.
 - Human/JSON output formatting: `src/commands/intent-based-actions/format.ts`
 - Structured CLI errors: `src/commands/intent-based-actions/intent-errors.ts`
 - Repeatable `key=value` and JSON input parsing: `src/commands/intent-based-actions/kv.ts`
+- Version-aware CLI command: `src/commands/check-versions/command.ts`
+- RHDH-to-Backstage version resolution: `src/lib/rhdhVersion.ts`
+- Test patterns with mocked fetch responses: `src/lib/rhdhVersion.test.ts`
+- Backstage manifest and `backstage:^` resolution: `src/lib/backstageVersion.ts`
 
 ## CI & Packaging
 

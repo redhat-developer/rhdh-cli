@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+
+- **`plugin dev` and `plugin package`:** Generated dynamic-plugin entries now use `enabled: true` instead of the deprecated `disabled: false`. Documentation examples use `enabled` as well ([RHIDP-17293](https://redhat.atlassian.net/browse/RHIDP-17293)).
+
+## 2.2.0 - 2026-09-28
+
+### Removed
+
+- **`plugin export`:** Backend plugins and modules no longer ship the legacy `dist/configSchema.json` copy. Exports write only `dist/.config-schema.json` and remove a stale legacy copy when re-exporting without `--clean`, matching the RHDH schema loader ([RHIDP-17026](https://redhat.atlassian.net/browse/RHIDP-17026)).
+
+### Added
+
+- **`plugin dev`:** Add `--watch` to `rhdh-cli plugin dev start`, and a standalone `rhdh-cli plugin dev update --watch`, for continuous re-export/re-stage/restart on source changes ([RHIDP-16673](https://redhat.atlassian.net/browse/RHIDP-16673), [#222](https://github.com/redhat-developer/rhdh-cli/pull/222)). Watches `src/`, `package.json`, `tsconfig.json` with a 500ms debounce and serializes cycles so a change arriving mid-cycle queues exactly one follow-up; prints a refresh URL once RHDH responds. `plugin dev start` now also shows phased `[1/4]`–`[4/4]` progress through build/export, runtime start, plugin install, and readiness polling. `plugin dev update` and `plugin dev restart` fail fast with an actionable message when RHDH Local isn't running yet, instead of surfacing a raw compose/container error.
+
 ## 2.1.1 - 2026-09-21
 
 ### Added

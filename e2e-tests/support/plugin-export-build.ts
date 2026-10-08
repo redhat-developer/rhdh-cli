@@ -39,9 +39,14 @@ export async function downloadFile(url: string, file: string): Promise<void> {
   });
 }
 
+export interface RunCommandOptions {
+  cwd?: string;
+  env?: NodeJS.ProcessEnv;
+}
+
 export async function runCommand(
   command: string,
-  options: { cwd?: string } = {},
+  options: RunCommandOptions = {},
 ): Promise<{ stdout: string; stderr: string }> {
   const cwd = options.cwd || process.cwd();
 
@@ -76,8 +81,49 @@ export async function runCommand(
     console.error(`${LOG_PREFIX} --- stdout ---\n${out}`);
     console.error(`${LOG_PREFIX} --- stderr ---\n${errOut}`);
 
-    throw new Error(enrichedMessage);
+    const enrichedError = Object.assign(new Error(enrichedMessage), {
+      code: e.code,
+      signal: e.signal,
+      stdout: e.stdout,
+      stderr: e.stderr,
+    });
+
+    throw enrichedError;
   }
+}
+
+export async function runExpectingFailure(
+  command: string,
+  options: RunCommandOptions = {},
+): Promise<{ stdout: string; stderr: string; message: string }> {
+  let succeeded = false;
+  let stdout = '';
+  let caughtError: unknown;
+
+  try {
+    const res = await runCommand(command, options);
+    succeeded = true;
+    stdout = res.stdout;
+  } catch (err: unknown) {
+    caughtError = err;
+  }
+
+  if (succeeded) {
+    throw new Error(
+      `Command expected to fail, but succeeded with output: ${stdout}`,
+    );
+  }
+
+  const e = (caughtError || {}) as {
+    stdout?: string;
+    stderr?: string;
+    message?: string;
+  };
+  return {
+    stdout: e?.stdout || '',
+    stderr: e?.stderr || '',
+    message: e?.message || '',
+  };
 }
 
 /**

@@ -61,7 +61,7 @@ Install it as a dynamic plugin from `rhdh-plugin-export-overlays`:
 # dynamic-plugins.yaml
 plugins:
   - package: 'oci://ghcr.io/redhat-developer/rhdh-plugin-export-overlays/backstage-plugin-auth:bs_1.54.6__0.1.11'
-    disabled: false
+    enabled: true
     pluginConfig:
       dynamicPlugins:
         frontend:
@@ -93,7 +93,7 @@ To use TechDocs actions (`docs list`, `docs get`, `docs coverage`), install the 
 # dynamic-plugins.yaml
 plugins:
   - package: oci://ghcr.io/redhat-developer/rhdh-plugin-export-overlays/red-hat-developer-hub-backstage-plugin-techdocs-mcp-extras:bs_1.54.6__0.2.6
-    disabled: false
+    enabled: true
 ```
 
 **Note:** Only `docs list`, `docs get`, and `docs coverage` require this plugin. The `docs build` command uses the standard TechDocs sync endpoint and does not require this plugin.
@@ -106,7 +106,7 @@ To use TechDocs search functionality (`search --types techdocs` and `docs search
 # dynamic-plugins.yaml
 plugins:
   - package: 'oci://ghcr.io/redhat-developer/rhdh-plugin-export-overlays/backstage-plugin-search-backend-module-techdocs:bs_1.54.6__0.4.17'
-    disabled: false
+    enabled: true
 ```
 
 **Note:** This is a standard Backstage plugin for indexing TechDocs content in the search backend.

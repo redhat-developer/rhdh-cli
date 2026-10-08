@@ -40,34 +40,29 @@ export async function command(opts: OptionValues): Promise<void> {
 
   let targetPath: string;
   const roleInfo = PackageRoles.getRoleInfo(role);
-  let configSchemaPaths: string[];
   if (role === 'backend-plugin' || role === 'backend-plugin-module') {
     targetPath = await backend(opts);
-    configSchemaPaths = [
-      path.join(targetPath, 'dist/configSchema.json'),
-      path.join(targetPath, 'dist/.config-schema.json'),
-    ];
+    // A re-export without --clean must not retain an earlier legacy schema.
+    await fs.remove(path.join(targetPath, 'dist/configSchema.json'));
   } else if (role === 'frontend-plugin' || role === 'frontend-plugin-module') {
     targetPath = await frontend(roleInfo, opts);
-    configSchemaPaths = [path.join(targetPath, 'dist/.config-schema.json')];
   } else {
     throw new Error(
       'Only packages with the "backend-plugin", "backend-plugin-module", "frontend-plugin" or "frontend-plugin-module" roles can be exported as dynamic plugins',
     );
   }
 
+  const configSchemaPath = path.join(targetPath, 'dist/.config-schema.json');
   Task.log(
-    `Saving self-contained config schema in ${chalk.cyan(configSchemaPaths.join(' and '))}`,
+    `Saving self-contained config schema in ${chalk.cyan(configSchemaPath)}`,
   );
 
   const configSchema = await getConfigSchema(rawPkg.name);
-  for (const configSchemaPath of configSchemaPaths) {
-    await fs.ensureDir(path.dirname(paths.resolveTarget(configSchemaPath)));
-    await fs.writeJson(paths.resolveTarget(configSchemaPath), configSchema, {
-      encoding: 'utf8',
-      spaces: 2,
-    });
-  }
+  await fs.ensureDir(path.dirname(configSchemaPath));
+  await fs.writeJson(configSchemaPath, configSchema, {
+    encoding: 'utf8',
+    spaces: 2,
+  });
 
   const heavyDepKind: HeavyDepKind =
     role === 'backend-plugin' || role === 'backend-plugin-module'

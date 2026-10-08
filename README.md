@@ -42,7 +42,7 @@ When you build an OCI image with `--tag` (instead of exporting to a directory wi
 
 ## Checking Plugin Versions
 
-Use `plugin check-versions` to compare a plugin's `@backstage/*` dependencies with the Backstage release used by an RHDH version:
+Use `plugin check-versions` (or alias `plugin versions:lint`) to compare a plugin's `@backstage/*` dependencies with the Backstage release used by an RHDH version:
 
 ```bash
 rhdh-cli plugin check-versions --rhdh-version 2.0.0
@@ -54,9 +54,11 @@ For air-gapped environments, provide a local release manifest with `--manifest-f
 
 When adding support for a new RHDH release, update `RHDH_COMPATIBILITY_MATRIX` in `src/lib/rhdhVersion.ts` with its Backstage version before releasing the corresponding CLI version. This matrix is maintained manually until its release metadata can be automated.
 
+For full auditing details, exit codes, and CI pipeline recipes, see the [Plugin Development Guide](docs/Plugin-Development-CLI.md#auditing-plugin-dependencies-plugin-check-versions).
+
 ## Upgrading Plugin Versions
 
-Use `plugin upgrade` to update a plugin's `@backstage/*` dependencies to the versions from an RHDH release manifest:
+Use `plugin upgrade` (or alias `plugin versions:bump`) to update a plugin's `@backstage/*` dependencies to the versions from an RHDH release manifest:
 
 ```bash
 rhdh-cli plugin upgrade --rhdh-version 2.0.0
@@ -68,6 +70,8 @@ Use `--dry-run` to preview dependency changes without writing files and `--skip-
 
 For air-gapped environments, provide a local Backstage release manifest with `--manifest-file` and set `RHDH_OFFLINE=true` to skip the RHDH GitHub metadata lookup.
 
+For advanced upgrade options and lockfile details, see the [Plugin Development Guide](docs/Plugin-Development-CLI.md#upgrading-plugin-dependencies-plugin-upgrade).
+
 ## Creating a Plugin
 
 Use `plugin new` to create a standalone, version-pinned dynamic plugin project:
@@ -77,6 +81,8 @@ rhdh-cli plugin new my-plugin --type frontend --rhdh-version 2.1.0
 ```
 
 Supported types are `frontend` (a New Frontend System, or NFS, page), `backend` (a minimal new-backend-system plugin), and `catalog-processor-module` (a catalog processor module). Frontend and backend projects include a `dev/` harness and `yarn start` for isolated development; catalog processor modules do not because they require a host backend plugin. Use `--name <plugin-name>` as an alternative to the positional name, and `--output <directory>` to select a destination. Use `--plugin-package <package-name>` to set the generated package name; it defaults to `@internal/backstage-plugin-<name>`. The generated project uses the target RHDH release's Backstage manifest for every `@backstage/*` dependency. For air-gapped environments, provide `--manifest-file` and set `RHDH_OFFLINE=true`. Export and package generated plugins with `npx @red-hat-developer-hub/cli`, or through RHDH Dynamic Plugin Factory, rather than adding the CLI as a project dependency.
+
+For complete template details and configuration options, see the [Plugin Development Guide](docs/Plugin-Development-CLI.md#scaffolding-a-new-plugin-plugin-new).
 
 ## Development
 
@@ -88,15 +94,29 @@ Use `plugin dev` from a generated or existing dynamic plugin project to export i
 rhdh-cli plugin dev start --configure --rhdh-local-dir /path/to/rhdh-local
 ```
 
-`--configure` adds the CLI-managed plugin configuration include without replacing existing user configuration. Set `RHDH_LOCAL_DIR` to avoid repeating the path. After changing plugin source, refresh the staged plugin and RHDH service with:
+`--configure` adds the CLI-managed plugin configuration include without replacing existing user configuration. Set `RHDH_LOCAL_DIR` to avoid repeating the path. `start` prints four labeled phases (`[1/4]` build/export, `[2/4]` start the runtime, `[3/4]` install plugins, `[4/4]` wait for readiness) and blocks until RHDH responds, printing the URL to open once it's ready.
+
+After changing plugin source, refresh the staged plugin and RHDH service with:
 
 ```bash
 rhdh-cli plugin dev update
 ```
 
+`update` and `restart` require the runtime to already be running — start it first with `plugin dev start`, or they fail fast with an actionable message instead of a raw compose/container error. Like `start`, `update` blocks until RHDH is reachable again (up to two minutes) and prints the URL on success.
+
+Pass `--watch` to `start` or `update` to keep the CLI running: it watches `src/`, `package.json`, and `tsconfig.json` and automatically re-exports, re-stages, and restarts the runtime on every change, so you don't have to re-run `update` by hand.
+
+```bash
+rhdh-cli plugin dev start --watch
+# or, once the runtime is already up:
+rhdh-cli plugin dev update --watch
+```
+
 Use `rhdh-cli plugin dev status` for the interpreted runtime state, `rhdh-cli plugin dev logs` for application logs, and `rhdh-cli plugin dev logs --installer` to diagnose installation failures. To restart the RHDH service after changing RHDH Local configuration (without re-deploying the plugin), use `rhdh-cli plugin dev restart`. Stop the runtime with `rhdh-cli plugin dev stop`; add `--clean` to remove containers and networks while retaining volumes, configuration, and plugin artifacts. The default container tool is `podman`; pass `--container-tool docker` if your environment uses Docker instead.
 
 The CLI manages a single plugin entry in `configs/dynamic-plugins/rhdh-cli.generated.local.yaml`. Each `start` or `update` run overwrites this file with the current plugin's package path, disabled flag, and pull policy. Extra `pluginConfig` for the plugin (such as app-config keys) belongs in `dynamic-plugins.override.yaml` under a `plugins:` entry for the same package, not in the generated file.
+
+For full lifecycle workflows, configuration automation, and watch mode details, see the [Plugin Development Guide](docs/Plugin-Development-CLI.md#local-containerized-runtime-development-plugin-dev).
 
 ### Contributing
 
@@ -129,10 +149,12 @@ The CLI provides two categories of commands:
 
 ### Plugin Development Commands
 
+- `plugin new`: Scaffold a standalone, version-pinned dynamic plugin project
+- `plugin dev`: Export a dynamic plugin and manage its lifecycle against an existing RHDH Local runtime (`start`, `update`, `restart`, `stop`, `logs`, `status`)
+- `plugin check-versions` (alias: `plugin versions:lint`): Audit plugin dependencies against target RHDH Backstage release manifests
+- `plugin upgrade` (alias: `plugin versions:bump`): Upgrade plugin dependencies to match a target RHDH release
 - `plugin export`: Export a Backstage plugin as a dynamic plugin
 - `plugin package`: Package dynamic plugins for distribution
-- `plugin check-versions`: Verify plugin compatibility with RHDH versions
-- `plugin dev`: Export a dynamic plugin and manage its lifecycle against an existing RHDH Local runtime (`start`, `update`, `restart`, `stop`, `logs`, `status`)
 
 ### Intent-Based RHDH Interaction Commands
 
@@ -172,6 +194,7 @@ All commands support `--help` for detailed usage and `--output json` for machine
 
 **📚 For complete documentation, setup guides, and examples, see:**
 
+- **[Plugin Development Guide](docs/Plugin-Development-CLI.md)** - Complete guide for scaffolding, local runtime testing, dependency auditing, upgrading, and dynamic export
 - **[Intent-Based CLI Documentation](docs/Intent-Based-CLI.md)** - Complete guide for RHDH interaction commands
 
 ### Optional TechDocs Features
