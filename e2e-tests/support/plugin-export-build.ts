@@ -6,6 +6,7 @@ import { promisify } from 'node:util';
 import type { ReadEntry } from 'tar';
 import * as tar from 'tar';
 import axios from 'axios';
+import packlist from 'npm-packlist';
 
 const exec = promisify(execCallback);
 
@@ -126,44 +127,12 @@ export async function runExpectingFailure(
   };
 }
 
-/**
- * Top-level directory names using the same steps as `plugin package`:
- * `npm pack --pack-destination …`, then `tar -xzf … --strip-components=1`.
- * Names are sorted for stable comparison with staged OCI contents.
- */
+/** Top-level entries npm would include, for comparison with staged OCI contents. */
 export async function topLevelEntriesAfterNpmPackStaging(
   distDynamicDir: string,
 ): Promise<string[]> {
-  const work = fs.mkdtempSync(path.join(os.tmpdir(), 'rhdh-e2e-npm-pack-'));
-  const packDest = fs.mkdtempSync(
-    path.join(os.tmpdir(), 'rhdh-e2e-npm-pack-out-'),
-  );
-  try {
-    await runCommand(
-      `npm pack --pack-destination "${packDest}" --foreground-scripts=false`,
-      { cwd: distDynamicDir },
-    );
-    const tgzs = fs
-      .readdirSync(packDest)
-      .filter(f => f.endsWith('.tgz'))
-      .sort();
-    if (tgzs.length !== 1) {
-      throw new Error(
-        `expected exactly one .tgz in ${packDest}, got: ${tgzs.join(', ')}`,
-      );
-    }
-    const extractInto = path.join(work, 'extracted');
-    fs.mkdirSync(extractInto, { recursive: true });
-    await tar.x({
-      file: path.join(packDest, tgzs[0]),
-      cwd: extractInto,
-      strip: 1,
-    });
-    return fs.readdirSync(extractInto).sort();
-  } finally {
-    await fs.remove(work).catch(() => undefined);
-    await fs.remove(packDest).catch(() => undefined);
-  }
+  const files = await packlist({ path: distDynamicDir });
+  return [...new Set(files.map(file => file.split('/')[0]))].sort();
 }
 
 export async function parseDynamicPluginAnnotation(
