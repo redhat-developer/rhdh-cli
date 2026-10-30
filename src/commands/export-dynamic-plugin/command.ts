@@ -77,8 +77,12 @@ export async function command(opts: OptionValues): Promise<void> {
     // The upstream runner forces color for child processes. Without this,
     // Yarn can return an ANSI-styled "null" for an unset yarnPath, which the
     // bundler writes into dist-dynamic/.yarnrc.yml as invalid YAML.
+    // On public PRs, Yarn v4 also enables hardened mode. The upstream bundler's
+    // lockfile prune disables network access, so hardened registry checks fail.
     const previousYarnColors = process.env.YARN_ENABLE_COLORS;
+    const previousYarnHardenedMode = process.env.YARN_ENABLE_HARDENED_MODE;
     process.env.YARN_ENABLE_COLORS = '0';
+    process.env.YARN_ENABLE_HARDENED_MODE = '0';
     try {
       await bundleCommand({
         clean: Boolean(opts.clean),
@@ -94,6 +98,11 @@ export async function command(opts: OptionValues): Promise<void> {
         delete process.env.YARN_ENABLE_COLORS;
       } else {
         process.env.YARN_ENABLE_COLORS = previousYarnColors;
+      }
+      if (previousYarnHardenedMode === undefined) {
+        delete process.env.YARN_ENABLE_HARDENED_MODE;
+      } else {
+        process.env.YARN_ENABLE_HARDENED_MODE = previousYarnHardenedMode;
       }
     }
 

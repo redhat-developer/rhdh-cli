@@ -90,33 +90,44 @@ test.each(['backend-plugin', 'backend-plugin-module'])(
   },
 );
 
-test('disables Yarn colors during backend bundling and restores the prior setting', async () => {
+test('disables incompatible Yarn settings during backend bundling and restores them', async () => {
   jest.mocked(fs.readJson).mockResolvedValue({
     name: '@internal/example',
     version: '1.0.0',
     backstage: { role: 'backend-plugin' },
   });
-  const previous = process.env.YARN_ENABLE_COLORS;
+  const previousColors = process.env.YARN_ENABLE_COLORS;
+  const previousHardenedMode = process.env.YARN_ENABLE_HARDENED_MODE;
   process.env.YARN_ENABLE_COLORS = 'true';
+  process.env.YARN_ENABLE_HARDENED_MODE = '1';
 
   try {
     jest.mocked(bundleCommand).mockImplementationOnce(async () => {
       expect(process.env.YARN_ENABLE_COLORS).toBe('0');
+      expect(process.env.YARN_ENABLE_HARDENED_MODE).toBe('0');
     });
     await command({});
     expect(process.env.YARN_ENABLE_COLORS).toBe('true');
+    expect(process.env.YARN_ENABLE_HARDENED_MODE).toBe('1');
 
     jest.mocked(bundleCommand).mockImplementationOnce(async () => {
       expect(process.env.YARN_ENABLE_COLORS).toBe('0');
+      expect(process.env.YARN_ENABLE_HARDENED_MODE).toBe('0');
       throw new Error('bundle failed');
     });
     await expect(command({})).rejects.toThrow('bundle failed');
     expect(process.env.YARN_ENABLE_COLORS).toBe('true');
+    expect(process.env.YARN_ENABLE_HARDENED_MODE).toBe('1');
   } finally {
-    if (previous === undefined) {
+    if (previousColors === undefined) {
       delete process.env.YARN_ENABLE_COLORS;
     } else {
-      process.env.YARN_ENABLE_COLORS = previous;
+      process.env.YARN_ENABLE_COLORS = previousColors;
+    }
+    if (previousHardenedMode === undefined) {
+      delete process.env.YARN_ENABLE_HARDENED_MODE;
+    } else {
+      process.env.YARN_ENABLE_HARDENED_MODE = previousHardenedMode;
     }
   }
 });
