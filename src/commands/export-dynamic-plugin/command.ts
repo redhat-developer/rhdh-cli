@@ -15,6 +15,7 @@
  */
 
 import { PackageRoles } from '@backstage/cli-node';
+import { bundleCommand } from '@backstage/cli-module-build/dist/commands/package/bundle/command.cjs.js';
 
 import chalk from 'chalk';
 import { OptionValues } from 'commander';
@@ -26,10 +27,31 @@ import path from 'path';
 import { paths } from '../../lib/paths';
 import { getConfigSchema } from '../../lib/schema/collect';
 import { Task } from '../../lib/tasks';
-import { backend } from './backend';
 import { checkHeavyDependencies, HeavyDepKind } from './check-heavy-deps';
 import { applyDevOptions } from './dev';
 import { frontend } from './frontend';
+
+const DEPRECATED_FLAGS: Record<string, string> = {
+  embedPackage:
+    '--embed-package is deprecated and ignored. The upstream bundle command embeds all dependencies automatically.',
+  sharedPackage:
+    '--shared-package is deprecated and ignored. The upstream bundle command produces fully self-contained bundles.',
+  allowNativePackage: '--allow-native-package is deprecated and ignored.',
+  suppressNativePackage: '--suppress-native-package is deprecated and ignored.',
+  ignoreVersionCheck: '--ignore-version-check is deprecated and ignored.',
+  minify: '--minify is deprecated and ignored.',
+  trackDynamicManifestAndLockFile:
+    '--track-dynamic-manifest-and-lock-file is deprecated and ignored.',
+};
+
+function warnDeprecatedFlags(opts: OptionValues): void {
+  for (const [flag, message] of Object.entries(DEPRECATED_FLAGS)) {
+    const value = opts[flag];
+    if (value !== undefined && value !== false) {
+      Task.log(chalk.yellow(message));
+    }
+  }
+}
 
 export async function command(opts: OptionValues): Promise<void> {
   const rawPkg = await fs.readJson(paths.resolveTarget('package.json'));
@@ -37,32 +59,86 @@ export async function command(opts: OptionValues): Promise<void> {
   if (!role) {
     throw new Error(`Target package must have 'backstage.role' set`);
   }
+  if (!rawPkg.version) {
+    throw new Error(
+      `Package ${chalk.cyan(rawPkg.name)} is missing a ${chalk.cyan(
+        'version',
+      )} field. Add a version to its ${chalk.cyan(
+        'package.json',
+      )} before exporting as a dynamic plugin.`,
+    );
+  }
 
   let targetPath: string;
   const roleInfo = PackageRoles.getRoleInfo(role);
   if (role === 'backend-plugin' || role === 'backend-plugin-module') {
-    targetPath = await backend(opts);
+    warnDeprecatedFlags(opts);
+
+    // The upstream runner forces color for child processes. Without this,
+    // Yarn can return an ANSI-styled "null" for an unset yarnPath, which the
+    // bundler writes into dist-dynamic/.yarnrc.yml as invalid YAML.
+    // On public PRs, Yarn v4 also enables hardened mode. The upstream bundler's
+    // lockfile prune disables network access, so hardened registry checks fail.
+    const previousYarnColors = process.env.YARN_ENABLE_COLORS;
+    const previousYarnHardenedMode = process.env.YARN_ENABLE_HARDENED_MODE;
+    process.env.YARN_ENABLE_COLORS = '0';
+    process.env.YARN_ENABLE_HARDENED_MODE = '0';
+    try {
+      await bundleCommand({
+        clean: Boolean(opts.clean),
+        build: opts.build !== false,
+        install: opts.install !== false,
+        verbose: Boolean(opts.verbose),
+        outputName: 'dist-dynamic',
+        outputDestination: opts.outputDestination,
+        prePackedDir: opts.prePackedDir,
+      });
+    } finally {
+      if (previousYarnColors === undefined) {
+        delete process.env.YARN_ENABLE_COLORS;
+      } else {
+        process.env.YARN_ENABLE_COLORS = previousYarnColors;
+      }
+      if (previousYarnHardenedMode === undefined) {
+        delete process.env.YARN_ENABLE_HARDENED_MODE;
+      } else {
+        process.env.YARN_ENABLE_HARDENED_MODE = previousYarnHardenedMode;
+      }
+    }
+
+    targetPath = path.join(
+      opts.outputDestination
+        ? path.resolve(opts.outputDestination)
+        : paths.targetDir,
+      'dist-dynamic',
+    );
+
+    // Rename package to ${name}-dynamic
+    const targetPkgPath = path.join(targetPath, 'package.json');
+    const targetPkg = await fs.readJson(targetPkgPath);
+    targetPkg.name = `${rawPkg.name}-dynamic`;
+    await fs.writeJson(targetPkgPath, targetPkg, { spaces: 2 });
+
     // A re-export without --clean must not retain an earlier legacy schema.
     await fs.remove(path.join(targetPath, 'dist/configSchema.json'));
   } else if (role === 'frontend-plugin' || role === 'frontend-plugin-module') {
     targetPath = await frontend(roleInfo, opts);
+    const configSchemaPath = path.join(targetPath, 'dist/.config-schema.json');
+    Task.log(
+      `Saving self-contained config schema in ${chalk.cyan(configSchemaPath)}`,
+    );
+
+    const configSchema = await getConfigSchema(rawPkg.name);
+    await fs.ensureDir(path.dirname(configSchemaPath));
+    await fs.writeJson(configSchemaPath, configSchema, {
+      encoding: 'utf8',
+      spaces: 2,
+    });
   } else {
     throw new Error(
       'Only packages with the "backend-plugin", "backend-plugin-module", "frontend-plugin" or "frontend-plugin-module" roles can be exported as dynamic plugins',
     );
   }
-
-  const configSchemaPath = path.join(targetPath, 'dist/.config-schema.json');
-  Task.log(
-    `Saving self-contained config schema in ${chalk.cyan(configSchemaPath)}`,
-  );
-
-  const configSchema = await getConfigSchema(rawPkg.name);
-  await fs.ensureDir(path.dirname(configSchemaPath));
-  await fs.writeJson(configSchemaPath, configSchema, {
-    encoding: 'utf8',
-    spaces: 2,
-  });
 
   const heavyDepKind: HeavyDepKind =
     role === 'backend-plugin' || role === 'backend-plugin-module'

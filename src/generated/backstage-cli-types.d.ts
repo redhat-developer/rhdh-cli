@@ -205,3 +205,16 @@ declare module '@backstage/cli-module-build/dist/lib/bundler/paths.cjs.js' {
   
 }
 
+declare module '@backstage/cli-module-build/dist/commands/package/bundle/command.cjs.js' {
+  interface BundleOptions {
+    build: boolean;
+    install: boolean;
+    clean: boolean;
+    verbose: boolean;
+    outputDestination?: string;
+    outputName?: string;
+    prePackedDir?: string;
+  }
+  export function bundleCommand(opts: BundleOptions): Promise<void>;
+  export {};
+}

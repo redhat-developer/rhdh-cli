@@ -107,6 +107,9 @@ describe('createPluginProject', () => {
       ).toContain(expectedSource);
 
       const packageJson = await fs.readJson(path.join(output, 'package.json'));
+      expect(packageJson.backstage.pluginPackages).toEqual(
+        type === 'catalog-processor-module' ? undefined : [packageJson.name],
+      );
       expect(packageJson.devDependencies['@backstage/cli']).toBe('0.36.5');
       expect(packageJson.devDependencies).not.toHaveProperty(
         '@red-hat-developer-hub/cli',
