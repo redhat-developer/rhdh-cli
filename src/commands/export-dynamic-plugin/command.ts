@@ -74,15 +74,28 @@ export async function command(opts: OptionValues): Promise<void> {
   if (role === 'backend-plugin' || role === 'backend-plugin-module') {
     warnDeprecatedFlags(opts);
 
-    await bundleCommand({
-      clean: Boolean(opts.clean),
-      build: opts.build !== false,
-      install: opts.install !== false,
-      verbose: Boolean(opts.verbose),
-      outputName: 'dist-dynamic',
-      outputDestination: opts.outputDestination,
-      prePackedDir: opts.prePackedDir,
-    });
+    // The upstream runner forces color for child processes. Without this,
+    // Yarn can return an ANSI-styled "null" for an unset yarnPath, which the
+    // bundler writes into dist-dynamic/.yarnrc.yml as invalid YAML.
+    const previousYarnColors = process.env.YARN_ENABLE_COLORS;
+    process.env.YARN_ENABLE_COLORS = '0';
+    try {
+      await bundleCommand({
+        clean: Boolean(opts.clean),
+        build: opts.build !== false,
+        install: opts.install !== false,
+        verbose: Boolean(opts.verbose),
+        outputName: 'dist-dynamic',
+        outputDestination: opts.outputDestination,
+        prePackedDir: opts.prePackedDir,
+      });
+    } finally {
+      if (previousYarnColors === undefined) {
+        delete process.env.YARN_ENABLE_COLORS;
+      } else {
+        process.env.YARN_ENABLE_COLORS = previousYarnColors;
+      }
+    }
 
     targetPath = path.join(
       opts.outputDestination

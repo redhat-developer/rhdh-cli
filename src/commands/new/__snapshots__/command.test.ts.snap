@@ -59,7 +59,10 @@ npx @red-hat-developer-hub/cli plugin export
   },
   "backstage": {
     "role": "backend-plugin",
-    "pluginId": "example-plugin"
+    "pluginId": "example-plugin",
+    "pluginPackages": [
+      "@internal/backstage-plugin-example-plugin"
+    ]
   },
   "scripts": {
     "start": "backstage-cli package start",
@@ -408,7 +411,10 @@ npx @red-hat-developer-hub/cli plugin export
   },
   "backstage": {
     "role": "frontend-plugin",
-    "pluginId": "example-plugin"
+    "pluginId": "example-plugin",
+    "pluginPackages": [
+      "@internal/backstage-plugin-example-plugin"
+    ]
   },
   "sideEffects": false,
   "scripts": {

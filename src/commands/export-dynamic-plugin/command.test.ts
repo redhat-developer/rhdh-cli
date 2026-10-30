@@ -90,6 +90,37 @@ test.each(['backend-plugin', 'backend-plugin-module'])(
   },
 );
 
+test('disables Yarn colors during backend bundling and restores the prior setting', async () => {
+  jest.mocked(fs.readJson).mockResolvedValue({
+    name: '@internal/example',
+    version: '1.0.0',
+    backstage: { role: 'backend-plugin' },
+  });
+  const previous = process.env.YARN_ENABLE_COLORS;
+  process.env.YARN_ENABLE_COLORS = 'true';
+
+  try {
+    jest.mocked(bundleCommand).mockImplementationOnce(async () => {
+      expect(process.env.YARN_ENABLE_COLORS).toBe('0');
+    });
+    await command({});
+    expect(process.env.YARN_ENABLE_COLORS).toBe('true');
+
+    jest.mocked(bundleCommand).mockImplementationOnce(async () => {
+      expect(process.env.YARN_ENABLE_COLORS).toBe('0');
+      throw new Error('bundle failed');
+    });
+    await expect(command({})).rejects.toThrow('bundle failed');
+    expect(process.env.YARN_ENABLE_COLORS).toBe('true');
+  } finally {
+    if (previous === undefined) {
+      delete process.env.YARN_ENABLE_COLORS;
+    } else {
+      process.env.YARN_ENABLE_COLORS = previous;
+    }
+  }
+});
+
 test.each(['frontend-plugin', 'frontend-plugin-module'])(
   'exports only the modern schema for %s',
   async role => {
