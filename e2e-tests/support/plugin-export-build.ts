@@ -1,6 +1,5 @@
 import fs from 'fs-extra';
 import { exec as execCallback } from 'node:child_process';
-import os from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import type { ReadEntry } from 'tar';
@@ -132,7 +131,7 @@ export async function topLevelEntriesAfterNpmPackStaging(
   distDynamicDir: string,
 ): Promise<string[]> {
   const files = await packlist({ path: distDynamicDir });
-  return [...new Set(files.map(file => file.split('/')[0]))].sort();
+  return [...new Set(files.map(file => file.split('/')[0]))].sort((a, b) => a.localeCompare(b));
 }
 
 export async function parseDynamicPluginAnnotation(
@@ -228,7 +227,7 @@ export async function extractGithubMainArchive(
   const extractRoot = path.join(tmpDir, extractedDirName);
   log(`${logLabel}: extracting to ${extractRoot}`);
   fs.mkdirSync(extractRoot, { recursive: true });
-  await tar.x({
+  tar.x({
     file: archivePath,
     cwd: extractRoot,
     strip: 1,

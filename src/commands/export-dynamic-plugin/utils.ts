@@ -21,7 +21,7 @@ import chalk from 'chalk';
 import * as fs from 'fs-extra';
 import * as semver from 'semver';
 
-import * as path from 'path';
+import * as path from 'node:path';
 
 import {
   isBackstageVersionSpec,
@@ -137,17 +137,18 @@ async function resolveProtocolVersion(
   return undefined;
 }
 
+function test(str: string, expr: string | RegExp): boolean {
+  if (typeof expr === 'string') {
+    return str === expr;
+  }
+  return expr.test(str);
+}
+
 function isPackageShared(
   pkgName: string,
   rules: SharedPackagesRules | undefined,
 ) {
-  function test(str: string, expr: string | RegExp): boolean {
-    if (typeof expr === 'string') {
-      return str === expr;
-    }
-    return expr.test(str);
-  }
-
+  
   if ((rules?.exclude || []).some(dontMove => test(pkgName, dontMove))) {
     return false;
   }
@@ -171,7 +172,7 @@ export function customizeForDynamicUse(options: {
   isYarnV1: boolean;
   monoRepoPackages?: Packages;
   sharedPackages?: SharedPackagesRules;
-  overridding?: Partial<BackstagePackageJson> & {
+  overriding?: Partial<BackstagePackageJson> & {
     bundleDependencies?: boolean;
   };
   additionalOverrides?: { [key: string]: any };
@@ -185,11 +186,11 @@ export function customizeForDynamicUse(options: {
       dynamicPkgContent,
     ) as BackstagePackageJson;
 
-    for (const field in options.overridding || {}) {
-      if (!Object.prototype.hasOwnProperty.call(options.overridding, field)) {
+    for (const field in options.overriding ?? {}) {
+      if (!Object.hasOwn(options.overriding ?? {}, field)) {
         continue;
       }
-      (pkgToCustomize as any)[field] = (options.overridding as any)[field];
+      (pkgToCustomize as any)[field] = (options.overriding as any)[field];
     }
 
     pkgToCustomize.files = pkgToCustomize.files?.filter(
@@ -204,7 +205,7 @@ export function customizeForDynamicUse(options: {
     if (pkgToCustomize.dependencies) {
       for (const dep in pkgToCustomize.dependencies) {
         if (
-          !Object.prototype.hasOwnProperty.call(
+          !Object.hasOwn(
             pkgToCustomize.dependencies,
             dep,
           )
@@ -259,7 +260,7 @@ export function customizeForDynamicUse(options: {
     if (pkgToCustomize.peerDependencies) {
       for (const dep in pkgToCustomize.peerDependencies) {
         if (
-          !Object.prototype.hasOwnProperty.call(
+          !Object.hasOwn(
             pkgToCustomize.peerDependencies,
             dep,
           )
@@ -327,7 +328,7 @@ export function customizeForDynamicUse(options: {
         '@smithy/util-utf8': '^2.0.0',
       },
       ...overrides,
-      ...(options.additionalOverrides || {}),
+      ...options.additionalOverrides
     };
     const resolutions = (pkgToCustomize as any).resolutions || {};
 
@@ -353,7 +354,7 @@ export function customizeForDynamicUse(options: {
       ...filteredRootResolutions,
       ...pinnedResolutions,
       ...resolutions,
-      ...(options.additionalResolutions || {}),
+      ...options.additionalResolutions
     };
 
     if (options.after) {

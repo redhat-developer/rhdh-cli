@@ -154,7 +154,7 @@ export async function frontend(
     embedded: [],
     isYarnV1: false,
     monoRepoPackages,
-    overridding: {
+    overriding: {
       name: `${name}-dynamic`,
       // We remove scripts, because they do not make sense for this derived package.
       // They even bring errors, especially the pre-pack and post-pack ones:
