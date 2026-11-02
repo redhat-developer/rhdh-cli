@@ -31,6 +31,10 @@
     {
       "name": "@backstage/cli-module-build/dist/lib/entryPoints.cjs.js",
       "types": "dist-types/packages/cli-module-build/src/lib/entryPoints.d.ts"
+    },
+    {
+      "name": "@backstage/cli-module-build/dist/commands/package/bundle/command.cjs.js",
+      "types": "dist-types/packages/cli-module-build/src/commands/package/bundle/command.d.ts"
     }
   ]
 }

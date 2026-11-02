@@ -183,7 +183,7 @@ describe('export and package rhdh-plugins scorecard workspace plugin', () => {
         await topLevelEntriesAfterNpmPackStaging(distDynamicPath);
       const filesInImage = fs
         .readdirSync(path.join(imageContentDir, key))
-        .sort();
+        .sort((a, b) => a.localeCompare(b));
       expect(filesInImage).toEqual(expectedTopLevel);
 
       const indexJson = JSON.parse(

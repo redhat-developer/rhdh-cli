@@ -27,8 +27,8 @@ import path from 'path';
 import { productionPack } from '../../lib/packager/productionPack';
 import { paths } from '../../lib/paths';
 import { Task } from '../../lib/tasks';
-import { customizeForDynamicUse, getMonorepoRootResolutions } from './backend';
 import { detectBackstageFeatures } from './features';
+import { customizeForDynamicUse, getMonorepoRootResolutions } from './utils';
 
 function isTruthyCiEnv(value: string | undefined): boolean {
   if (value === undefined) {
@@ -154,7 +154,7 @@ export async function frontend(
     embedded: [],
     isYarnV1: false,
     monoRepoPackages,
-    overridding: {
+    overriding: {
       name: `${name}-dynamic`,
       // We remove scripts, because they do not make sense for this derived package.
       // They even bring errors, especially the pre-pack and post-pack ones:

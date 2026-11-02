@@ -210,6 +210,14 @@ async function adaptStandaloneProject(
   // (they are private packages), but `plugin export` and `npm pack` both
   // require name + version to produce a valid package tarball.
   packageJson.version ??= '0.1.0';
+  // The standalone frontend/backend templates do not include the publishing
+  // metadata that Backstage's prepack command requires for plugin packages.
+  if (
+    packageJson.backstage?.role === 'frontend-plugin' ||
+    packageJson.backstage?.role === 'backend-plugin'
+  ) {
+    packageJson.backstage.pluginPackages ??= [packageJson.name];
+  }
   packageJson.devDependencies = {
     ...packageJson.devDependencies,
     ...profile.devDependencies,
