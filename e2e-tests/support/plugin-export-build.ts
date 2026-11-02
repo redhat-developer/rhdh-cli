@@ -131,7 +131,9 @@ export async function topLevelEntriesAfterNpmPackStaging(
   distDynamicDir: string,
 ): Promise<string[]> {
   const files = await packlist({ path: distDynamicDir });
-  return [...new Set(files.map(file => file.split('/')[0]))].sort((a, b) => a.localeCompare(b));
+  return [...new Set(files.map(file => file.split('/')[0]))].sort((a, b) =>
+    a.localeCompare(b),
+  );
 }
 
 export async function parseDynamicPluginAnnotation(

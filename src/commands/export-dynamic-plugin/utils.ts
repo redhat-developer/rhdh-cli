@@ -148,7 +148,6 @@ function isPackageShared(
   pkgName: string,
   rules: SharedPackagesRules | undefined,
 ) {
-  
   if ((rules?.exclude || []).some(dontMove => test(pkgName, dontMove))) {
     return false;
   }
@@ -204,12 +203,7 @@ export function customizeForDynamicUse(options: {
     // Resolve workspace: and backstage: in dependencies
     if (pkgToCustomize.dependencies) {
       for (const dep in pkgToCustomize.dependencies) {
-        if (
-          !Object.hasOwn(
-            pkgToCustomize.dependencies,
-            dep,
-          )
-        ) {
+        if (!Object.hasOwn(pkgToCustomize.dependencies, dep)) {
           continue;
         }
 
@@ -259,13 +253,7 @@ export function customizeForDynamicUse(options: {
     // Resolve workspace: and backstage: in pre-existing peerDependencies
     if (pkgToCustomize.peerDependencies) {
       for (const dep in pkgToCustomize.peerDependencies) {
-        if (
-          !Object.hasOwn(
-            pkgToCustomize.peerDependencies,
-            dep,
-          )
-        )
-          continue;
+        if (!Object.hasOwn(pkgToCustomize.peerDependencies, dep)) continue;
         const result = await resolveProtocolVersion(
           dep,
           pkgToCustomize.peerDependencies[dep],
@@ -328,7 +316,7 @@ export function customizeForDynamicUse(options: {
         '@smithy/util-utf8': '^2.0.0',
       },
       ...overrides,
-      ...options.additionalOverrides
+      ...options.additionalOverrides,
     };
     const resolutions = (pkgToCustomize as any).resolutions || {};
 
@@ -354,7 +342,7 @@ export function customizeForDynamicUse(options: {
       ...filteredRootResolutions,
       ...pinnedResolutions,
       ...resolutions,
-      ...options.additionalResolutions
+      ...options.additionalResolutions,
     };
 
     if (options.after) {
