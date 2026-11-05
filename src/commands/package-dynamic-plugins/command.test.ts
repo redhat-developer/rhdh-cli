@@ -17,7 +17,16 @@
 import fs from 'fs-extra';
 import os from 'node:os';
 import path from 'node:path';
-import { command } from './command';
+import { Task } from '../../lib/tasks';
+import {
+  packageName as cliName,
+  version as cliVersion,
+} from '../../lib/version';
+import {
+  BUNDLE_CLI_ANNOTATION,
+  BUNDLE_CLI_ANNOTATION_VALUE,
+  command,
+} from './command';
 
 describe('package-dynamic-plugins command', () => {
   let tmpDir: string;
@@ -76,6 +85,45 @@ describe('package-dynamic-plugins command', () => {
       // Verify export directory was created
       expect(fs.existsSync(exportDir)).toBe(true);
       expect(fs.existsSync(path.join(exportDir, 'index.json'))).toBe(true);
+    }, 30000);
+  });
+
+  describe('container image annotations', () => {
+    it('should annotate the image with the bundling rhdh-cli version', async () => {
+      fs.writeJsonSync(path.join(tmpDir, 'package.json'), {
+        name: 'test-plugin',
+        version: '1.0.0',
+        backstage: { role: 'frontend-plugin' },
+      });
+      const distDynamicDir = path.join(tmpDir, 'dist-dynamic');
+      fs.mkdirSync(distDynamicDir);
+      fs.writeJsonSync(path.join(distDynamicDir, 'package.json'), {
+        name: 'test-plugin-dynamic',
+        version: '1.0.0',
+      });
+
+      const commands: string[] = [];
+      const forCommand = jest
+        .spyOn(Task, 'forCommand')
+        .mockImplementation(async cmd => {
+          commands.push(cmd);
+        });
+      try {
+        await command({ tag: 'quay.io/example/test-plugin:1.0.0' });
+      } finally {
+        forCommand.mockRestore();
+      }
+
+      const buildCmd = commands.find(cmd => cmd.includes('podman build'));
+      expect(buildCmd).toBeDefined();
+      expect(cliVersion).toMatch(/^\d+\.\d+\.\d+/);
+      expect(BUNDLE_CLI_ANNOTATION).toBe('io.backstage.bundle-cli');
+      expect(cliName).toBe('@red-hat-developer-hub/cli');
+      expect(BUNDLE_CLI_ANNOTATION_VALUE).toBe(`${cliName}@${cliVersion}`);
+      expect(buildCmd).toContain(
+        `--annotation ${BUNDLE_CLI_ANNOTATION}='${cliName}@${cliVersion}'`,
+      );
+      expect(buildCmd).toContain('--annotation io.backstage.dynamic-packages=');
     }, 30000);
   });
 });
