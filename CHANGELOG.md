@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- **`plugin package`:** Container images now carry an `io.backstage.bundle-cli` OCI annotation with the CLI that built them (e.g. `@red-hat-developer-hub/cli@2.2.1`), alongside the existing `io.backstage.dynamic-packages` annotation. This makes it possible to trace which `rhdh-cli` release produced a given plugin image.
+
 ### Changed
 
 - **`plugin dev` and `plugin package`:** Generated dynamic-plugin entries now use `enabled: true` instead of the deprecated `disabled: false`. Documentation examples use `enabled` as well ([RHIDP-17293](https://redhat.atlassian.net/browse/RHIDP-17293)).

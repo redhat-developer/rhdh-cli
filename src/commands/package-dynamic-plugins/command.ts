@@ -16,6 +16,14 @@ import path from 'node:path';
 import { paths } from '../../lib/paths';
 import { waitForExit } from '../../lib/run';
 import { Task } from '../../lib/tasks';
+import {
+  packageName as cliName,
+  version as cliVersion,
+} from '../../lib/version';
+
+/** OCI annotation recording which CLI (and version) bundled the image. */
+export const BUNDLE_CLI_ANNOTATION = 'io.backstage.bundle-cli';
+export const BUNDLE_CLI_ANNOTATION_VALUE = `${cliName}@${cliVersion}`;
 
 export async function command(opts: OptionValues): Promise<void> {
   const {
@@ -263,6 +271,8 @@ export async function command(opts: OptionValues): Promise<void> {
       // collect flags for the container build command
       const flags = [
         `--annotation io.backstage.dynamic-packages='${Buffer.from(JSON.stringify(pluginRegistryMetadata)).toString('base64')}'`,
+        // Record which CLI version produced the image so consumers can trace it
+        `--annotation ${BUNDLE_CLI_ANNOTATION}='${BUNDLE_CLI_ANNOTATION_VALUE}'`,
       ];
       if (platform) {
         flags.push(`--platform ${platform}`);

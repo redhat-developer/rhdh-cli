@@ -39,16 +39,27 @@ import Manifest from '../../package.json';
 import { paths } from './paths';
 import { Lockfile } from './versioning';
 
-export function findVersion() {
+function readOwnPackageJson(): { name: string; version: string } {
   const pkgContent = fs.readFileSync(paths.resolveOwn('package.json'), 'utf8');
-  return JSON.parse(pkgContent).version;
+  return JSON.parse(pkgContent);
+}
+
+export function findVersion() {
+  return readOwnPackageJson().version;
+}
+
+export function findName() {
+  return readOwnPackageJson().name;
 }
 
 export const version = findVersion();
 
+/** The package name of this CLI as declared in its package.json. */
+export const packageName = findName();
+
 /**
  * This packageVersions takes the place of the static imports used in
- * @backstage/cli by building this list based on the @janus-idp/cli package.
+ * @backstage/cli by building this list based on this package's package.json.
  */
 export const packageVersions: Record<string, string> = {
   ...Object.fromEntries(
@@ -61,7 +72,7 @@ export const packageVersions: Record<string, string> = {
       ([k, _v]) => k.startsWith('@backstage/'),
     ),
   ),
-  '@janus-idp/cli': version,
+  [packageName]: version,
 };
 
 export function createPackageVersionProvider(lockfile?: Lockfile) {
