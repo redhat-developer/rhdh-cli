@@ -5,11 +5,15 @@
  */
 
 /**
- * Module Federation remote-build size optimizations for dynamic frontend plugins.
+ * Module Federation remote-build experiments for dynamic frontend plugins.
  *
- * These `experiments.optimization` flags keep the embedded MF runtime smaller
- * without requiring a host-provided runtime global. Safe for remotes that only
- * expose modules and never consume other remotes.
+ * `externalRuntime` externalizes `@module-federation/runtime-core` so each
+ * remoteEntry does not embed a full copy. The host must provide
+ * `globalThis._FEDERATION_RUNTIME_CORE` (e.g. via `experiments.provideExternalRuntime`
+ * on a pure consumer). Pass `--include-module-federation-runtime` to embed the runtime again.
+ *
+ * Shrink flags (`disableSnapshot`, `target: 'web'`, `disableRemote`) are always
+ * applied for remotes that only expose modules and never consume other remotes.
  */
 
 export const REMOTE_MF_OPTIMIZATION = {
@@ -21,19 +25,32 @@ export const REMOTE_MF_OPTIMIZATION = {
 
 type MfPluginOptions = {
   experiments?: {
+    externalRuntime?: boolean;
     optimization?: Record<string, unknown>;
     [key: string]: unknown;
   };
   [key: string]: unknown;
 };
 
+/**
+ * Whether to externalize MF runtime-core (default).
+ * Cleared when `--include-module-federation-runtime` is set.
+ */
+export function wantsExternalRuntime(opts: {
+  includeModuleFederationRuntime?: boolean;
+}): boolean {
+  return !opts.includeModuleFederationRuntime;
+}
+
 export function applyRemoteModuleFederationExperiments(
   options: MfPluginOptions,
+  externalRuntime: boolean,
 ): MfPluginOptions {
   return {
     ...options,
     experiments: {
       ...(options.experiments || {}),
+      externalRuntime,
       optimization: {
         ...(options.experiments?.optimization || {}),
         ...REMOTE_MF_OPTIMIZATION,
@@ -54,6 +71,7 @@ type CreateConfig = (...args: unknown[]) => Promise<{
  * remotes get size-oriented experiments, then restore the original.
  */
 export async function withRemoteModuleFederationExperiments(
+  externalRuntime: boolean,
   fn: () => Promise<void>,
 ): Promise<void> {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -81,7 +99,10 @@ export async function withRemoteModuleFederationExperiments(
         options: MfPluginOptions,
       ) => typeof plugin;
       return new PluginCtor(
-        applyRemoteModuleFederationExperiments(plugin._options),
+        applyRemoteModuleFederationExperiments(
+          plugin._options,
+          externalRuntime,
+        ),
       );
     });
     return cfg;

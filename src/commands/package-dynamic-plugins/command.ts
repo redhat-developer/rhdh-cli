@@ -141,6 +141,9 @@ export async function command(opts: OptionValues): Promise<void> {
         if (sourceMaps) {
           exportArgs.push('--source-maps');
         }
+        if (opts.includeModuleFederationRuntime) {
+          exportArgs.push('--include-module-federation-runtime');
+        }
         await Task.forCommand(
           `${process.execPath} ${process.argv[1]} ${exportArgs.join(' ')}`,
           { cwd: packageDirectory },

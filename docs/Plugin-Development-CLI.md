@@ -379,7 +379,9 @@ For frontend plugins:
 
 - Uses Backstage's standard Module Federation and NFS metadata (`backstage.features`).
 - Generates `dist/remoteEntry.js` and dynamic package manifests.
-- Applies Module Federation shrink-in-place optimizations (`disableSnapshot`, `target: 'web'`, `disableRemote`) so unused remote-consumption and snapshot code is omitted from the embedded runtime. No host changes are required.
+- Applies Module Federation shrink-in-place optimizations (`disableSnapshot`, `target: 'web'`, `disableRemote`) so unused remote-consumption and snapshot code is omitted from the embedded runtime.
+- **External Module Federation runtime (default):** remotes do not embed `@module-federation/runtime-core`. The host must provide `globalThis._FEDERATION_RUNTIME_CORE` (for example via Module Federation `experiments.provideExternalRuntime` on a pure consumer). This keeps each plugin's sync `remoteEntry.js` / runtime chunks smaller when many remotes are loaded.
+- Pass `--include-module-federation-runtime` to embed the runtime in each remote again (compatible with hosts that do not provide the global).
 
 For backend plugins:
 

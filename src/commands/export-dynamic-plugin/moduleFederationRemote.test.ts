@@ -7,40 +7,61 @@
 import {
   applyRemoteModuleFederationExperiments,
   REMOTE_MF_OPTIMIZATION,
+  wantsExternalRuntime,
 } from './moduleFederationRemote';
 
+describe('wantsExternalRuntime', () => {
+  it('defaults to true and is false when include-module-federation-runtime is set', () => {
+    expect(wantsExternalRuntime({})).toBe(true);
+    expect(
+      wantsExternalRuntime({ includeModuleFederationRuntime: false }),
+    ).toBe(true);
+    expect(wantsExternalRuntime({ includeModuleFederationRuntime: true })).toBe(
+      false,
+    );
+  });
+});
+
 describe('applyRemoteModuleFederationExperiments', () => {
-  it('merges shrink-in-place optimization flags into plugin options', () => {
-    const next = applyRemoteModuleFederationExperiments({
-      name: 'demo',
-      filename: 'remoteEntry.js',
-      runtime: false,
-      shared: {},
-    });
+  it('merges optimization flags and externalRuntime into plugin options', () => {
+    const next = applyRemoteModuleFederationExperiments(
+      {
+        name: 'demo',
+        filename: 'remoteEntry.js',
+        runtime: false,
+        shared: {},
+      },
+      true,
+    );
 
     expect(next.experiments).toEqual({
+      externalRuntime: true,
       optimization: REMOTE_MF_OPTIMIZATION,
     });
   });
 
-  it('preserves existing experiment fields while merging optimization', () => {
-    const next = applyRemoteModuleFederationExperiments({
-      name: 'demo',
-      filename: 'remoteEntry.js',
-      runtime: false,
-      shared: {},
-      experiments: { asyncStartup: true },
-    });
+  it('keeps shrink optimizations when externalRuntime is disabled', () => {
+    const next = applyRemoteModuleFederationExperiments(
+      {
+        name: 'demo',
+        filename: 'remoteEntry.js',
+        runtime: false,
+        shared: {},
+        experiments: { asyncStartup: true },
+      },
+      false,
+    );
 
     expect(next.experiments).toEqual({
       asyncStartup: true,
+      externalRuntime: false,
       optimization: REMOTE_MF_OPTIMIZATION,
     });
   });
 });
 
 describe('withRemoteModuleFederationExperiments', () => {
-  it('rebuilds ModuleFederationPlugin instances from createConfig with optimizations', async () => {
+  it('rebuilds ModuleFederationPlugin instances from createConfig with experiments', async () => {
     const bundlerConfig = require('@backstage/cli-module-build/dist/lib/bundler/config.cjs.js');
     const {
       withRemoteModuleFederationExperiments,
@@ -66,12 +87,13 @@ describe('withRemoteModuleFederationExperiments', () => {
     }));
 
     try {
-      await withRemoteModuleFederationExperiments(async () => {
+      await withRemoteModuleFederationExperiments(true, async () => {
         const cfg = await bundlerConfig.createConfig();
         const mf = cfg.plugins[0];
         expect(mf.constructor.name).toBe('ModuleFederationPlugin');
         expect(mf).not.toBe(fakePlugin);
         expect(mf._options.experiments).toEqual({
+          externalRuntime: true,
           optimization: REMOTE_MF_OPTIMIZATION,
         });
         expect(cfg.plugins[1].constructor.name).toBe('OtherPlugin');
@@ -88,7 +110,7 @@ describe('withRemoteModuleFederationExperiments', () => {
     } = require('./moduleFederationRemote');
     const original = bundlerConfig.createConfig;
 
-    await withRemoteModuleFederationExperiments(async () => {
+    await withRemoteModuleFederationExperiments(true, async () => {
       expect(bundlerConfig.createConfig).not.toBe(original);
     });
 
