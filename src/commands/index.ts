@@ -61,6 +61,10 @@ export function registerPluginCommand(program: Command) {
       false,
     )
     .option(
+      '--include-module-federation-runtime',
+      'Embed @module-federation/runtime-core in each frontend remote. Default is to externalize it to host global _FEDERATION_RUNTIME_CORE so remotes stay smaller (requires a host that provides that global).',
+    )
+    .option(
       '--dev',
       'Allow testing/debugging a dynamic plugin locally. This creates a link from the dynamic plugin content to the plugin package `src` folder, to enable the use of source maps (backend plugin only). This also installs the dynamic plugin content (symlink) into the dynamic plugins root folder configured in the app config (or copies the plugin content to the location explicitely provided by the `--dynamic-plugins-root` argument).',
     )
@@ -104,6 +108,10 @@ export function registerPluginCommand(program: Command) {
     .option(
       '--force-export',
       'Regenerate the dist-dynamic folder for each plugin even if it already exists',
+    )
+    .option(
+      '--include-module-federation-runtime',
+      'When (re-)exporting frontend plugins, embed Module Federation runtime-core in each remote. See plugin export --help.',
     )
     .option(
       '--preserve-temp-dir',

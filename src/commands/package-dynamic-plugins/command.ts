@@ -132,8 +132,12 @@ export async function command(opts: OptionValues): Promise<void> {
         Task.log(
           `Using generated command to export plugin package ${packageFilePath}`,
         );
+        const exportArgs = ['plugin', 'export'];
+        if (opts.includeModuleFederationRuntime) {
+          exportArgs.push('--include-module-federation-runtime');
+        }
         await Task.forCommand(
-          `${process.execPath} ${process.argv[1]} plugin export`,
+          `${process.execPath} ${process.argv[1]} ${exportArgs.join(' ')}`,
           { cwd: packageDirectory },
         );
 

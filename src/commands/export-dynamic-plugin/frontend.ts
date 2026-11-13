@@ -28,6 +28,10 @@ import { productionPack } from '../../lib/packager/productionPack';
 import { paths } from '../../lib/paths';
 import { Task } from '../../lib/tasks';
 import { detectBackstageFeatures } from './features';
+import {
+  wantsExternalRuntime,
+  withRemoteModuleFederationExperiments,
+} from './moduleFederationRemote';
 import { customizeForDynamicUse, getMonorepoRootResolutions } from './utils';
 
 function isTruthyCiEnv(value: string | undefined): boolean {
@@ -82,10 +86,15 @@ export async function frontend(
     await fs.remove(path.join(paths.targetDir, 'dist'));
   }
 
+  const externalRuntime = wantsExternalRuntime(opts);
   Task.log(
     `Generating standard module federation assets in ${chalk.cyan(
       path.join(paths.targetDir, 'dist'),
-    )}`,
+    )}${
+      externalRuntime
+        ? ' (externalized Module Federation runtime)'
+        : ' (included Module Federation runtime)'
+    }`,
   );
   const previousCi = process.env.CI;
   const unsetCiForMfBuild = isTruthyCiEnv(previousCi);
@@ -93,11 +102,13 @@ export async function frontend(
     process.env.CI = 'false';
   }
   try {
-    await buildFrontend({
-      targetDir: paths.targetDir,
-      configPaths: [],
-      writeStats: false,
-      isModuleFederationRemote: true,
+    await withRemoteModuleFederationExperiments(externalRuntime, async () => {
+      await buildFrontend({
+        targetDir: paths.targetDir,
+        configPaths: [],
+        writeStats: false,
+        isModuleFederationRemote: true,
+      });
     });
   } finally {
     if (unsetCiForMfBuild) {
