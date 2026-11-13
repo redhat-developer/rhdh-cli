@@ -16,6 +16,10 @@ import path from 'node:path';
 import { paths } from '../../lib/paths';
 import { waitForExit } from '../../lib/run';
 import { Task } from '../../lib/tasks';
+import {
+  stripSourceMapsIfDisabled,
+  wantsSourceMaps,
+} from '../export-dynamic-plugin/sourceMaps';
 
 export async function command(opts: OptionValues): Promise<void> {
   const {
@@ -29,6 +33,7 @@ export async function command(opts: OptionValues): Promise<void> {
     annotation,
     label,
   } = opts;
+  const sourceMaps = wantsSourceMaps(opts);
   if (!exportTo && !tag) {
     Task.error(
       `Neither ${chalk.white('--export-to')} or ${chalk.white('--tag')} was specified, either specify ${chalk.white('--export-to')} to export plugins to a directory or ${chalk.white('--tag')} to export plugins to a container image`,
@@ -132,8 +137,15 @@ export async function command(opts: OptionValues): Promise<void> {
         Task.log(
           `Using generated command to export plugin package ${packageFilePath}`,
         );
+        const exportArgs = ['plugin', 'export'];
+        if (sourceMaps) {
+          exportArgs.push('--source-maps');
+        }
+        if (opts.includeModuleFederationRuntime) {
+          exportArgs.push('--include-module-federation-runtime');
+        }
         await Task.forCommand(
-          `${process.execPath} ${process.argv[1]} plugin export`,
+          `${process.execPath} ${process.argv[1]} ${exportArgs.join(' ')}`,
           { cwd: packageDirectory },
         );
 
@@ -182,6 +194,9 @@ export async function command(opts: OptionValues): Promise<void> {
           targetDirectory,
           packScratchParent: tmpDir,
         });
+        await stripSourceMapsIfDisabled(sourceMaps, targetDirectory, message =>
+          Task.log(message),
+        );
         const {
           name,
           version,

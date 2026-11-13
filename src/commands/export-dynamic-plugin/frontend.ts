@@ -28,6 +28,15 @@ import { productionPack } from '../../lib/packager/productionPack';
 import { paths } from '../../lib/paths';
 import { Task } from '../../lib/tasks';
 import { detectBackstageFeatures } from './features';
+import {
+  wantsExternalRuntime,
+  withRemoteModuleFederationExperiments,
+} from './moduleFederationRemote';
+import {
+  stripSourceMapsIfDisabled,
+  wantsSourceMaps,
+  withBundlerSourceMaps,
+} from './sourceMaps';
 import { customizeForDynamicUse, getMonorepoRootResolutions } from './utils';
 
 function isTruthyCiEnv(value: string | undefined): boolean {
@@ -82,10 +91,16 @@ export async function frontend(
     await fs.remove(path.join(paths.targetDir, 'dist'));
   }
 
+  const sourceMaps = wantsSourceMaps(opts);
+  const externalRuntime = wantsExternalRuntime(opts);
   Task.log(
     `Generating standard module federation assets in ${chalk.cyan(
       path.join(paths.targetDir, 'dist'),
-    )}`,
+    )}${
+      externalRuntime
+        ? ' (externalized Module Federation runtime)'
+        : ' (included Module Federation runtime)'
+    }${sourceMaps ? ' (with source maps)' : ''}`,
   );
   const previousCi = process.env.CI;
   const unsetCiForMfBuild = isTruthyCiEnv(previousCi);
@@ -93,11 +108,15 @@ export async function frontend(
     process.env.CI = 'false';
   }
   try {
-    await buildFrontend({
-      targetDir: paths.targetDir,
-      configPaths: [],
-      writeStats: false,
-      isModuleFederationRemote: true,
+    await withRemoteModuleFederationExperiments(externalRuntime, async () => {
+      await withBundlerSourceMaps(sourceMaps, async () => {
+        await buildFrontend({
+          targetDir: paths.targetDir,
+          configPaths: [],
+          writeStats: false,
+          isModuleFederationRemote: true,
+        });
+      });
     });
   } finally {
     if (unsetCiForMfBuild) {
@@ -108,6 +127,13 @@ export async function frontend(
       }
     }
   }
+
+  // Drop maps from dist before packing so they never enter dist-dynamic.
+  await stripSourceMapsIfDisabled(
+    sourceMaps,
+    path.join(paths.targetDir, 'dist'),
+    message => Task.log(message),
+  );
 
   await warnAboutLegacyScalprum(originalPkg);
 

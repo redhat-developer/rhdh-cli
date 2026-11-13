@@ -369,10 +369,19 @@ Prepares an exported dynamic plugin in `./dist-dynamic/` ready to be loaded by R
 rhdh-cli plugin export
 ```
 
+Source maps are **omitted by default** so exported packages and OCI images stay small. Pass `--source-maps` when you need them for debugging:
+
+```bash
+rhdh-cli plugin export --source-maps
+```
+
 For frontend plugins:
 
 - Uses Backstage's standard Module Federation and NFS metadata (`backstage.features`).
 - Generates `dist/remoteEntry.js` and dynamic package manifests.
+- Applies Module Federation shrink-in-place optimizations (`disableSnapshot`, `target: 'web'`, `disableRemote`) so unused remote-consumption and snapshot code is omitted from the embedded runtime.
+- **External Module Federation runtime (default):** remotes do not embed `@module-federation/runtime-core`. The host must provide `globalThis._FEDERATION_RUNTIME_CORE` (for example via Module Federation `experiments.provideExternalRuntime` on a pure consumer). This keeps each plugin's sync `remoteEntry.js` / runtime chunks smaller when many remotes are loaded.
+- Pass `--include-module-federation-runtime` to embed the runtime in each remote again (compatible with hosts that do not provide the global).
 
 For backend plugins:
 
@@ -392,6 +401,9 @@ rhdh-cli plugin package --tag quay.io/my-org/my-plugin:v1.0.0 --container-tool d
 
 # Package to a directory
 rhdh-cli plugin package --export-to /path/to/output-dir
+
+# Keep source maps in the image (debugging only; larger images)
+rhdh-cli plugin package --tag quay.io/my-org/my-plugin:v1.0.0 --source-maps --force-export
 ```
 
 Requirements for `plugin package`:
