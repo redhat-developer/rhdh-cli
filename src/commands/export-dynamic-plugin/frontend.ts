@@ -28,6 +28,7 @@ import { productionPack } from '../../lib/packager/productionPack';
 import { paths } from '../../lib/paths';
 import { Task } from '../../lib/tasks';
 import { detectBackstageFeatures } from './features';
+import { withRemoteModuleFederationExperiments } from './moduleFederationRemote';
 import { customizeForDynamicUse, getMonorepoRootResolutions } from './utils';
 
 function isTruthyCiEnv(value: string | undefined): boolean {
@@ -85,7 +86,7 @@ export async function frontend(
   Task.log(
     `Generating standard module federation assets in ${chalk.cyan(
       path.join(paths.targetDir, 'dist'),
-    )}`,
+    )} (shrink-in-place Module Federation optimizations)`,
   );
   const previousCi = process.env.CI;
   const unsetCiForMfBuild = isTruthyCiEnv(previousCi);
@@ -93,11 +94,13 @@ export async function frontend(
     process.env.CI = 'false';
   }
   try {
-    await buildFrontend({
-      targetDir: paths.targetDir,
-      configPaths: [],
-      writeStats: false,
-      isModuleFederationRemote: true,
+    await withRemoteModuleFederationExperiments(async () => {
+      await buildFrontend({
+        targetDir: paths.targetDir,
+        configPaths: [],
+        writeStats: false,
+        isModuleFederationRemote: true,
+      });
     });
   } finally {
     if (unsetCiForMfBuild) {
