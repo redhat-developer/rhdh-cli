@@ -95,7 +95,8 @@ describe('plugin version management e2e', () => {
       const combined = stdout + stderr + message;
       expect(combined).toContain('mismatch');
       expect(combined).toContain('@backstage/core-plugin-api');
-      expect(combined).toContain('rhdh-cli plugin upgrade 2.1.0');
+      // Remediation uses the resolved RHDH version (remote may map 2.1.0 -> 2.1.x).
+      expect(combined).toMatch(/rhdh-cli plugin upgrade 2\.1\.\d+/);
 
       // JSON mode
       const jsonRes = await runExpectingFailure(
