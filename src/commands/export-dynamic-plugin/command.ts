@@ -30,6 +30,7 @@ import { Task } from '../../lib/tasks';
 import { checkHeavyDependencies, HeavyDepKind } from './check-heavy-deps';
 import { applyDevOptions } from './dev';
 import { frontend } from './frontend';
+import { stripSourceMapsIfDisabled, wantsSourceMaps } from './sourceMaps';
 
 const DEPRECATED_FLAGS: Record<string, string> = {
   embedPackage:
@@ -121,6 +122,13 @@ export async function command(opts: OptionValues): Promise<void> {
 
     // A re-export without --clean must not retain an earlier legacy schema.
     await fs.remove(path.join(targetPath, 'dist/configSchema.json'));
+
+    // Upstream backend bundling may emit .js.map; strip unless opted in.
+    await stripSourceMapsIfDisabled(
+      wantsSourceMaps(opts),
+      targetPath,
+      message => Task.log(message),
+    );
   } else if (role === 'frontend-plugin' || role === 'frontend-plugin-module') {
     targetPath = await frontend(roleInfo, opts);
     const configSchemaPath = path.join(targetPath, 'dist/.config-schema.json');
