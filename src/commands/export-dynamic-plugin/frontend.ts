@@ -28,6 +28,7 @@ import { productionPack } from '../../lib/packager/productionPack';
 import { paths } from '../../lib/paths';
 import { Task } from '../../lib/tasks';
 import { detectBackstageFeatures } from './features';
+import { withRemoteModuleFederationExperiments } from './moduleFederationRemote';
 import {
   stripSourceMapsIfDisabled,
   wantsSourceMaps,
@@ -91,7 +92,9 @@ export async function frontend(
   Task.log(
     `Generating standard module federation assets in ${chalk.cyan(
       path.join(paths.targetDir, 'dist'),
-    )}${sourceMaps ? ' (with source maps)' : ''}`,
+    )} (shrink-in-place Module Federation optimizations)${
+      sourceMaps ? ' (with source maps)' : ''
+    }`,
   );
   const previousCi = process.env.CI;
   const unsetCiForMfBuild = isTruthyCiEnv(previousCi);
@@ -99,12 +102,14 @@ export async function frontend(
     process.env.CI = 'false';
   }
   try {
-    await withBundlerSourceMaps(sourceMaps, async () => {
-      await buildFrontend({
-        targetDir: paths.targetDir,
-        configPaths: [],
-        writeStats: false,
-        isModuleFederationRemote: true,
+    await withRemoteModuleFederationExperiments(async () => {
+      await withBundlerSourceMaps(sourceMaps, async () => {
+        await buildFrontend({
+          targetDir: paths.targetDir,
+          configPaths: [],
+          writeStats: false,
+          isModuleFederationRemote: true,
+        });
       });
     });
   } finally {

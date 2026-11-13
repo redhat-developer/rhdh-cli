@@ -379,6 +379,7 @@ For frontend plugins:
 
 - Uses Backstage's standard Module Federation and NFS metadata (`backstage.features`).
 - Generates `dist/remoteEntry.js` and dynamic package manifests.
+- Applies Module Federation shrink-in-place optimizations (`disableSnapshot`, `target: 'web'`, `disableRemote`) so unused remote-consumption and snapshot code is omitted from the embedded runtime. No host changes are required.
 
 For backend plugins:
 
