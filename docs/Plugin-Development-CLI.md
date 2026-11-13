@@ -369,6 +369,12 @@ Prepares an exported dynamic plugin in `./dist-dynamic/` ready to be loaded by R
 rhdh-cli plugin export
 ```
 
+Source maps are **omitted by default** so exported packages and OCI images stay small. Pass `--source-maps` when you need them for debugging:
+
+```bash
+rhdh-cli plugin export --source-maps
+```
+
 For frontend plugins:
 
 - Uses Backstage's standard Module Federation and NFS metadata (`backstage.features`).
@@ -392,6 +398,9 @@ rhdh-cli plugin package --tag quay.io/my-org/my-plugin:v1.0.0 --container-tool d
 
 # Package to a directory
 rhdh-cli plugin package --export-to /path/to/output-dir
+
+# Keep source maps in the image (debugging only; larger images)
+rhdh-cli plugin package --tag quay.io/my-org/my-plugin:v1.0.0 --source-maps --force-export
 ```
 
 Requirements for `plugin package`:
