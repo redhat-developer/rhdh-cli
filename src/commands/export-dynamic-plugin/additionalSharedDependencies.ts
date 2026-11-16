@@ -1,5 +1,19 @@
 import { BackstagePackageJson } from '@backstage/cli-node';
 
+/**
+ * Additional shared dependencies for RHDH dynamic plugin frontend builds.
+ *
+ * Wildcard entries (`requiredVersion: '*'`) declare that the RHDH host
+ * eagerly provides the package, so the host's copy always satisfies the
+ * request — bundling a fallback alongside such a declaration is incoherent
+ * hedging, dead weight on every RHDH host (the core-components fallback
+ * alone drags ~2.5–3 MB of dead async chunks plus the remote entry's chunk
+ * table). They therefore set `import: false`.
+ *
+ * Range-pinned entries (`fromPackage`) are genuine version-mismatch
+ * insurance on hosts that provide a different version — they keep their
+ * fallbacks.
+ */
 export const loadAdditionalSharedDependencies = (
   packageJson: BackstagePackageJson,
 ) => ({
@@ -7,16 +21,19 @@ export const loadAdditionalSharedDependencies = (
     singleton: false,
     eager: false,
     requiredVersion: '*',
+    import: false as const,
   },
   '@backstage/frontend-plugin-api': {
     singleton: false,
     eager: false,
     requiredVersion: '*',
+    import: false as const,
   },
   '@backstage/core-plugin-api': {
     singleton: false,
     eager: false,
     requiredVersion: '*',
+    import: false as const,
   },
   zod: {
     singleton: false,

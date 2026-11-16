@@ -1,4 +1,5 @@
 import fs from 'fs-extra';
+import { createHash } from 'node:crypto';
 import os from 'node:os';
 import path from 'node:path';
 
@@ -8,6 +9,85 @@ import { log, logSection, runCommand } from './support/plugin-export-build';
 const TEST_TIMEOUT = 8 * 60 * 1000;
 const MAX_ONRAMP_DURATION_MS = 5 * 60 * 1000;
 const rhdhCli = path.resolve(__dirname, '../bin/rhdh-cli');
+
+async function readRemoteExport(pluginDir: string) {
+  const distDynamicDir = path.join(pluginDir, 'dist-dynamic');
+  const distDir = path.join(distDynamicDir, 'dist');
+  const remoteEntry = await fs.readFile(
+    path.join(distDir, 'remoteEntry.js'),
+    'utf8',
+  );
+  const manifest = await fs.readJson(path.join(distDir, 'mf-manifest.json'));
+  return { distDynamicDir, distDir, remoteEntry, manifest };
+}
+
+async function assertDefaultRemoteExport(pluginDir: string): Promise<void> {
+  const { distDir, remoteEntry, manifest } = await readRemoteExport(pluginDir);
+  expect(Buffer.byteLength(remoteEntry)).toBeLessThan(120 * 1024);
+  expect(remoteEntry).not.toMatch(
+    /\.\.\/(?:\.\.\/)+dynamic-features-shared-modules\//,
+  );
+  expect(manifest.metaData.remoteEntry.type).not.toBe('module');
+
+  // Host-provided wildcard dependencies must not leave fallback language
+  // chunks in the exported plugin.
+  const staticFiles = await fs.readdir(path.join(distDir, 'static'));
+  expect(
+    staticFiles.some(file =>
+      file.startsWith('react-syntax-highlighter_languages_highlight_'),
+    ),
+  ).toBe(false);
+}
+
+async function assertSharedEsmRemoteExport(pluginDir: string): Promise<string> {
+  const { distDir, remoteEntry, manifest } = await readRemoteExport(pluginDir);
+
+  // The exported plugin carries exactly one runtime module, named after
+  // its content.
+  const runtimeDir = path.join(distDir, 'shared');
+  const runtimeFiles = await fs.readdir(runtimeDir);
+  expect(runtimeFiles).toHaveLength(1);
+  const sharedRuntimeFileName = runtimeFiles[0];
+  expect(sharedRuntimeFileName).toMatch(
+    /^webpack-bundler-runtime@.+-[a-f0-9]{16}\.mjs$/,
+  );
+
+  const runtimeBytes = await fs.readFile(
+    path.join(runtimeDir, sharedRuntimeFileName),
+  );
+  // Wrap in a plain Uint8Array: Buffer is not assignable to the
+  // BinaryLike parameter under newer TypeScript typed-array generics.
+  const hash16 = createHash('sha256')
+    .update(new Uint8Array(runtimeBytes))
+    .digest('hex')
+    .slice(0, 16);
+  expect(sharedRuntimeFileName.endsWith(`-${hash16}.mjs`)).toBe(true);
+  expect(runtimeBytes.length).toBeGreaterThan(0);
+
+  expect(Buffer.byteLength(remoteEntry)).toBeLessThan(10 * 1024);
+  expect(manifest.metaData.remoteEntry.type).toBe('module');
+
+  // The externalized MF runtime request in the remote entry is a
+  // static relative specifier computed from the deployed plugin name's
+  // URL depth under the host's remotes route — resolved against the
+  // remoteEntry's own URL it lands on the canonical shared-assets
+  // route, so all plugins built with the same toolchain import the
+  // same URL (one fetched, evaluated runtime instance), and any proxy
+  // prefix carries through. The expected depth is derived from the
+  // source package name (deployed as `<name>-dynamic`), covering both
+  // package name forms: scoped (`@scope/name-dynamic`) and unscoped
+  // (`name-dynamic`).
+  const sourcePackageJson = JSON.parse(
+    await fs.readFile(path.join(pluginDir, 'package.json'), 'utf-8'),
+  );
+  const deployedName = `${sourcePackageJson.name}-dynamic`;
+  const relativePrefix = '../'.repeat(deployedName.split('/').length + 2);
+  expect(remoteEntry).toContain(
+    `"${relativePrefix}dynamic-features-shared-modules/${sharedRuntimeFileName}"`,
+  );
+
+  return sharedRuntimeFileName;
+}
 
 interface BuildAndExportTimings {
   installMs: number;
@@ -46,7 +126,7 @@ async function buildAndExport(
 
   log('Exporting as a dynamic plugin');
   const tExport = Date.now();
-  await runCommand(`"${rhdhCli}" plugin export`, { cwd: pluginDir });
+  await runCommand(`"${rhdhCli}" plugin export --clean`, { cwd: pluginDir });
   const exportMs = Date.now() - tExport;
 
   return { installMs, typecheckMs, buildMs, testMs, exportMs };
@@ -82,6 +162,13 @@ function logTimings(
 
 describe('plugin new', () => {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'rhdh-cli-plugin-new-'));
+  const frontendPluginDir = path.join(tmpDir, 'frontend-plugin');
+
+  // Shared across the frontend sub-tests, which run in declaration
+  // order: the onramp timing and runtime file name produced by the
+  // scoped-plugin tests are asserted again by the unscoped-plugin test.
+  let frontendOnrampMs = 0;
+  let scopedRuntimeFileName: string | undefined;
 
   jest.setTimeout(TEST_TIMEOUT);
 
@@ -90,24 +177,83 @@ describe('plugin new', () => {
   });
 
   it('creates a frontend plugin that installs, typechecks, builds, and exports', async () => {
-    const pluginDir = path.join(tmpDir, 'frontend-plugin');
-
     logSection('Generate frontend plugin');
     const tScaffold = Date.now();
     await runCommand(
-      `"${rhdhCli}" plugin new example-plugin --type frontend --output "${pluginDir}" --rhdh-version 2.1.0`,
+      `"${rhdhCli}" plugin new example-plugin --type frontend --output "${frontendPluginDir}" --rhdh-version 2.1.0`,
     );
     const scaffoldMs = Date.now() - tScaffold;
 
-    const timings = await buildAndExport(pluginDir);
-    const totalMs = logTimings('frontend-plugin', scaffoldMs, timings);
+    const timings = await buildAndExport(frontendPluginDir);
+    frontendOnrampMs = logTimings('frontend-plugin', scaffoldMs, timings);
 
-    expect(fs.existsSync(path.join(pluginDir, 'dist'))).toBe(true);
-    expect(fs.existsSync(path.join(pluginDir, 'dist-dynamic'))).toBe(true);
+    expect(fs.existsSync(path.join(frontendPluginDir, 'dist'))).toBe(true);
+    expect(fs.existsSync(path.join(frontendPluginDir, 'dist-dynamic'))).toBe(
+      true,
+    );
     expect(
-      fs.existsSync(path.join(pluginDir, 'dist-dynamic', 'package.json')),
+      fs.existsSync(
+        path.join(frontendPluginDir, 'dist-dynamic', 'package.json'),
+      ),
     ).toBe(true);
-    expect(totalMs).toBeLessThan(MAX_ONRAMP_DURATION_MS);
+    await assertDefaultRemoteExport(frontendPluginDir);
+  });
+
+  it('exports a scoped plugin with the shared ESM runtime external', async () => {
+    logSection('Export frontend plugin with shared ESM runtime');
+    const tSharedEsmExport = Date.now();
+    await runCommand(
+      `"${rhdhCli}" plugin export --clean --shared-esm-runtime`,
+      { cwd: frontendPluginDir },
+    );
+    const sharedEsmExportMs = Date.now() - tSharedEsmExport;
+    log(
+      `[timing] frontend shared-esm export: ${(sharedEsmExportMs / 1000).toFixed(1)}s`,
+    );
+
+    // Deployed name `@scope/name-dynamic` (two path segments under the
+    // host's remotes route): the runtime external escapes four levels
+    // above the remoteEntry (asserted by the shared helper, which
+    // derives the expected depth from the package name).
+    scopedRuntimeFileName =
+      await assertSharedEsmRemoteExport(frontendPluginDir);
+
+    // Re-exporting the same build must produce the same content-addressed
+    // runtime URL, so identical bytes deduplicate across plugins.
+    await runCommand(
+      `"${rhdhCli}" plugin export --clean --shared-esm-runtime`,
+      { cwd: frontendPluginDir },
+    );
+    expect(await assertSharedEsmRemoteExport(frontendPluginDir)).toBe(
+      scopedRuntimeFileName,
+    );
+
+    expect(frontendOnrampMs + sharedEsmExportMs).toBeLessThan(
+      MAX_ONRAMP_DURATION_MS,
+    );
+  });
+
+  it('exports an unscoped plugin with the shared ESM runtime external', async () => {
+    // Deployed name `name-dynamic` (one path segment): the runtime
+    // external escapes three levels above the remoteEntry. Scaffolding
+    // with an explicit unscoped --plugin-package also exercises the
+    // scaffolder's package-name override.
+    const unscopedPluginDir = path.join(tmpDir, 'frontend-plugin-unscoped');
+    await runCommand(
+      `"${rhdhCli}" plugin new other-plugin --type frontend --plugin-package plugin-test-unscoped --output "${unscopedPluginDir}" --rhdh-version 2.1.0`,
+    );
+    await buildAndExport(unscopedPluginDir);
+    await runCommand(
+      `"${rhdhCli}" plugin export --clean --shared-esm-runtime`,
+      { cwd: unscopedPluginDir },
+    );
+    const unscopedRuntimeFileName =
+      await assertSharedEsmRemoteExport(unscopedPluginDir);
+
+    // Cross-plugin (and cross name-form) determinism: the runtime
+    // depends only on the rhdh-cli dependency tree, never on plugin
+    // code or package name form.
+    expect(unscopedRuntimeFileName).toBe(scopedRuntimeFileName);
   });
 
   it('creates a backend plugin that installs, typechecks, builds, and exports', async () => {

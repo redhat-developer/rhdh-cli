@@ -61,6 +61,11 @@ export function registerPluginCommand(program: Command) {
       false,
     )
     .option(
+      '--shared-esm-runtime',
+      'Build the frontend remote entry as ES modules that load the Module Federation runtime from a shared bundle served by the RHDH backend, instead of bundling it into each plugin (frontend plugin only). This makes remoteEntry.js much smaller and lets all plugins built with the same rhdh-cli release share one runtime instance. Requires RHDH <X> or newer.',
+      false,
+    )
+    .option(
       '--dev',
       'Allow testing/debugging a dynamic plugin locally. This creates a link from the dynamic plugin content to the plugin package `src` folder, to enable the use of source maps (backend plugin only). This also installs the dynamic plugin content (symlink) into the dynamic plugins root folder configured in the app config (or copies the plugin content to the location explicitely provided by the `--dynamic-plugins-root` argument).',
     )

@@ -1,5 +1,6 @@
 import fs from 'fs-extra';
 import { exec as execCallback } from 'node:child_process';
+import type { Stats } from 'node:fs';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import type { ReadEntry } from 'tar';
@@ -52,7 +53,6 @@ export async function runCommand(
 
   try {
     const { stdout, stderr } = await exec(command, {
-      shell: true,
       maxBuffer: 10 * 1024 * 1024, // 10MB buffer for large outputs
       ...options,
     });
@@ -138,7 +138,7 @@ export async function topLevelEntriesAfterNpmPackStaging(
 
 export async function parseDynamicPluginAnnotation(
   imageAnnotations: Record<string, string>,
-): Promise<object[]> {
+): Promise<Array<Record<string, Record<string, unknown>>>> {
   const dynamicPackagesAnnotation =
     imageAnnotations['io.backstage.dynamic-packages'];
   return JSON.parse(
@@ -164,7 +164,7 @@ export async function getImageMetadata(image: string): Promise<{
  */
 function isSafeArchiveExtractEntry(
   entryPath: string,
-  entry: ReadEntry,
+  entry: ReadEntry | Stats,
 ): boolean {
   if (path.isAbsolute(entryPath)) {
     return false;
@@ -174,9 +174,12 @@ function isSafeArchiveExtractEntry(
       return false;
     }
   }
-  const type = entry.type;
-  if (type === 'SymbolicLink' || type === 'Link') {
-    return false;
+  // Link types exist only on tar entries (ReadEntry), not on fs.Stats
+  if ('type' in entry) {
+    const type = entry.type;
+    if (type === 'SymbolicLink' || type === 'Link') {
+      return false;
+    }
   }
   return true;
 }
