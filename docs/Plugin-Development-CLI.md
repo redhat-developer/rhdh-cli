@@ -379,9 +379,10 @@ For frontend plugins:
 
 - Uses Backstage's standard Module Federation and NFS metadata (`backstage.features`).
 - Generates `dist/remoteEntry.js` and dynamic package manifests.
-- Applies Module Federation shrink-in-place optimizations (`disableSnapshot`, `target: 'web'`, `disableRemote`) so unused remote-consumption and snapshot code is omitted from the embedded runtime.
-- **External Module Federation runtime (default):** remotes do not embed `@module-federation/runtime-core`. The host must provide `globalThis._FEDERATION_RUNTIME_CORE` (for example via Module Federation `experiments.provideExternalRuntime` on a pure consumer). This keeps each plugin's sync `remoteEntry.js` / runtime chunks smaller when many remotes are loaded.
+- Applies Module Federation shrink-in-place optimizations (`disableSnapshot`, `disableShared`, `target: 'web'`, `disableRemote`) so unused MF capabilities are omitted from the embedded runtime.
+- **External Module Federation runtime (default):** remotes do not embed `@module-federation/runtime-core`. The host must provide `globalThis._FEDERATION_RUNTIME_CORE` **before any remoteEntry executes** (RHDH ships an early `federation-runtime.js` in `index.html` ahead of `preload.js`). This keeps each plugin's sync `remoteEntry.js` / runtime chunks smaller when many remotes are loaded.
 - Pass `--include-module-federation-runtime` to embed the runtime in each remote again (compatible with hosts that do not provide the global).
+- **Size note:** MF's minimal ~14K `remoteEntry` examples assume little or no `shared` config. Backstage remotes that share React / `@backstage/*` still emit webpack share/consume container glue (~40K+), which `disableShared` does not remove once `externalRuntime` is enabled. That glue is required for host sharing; dropping `shared` would shrink `remoteEntry` but duplicate those libraries inside every plugin.
 
 For backend plugins:
 

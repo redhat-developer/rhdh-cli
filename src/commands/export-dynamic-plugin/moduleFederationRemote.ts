@@ -9,11 +9,15 @@
  *
  * `externalRuntime` externalizes `@module-federation/runtime-core` so each
  * remoteEntry does not embed a full copy. The host must provide
- * `globalThis._FEDERATION_RUNTIME_CORE` (e.g. via `experiments.provideExternalRuntime`
- * on a pure consumer). Pass `--include-module-federation-runtime` to embed the runtime again.
+ * `globalThis._FEDERATION_RUNTIME_CORE` before remotes execute (e.g. RHDH's
+ * early `federation-runtime.js`). Pass `--include-module-federation-runtime`
+ * to embed the runtime again.
  *
- * Shrink flags (`disableSnapshot`, `target: 'web'`, `disableRemote`) are always
- * applied for remotes that only expose modules and never consume other remotes.
+ * Shrink flags for expose-only remotes:
+ * - disableSnapshot / target web / disableRemote — drop unused MF paths
+ * - disableShared — drops runtime-core share plugins (little remoteEntry win
+ *   once externalRuntime is on; webpack share/consume glue for a non-empty
+ *   `shared` config remains and dominates size for Backstage plugins)
  */
 
 export const REMOTE_MF_OPTIMIZATION = {
@@ -21,6 +25,11 @@ export const REMOTE_MF_OPTIMIZATION = {
   target: 'web' as const,
   /** Remotes only expose; they do not load other remotes. */
   disableRemote: true,
+  /**
+   * Omit runtime-core share plugins. Does not remove webpack container
+   * share/consume code emitted for a non-empty `shared` config.
+   */
+  disableShared: true,
 };
 
 type MfPluginOptions = {
