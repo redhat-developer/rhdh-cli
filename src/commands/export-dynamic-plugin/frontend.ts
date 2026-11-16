@@ -15,14 +15,16 @@
  */
 
 import { PackageRoleInfo } from '@backstage/cli-node';
-import { buildFrontend } from './buildFrontend';
+import { buildFrontend } from '@backstage/cli-module-build/dist/lib/buildFrontend.cjs.js';
+import { buildSharedRuntime } from './buildSharedRuntime';
+import { installModuleFederationPluginOverrides } from './moduleFederationOverrides';
 
 import { getPackages } from '@manypkg/get-packages';
 import chalk from 'chalk';
 import { OptionValues } from 'commander';
 import fs from 'fs-extra';
 
-import path from 'path';
+import path from 'node:path';
 
 import { productionPack } from '../../lib/packager/productionPack';
 import { paths } from '../../lib/paths';
@@ -87,6 +89,25 @@ export async function frontend(
       path.join(paths.targetDir, 'dist'),
     )}`,
   );
+
+  const sharedRuntime = opts.sharedEsmRuntime
+    ? await buildSharedRuntime(name)
+    : undefined;
+
+  // Replace the ModuleFederationPlugin class that the upstream bundler
+  // config reads with a wrapper applying RHDH's override attributes —
+  // done once per export process.
+  //
+  // Always: browser-only build target and additional RHDH shared
+  // dependencies.
+  //
+  // --shared-esm-runtime: remoteEntry emitted as an ES module, with its
+  // MF runtime externalized through a relative specifier computed from
+  // the deployed plugin name's URL depth — resolving to the shared
+  // runtime module served by the RHDH backend (one instance across
+  // plugins built with the same toolchain).
+  installModuleFederationPluginOverrides(originalPkg, sharedRuntime?.externals);
+
   const previousCi = process.env.CI;
   const unsetCiForMfBuild = isTruthyCiEnv(previousCi);
   if (unsetCiForMfBuild) {
@@ -99,6 +120,9 @@ export async function frontend(
       writeStats: false,
       isModuleFederationRemote: true,
     });
+
+    // Post-step: write the prebuilt shared runtime into the plugin dist.
+    await sharedRuntime?.emit();
   } finally {
     if (unsetCiForMfBuild) {
       if (previousCi === undefined) {
