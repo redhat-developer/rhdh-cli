@@ -173,9 +173,7 @@ export async function cleanupContainers(
 ): Promise<void> {
   const bin = findExecutable(containerTool) ?? containerTool;
   try {
-    await exec(`${bin} rm -f rhdh rhdh-plugins-installer`, {
-      shell: true,
-    });
+    await exec(`${bin} rm -f rhdh rhdh-plugins-installer`);
   } catch {
     // containers may not exist; ignore
   }
@@ -193,7 +191,6 @@ export async function cleanupCompose(
   try {
     await exec(`${bin} compose ${composeFiles} down -v`, {
       cwd: runtimeDir,
-      shell: true,
     });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : JSON.stringify(err);
