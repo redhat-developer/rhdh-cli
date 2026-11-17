@@ -17,6 +17,25 @@ import { paths } from '../../lib/paths';
 import { waitForExit } from '../../lib/run';
 import { Task } from '../../lib/tasks';
 
+/** Builds the shell command used to export a plugin before packaging. */
+export function buildPluginExportInvocation(options: {
+  useYarnScript: boolean;
+  sharedEsmRuntime?: boolean;
+  execPath?: string;
+  cliPath?: string;
+}): string {
+  const { useYarnScript, sharedEsmRuntime } = options;
+  if (useYarnScript) {
+    return sharedEsmRuntime
+      ? 'yarn export-dynamic -- --shared-esm-runtime'
+      : 'yarn export-dynamic';
+  }
+  const execPath = options.execPath ?? process.execPath;
+  const cliPath = options.cliPath ?? process.argv[1];
+  const base = `${execPath} ${cliPath} plugin export`;
+  return sharedEsmRuntime ? `${base} --shared-esm-runtime` : base;
+}
+
 export async function command(opts: OptionValues): Promise<void> {
   const {
     exportTo,
@@ -28,6 +47,7 @@ export async function command(opts: OptionValues): Promise<void> {
     platform,
     annotation,
     label,
+    sharedEsmRuntime,
   } = opts;
   if (!exportTo && !tag) {
     Task.error(
@@ -115,9 +135,15 @@ export async function command(opts: OptionValues): Promise<void> {
         Task.log(
           `Running existing export-dynamic script on plugin package ${packageFilePath}`,
         );
-        await Task.forCommand(`yarn export-dynamic`, {
-          cwd: packageDirectory,
-        });
+        await Task.forCommand(
+          buildPluginExportInvocation({
+            useYarnScript: true,
+            sharedEsmRuntime,
+          }),
+          {
+            cwd: packageDirectory,
+          },
+        );
 
         // Verify export created dist-dynamic directory
         if (!fs.existsSync(distDynamicPath)) {
@@ -133,7 +159,10 @@ export async function command(opts: OptionValues): Promise<void> {
           `Using generated command to export plugin package ${packageFilePath}`,
         );
         await Task.forCommand(
-          `${process.execPath} ${process.argv[1]} plugin export`,
+          buildPluginExportInvocation({
+            useYarnScript: false,
+            sharedEsmRuntime,
+          }),
           { cwd: packageDirectory },
         );
 

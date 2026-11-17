@@ -144,6 +144,11 @@ export function registerPluginCommand(program: Command) {
       '--label <key=value...>',
       'Add label to the container image. Can be specified multiple times.',
     )
+    .option(
+      '--shared-esm-runtime',
+      'Build the frontend remote entry as ES modules that load the Module Federation runtime from a shared bundle served by the RHDH backend, instead of bundling it into each plugin (frontend plugin only). This makes remoteEntry.js much smaller and lets all plugins built with the same rhdh-cli release share one runtime instance. Requires RHDH <X> or newer. Passed through to `plugin export` when packaging regenerates dist-dynamic.',
+      false,
+    )
     .action(
       lazy(() => import('./package-dynamic-plugins').then(m => m.command)),
     );

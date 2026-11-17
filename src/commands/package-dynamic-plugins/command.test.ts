@@ -17,7 +17,51 @@
 import fs from 'fs-extra';
 import os from 'node:os';
 import path from 'node:path';
-import { command } from './command';
+import { buildPluginExportInvocation, command } from './command';
+
+describe('buildPluginExportInvocation', () => {
+  it('builds the generated plugin export command without the shared runtime flag', () => {
+    expect(
+      buildPluginExportInvocation({
+        useYarnScript: false,
+        sharedEsmRuntime: false,
+        execPath: '/usr/bin/node',
+        cliPath: '/opt/rhdh-cli/bin/rhdh-cli',
+      }),
+    ).toBe('/usr/bin/node /opt/rhdh-cli/bin/rhdh-cli plugin export');
+  });
+
+  it('appends --shared-esm-runtime to the generated plugin export command', () => {
+    expect(
+      buildPluginExportInvocation({
+        useYarnScript: false,
+        sharedEsmRuntime: true,
+        execPath: '/usr/bin/node',
+        cliPath: '/opt/rhdh-cli/bin/rhdh-cli',
+      }),
+    ).toBe(
+      '/usr/bin/node /opt/rhdh-cli/bin/rhdh-cli plugin export --shared-esm-runtime',
+    );
+  });
+
+  it('forwards --shared-esm-runtime through yarn export-dynamic', () => {
+    expect(
+      buildPluginExportInvocation({
+        useYarnScript: true,
+        sharedEsmRuntime: true,
+      }),
+    ).toBe('yarn export-dynamic -- --shared-esm-runtime');
+  });
+
+  it('keeps yarn export-dynamic unchanged when the flag is off', () => {
+    expect(
+      buildPluginExportInvocation({
+        useYarnScript: true,
+        sharedEsmRuntime: false,
+      }),
+    ).toBe('yarn export-dynamic');
+  });
+});
 
 describe('package-dynamic-plugins command', () => {
   let tmpDir: string;
