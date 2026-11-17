@@ -256,6 +256,38 @@ describe('plugin new', () => {
     expect(unscopedRuntimeFileName).toBe(scopedRuntimeFileName);
   });
 
+  it('packages a plugin with --shared-esm-runtime passed through to plugin export', async () => {
+    // The scaffolded plugin has no export-dynamic script, so
+    // `plugin package` regenerates dist-dynamic through the generated
+    // `node <cli> plugin export` command — the flag must arrive there.
+    logSection('Package frontend plugin with shared ESM runtime');
+    const packagedDir = path.join(tmpDir, 'packaged-frontend-plugin');
+    await runCommand(
+      `"${rhdhCli}" plugin package --export-to "${packagedDir}" --shared-esm-runtime --force-export`,
+      { cwd: frontendPluginDir },
+    );
+    // If the flag were dropped, the regenerated export would be classic
+    // and this would fail on the missing dist/shared directory.
+    expect(await assertSharedEsmRemoteExport(frontendPluginDir)).toBe(
+      scopedRuntimeFileName,
+    );
+    expect(fs.existsSync(path.join(packagedDir, 'index.json'))).toBe(true);
+
+    // With an export-dynamic script, `plugin package` goes through
+    // `yarn export-dynamic --shared-esm-runtime` instead.
+    const pluginPackageJsonPath = path.join(frontendPluginDir, 'package.json');
+    const pluginPackageJson = await fs.readJson(pluginPackageJsonPath);
+    pluginPackageJson.scripts['export-dynamic'] = `"${rhdhCli}" plugin export`;
+    await fs.writeJson(pluginPackageJsonPath, pluginPackageJson);
+    await runCommand(
+      `"${rhdhCli}" plugin package --export-to "${packagedDir}" --shared-esm-runtime --force-export`,
+      { cwd: frontendPluginDir },
+    );
+    expect(await assertSharedEsmRemoteExport(frontendPluginDir)).toBe(
+      scopedRuntimeFileName,
+    );
+  });
+
   it('creates a backend plugin that installs, typechecks, builds, and exports', async () => {
     const pluginDir = path.join(tmpDir, 'backend-plugin');
 
