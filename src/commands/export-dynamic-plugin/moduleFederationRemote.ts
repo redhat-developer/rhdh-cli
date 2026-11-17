@@ -13,11 +13,11 @@
  * early `federation-runtime.js`). Pass `--include-module-federation-runtime`
  * to embed the runtime again.
  *
- * Shrink flags for expose-only remotes:
- * - disableSnapshot / target web / disableRemote — drop unused MF paths
- * - disableShared — drops runtime-core share plugins (little remoteEntry win
- *   once externalRuntime is on; webpack share/consume glue for a non-empty
- *   `shared` config remains and dominates size for Backstage plugins)
+ * Shrink flags for expose-only remotes (`disableSnapshot`, `target: 'web'`,
+ * `disableRemote`). Do **not** set `disableShared`: Backstage remotes declare
+ * `shared` deps and still call `bundlerRuntime.installInitialConsumes`; with
+ * `disableShared` that becomes `void 0` and remotes fail at runtime
+ * (`installInitialConsumes is not a function` → RUNTIME-008).
  */
 
 export const REMOTE_MF_OPTIMIZATION = {
@@ -25,11 +25,6 @@ export const REMOTE_MF_OPTIMIZATION = {
   target: 'web' as const,
   /** Remotes only expose; they do not load other remotes. */
   disableRemote: true,
-  /**
-   * Omit runtime-core share plugins. Does not remove webpack container
-   * share/consume code emitted for a non-empty `shared` config.
-   */
-  disableShared: true,
 };
 
 type MfPluginOptions = {
