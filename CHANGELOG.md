@@ -4,6 +4,12 @@ All notable changes to `@red-hat-developer-hub/cli` are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). The major and minor version are synchronized with the corresponding RHDH release (see [Versioning Strategy](README.md#versioning-strategy)).
 
+## [Unreleased]
+
+### Added
+
+- **`plugin package`:** Container images now carry an `io.backstage.bundle-cli` OCI annotation with the CLI that built them (e.g. `@red-hat-developer-hub/cli@2.2.1`), alongside the existing `io.backstage.dynamic-packages` annotation. This makes it possible to trace which `rhdh-cli` release produced a given plugin image.
+
 ## 2.1.2 - 2026-09-29
 
 ### Changed
